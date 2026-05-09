@@ -1345,10 +1345,10 @@ export default function NewSale() {
       
       // Enhanced receipt data with better formatting - use actual sale ID
       const newReceiptData = {
-        shopName: "Lulu Fashion",
-        shopAddress: "Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi",
-        shopNumber: "+243 991 924 151 / +243 995 797 399",
-        shopRegistration: "LSH-RCCM-23-A-00842",
+        shopName: "Entre Nous Renove",
+        shopAddress: "",
+        shopNumber: "",
+        shopRegistration: "",
         customerName: form.customerName,
         customerPhone: form.customerPhone,
         customerEmail: form.customerEmail,

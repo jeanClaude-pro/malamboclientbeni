@@ -506,10 +506,10 @@ export default function EntryHistory() {
   <body>
     <div class="receipt-container">
       <div class="header">
-        <div class="shop-name"><strong>Lulu Fashion</strong></div>
-        <div class="shop-details"><strong>Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi</strong></div>
-        <div class="shop-details">TEL: <strong>+243 991 924 151 / +243 995 797 399</strong></div>
-        <div class="shop-details"><strong>LSH-RCCM-23-A-00842</strong></div>
+        <div class="shop-name"><strong></strong></div>
+        <div class="shop-details"><strong></strong></div>
+        <div class="shop-details"></strong></div>
+        <div class="shop-details"><strong></strong></div>
       </div>
       
       <div class="section-divider"></div>
@@ -586,13 +586,13 @@ export default function EntryHistory() {
 
     // Header
     doc.setFontSize(20);
-    doc.text("Lulu Fashion", 105, 10, { align: "center" });
+    doc.text("", 105, 10, { align: "center" });
     doc.setFontSize(10);
     
     doc.setFontSize(12);
-    doc.text("LSH-RCCM-23-A-00842", 105, 20, { align: "center" });
-    doc.text("+243 991 924 151 / +243 995 797 399", 105, 25, { align: "center" });
-    doc.text("Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi", 105, 30, { align: "center" });
+    doc.text("", 105, 20, { align: "center" });
+    doc.text("", 105, 25, { align: "center" });
+    doc.text("", 105, 30, { align: "center" });
 
     doc.setFontSize(16);
     doc.text("Reçu d'entrée d'argent", 105, 35, { align: "center" });
