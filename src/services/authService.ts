@@ -9,17 +9,32 @@ const API_BASE =
 export async function apiFetch<T>(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  if (!token && !path.startsWith("/auth/")) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 
   const data = (await res.json().catch(() => ({}))) as any;
-  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
+  if (!res.ok) throw new Error(data?.message || data?.error || `Request failed (${res.status})`);
   return data as T;
 }
 

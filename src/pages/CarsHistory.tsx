@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "../services/authService";
 import {
   Truck,
   MapPin,
@@ -112,20 +113,12 @@ interface EditFormData {
   notes?: string;
 }
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
 interface StatusUpdate {
   status: string;
   reason: string;
   currentLocation: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL;
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-100 text-blue-800 border-blue-200",
@@ -157,7 +150,6 @@ export default function CarsHistory() {
   const [statusUpdate, setStatusUpdate] = useState<StatusUpdate>({ status: "", reason: "", currentLocation: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [statusFilter, setStatusFilter] = useState("");
@@ -184,8 +176,7 @@ export default function CarsHistory() {
     try {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        const userData = JSON.parse(storedUser) as User;
-        setCurrentUser(userData);
+        const userData = JSON.parse(storedUser) as { role?: string };
         setIsAdmin(userData.role === "admin");
       }
     } catch (error) {
@@ -198,7 +189,6 @@ export default function CarsHistory() {
       setLoading(true);
       setError(null);
       
-      let url = `${API_BASE}/car-trips`;
       const params = new URLSearchParams();
       
       if (statusFilter) params.append("status", statusFilter);
@@ -206,23 +196,13 @@ export default function CarsHistory() {
       if (timeframe.from) params.append("from", timeframe.from);
       if (timeframe.to) params.append("to", timeframe.to);
       
-      if (params.toString()) url += `?${params.toString()}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-      });
-      
-      if (res.ok) {
-        const data = await res.json() as { data: CarTrip[] };
-        setTrips(data.data || []);
-      } else {
-        setError("Failed to load trips");
-      }
+      const query = params.toString() ? `?${params.toString()}` : "";
+
+      const data = await apiFetch<{ data: CarTrip[] }>(`/car-trips${query}`);
+      setTrips(data.data || []);
     } catch (error) {
       console.error("Error fetching trips:", error);
-      setError("Failed to load trips");
+      setError("Erreur lors du chargement des trajets");
     } finally {
       setLoading(false);
     }
@@ -314,30 +294,22 @@ export default function CarsHistory() {
     if (!editingTrip) return;
     
     try {
-      const res = await fetch(`${API_BASE}/car-trips/${editingTrip._id}/status`, {
+      await apiFetch(`/car-trips/${editingTrip._id}/status`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
         body: JSON.stringify({
           status: statusUpdate.status,
           reason: statusUpdate.reason,
           currentLocation: statusUpdate.currentLocation,
         }),
       });
-      
-      if (res.ok) {
-        setMessage(`✅ Statut mis à jour: ${statusLabels[statusUpdate.status] || statusUpdate.status}`);
-        fetchTrips();
-        setShowStatusModal(false);
-        setTimeout(() => setMessage(null), 3000);
-      } else {
-        const data = await res.json() as { error: string };
-        setError(data.error || "Failed to update status");
-      }
+
+      setMessage(`✅ Statut mis à jour: ${statusLabels[statusUpdate.status] || statusUpdate.status}`);
+      fetchTrips();
+      setShowStatusModal(false);
+      setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      setError("Failed to update status");
+      const msg = error instanceof Error ? error.message : "Erreur lors de la mise à jour du statut";
+      setError(msg);
     }
   };
 
@@ -364,27 +336,19 @@ export default function CarsHistory() {
       if (editForm.otherCosts !== undefined) updatePayload.otherCosts = editForm.otherCosts;
       if (editForm.notes !== undefined) updatePayload.notes = editForm.notes;
       
-      const res = await fetch(`${API_BASE}/car-trips/${editingTrip._id}`, {
+      await apiFetch(`/car-trips/${editingTrip._id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
         body: JSON.stringify(updatePayload),
       });
-      
-      if (res.ok) {
-        setMessage("✅ Trajet mis à jour avec succès");
-        fetchTrips();
-        setShowEditModal(false);
-        setEditingTrip(null);
-        setTimeout(() => setMessage(null), 3000);
-      } else {
-        const data = await res.json() as { error: string };
-        setError(data.error || "Failed to update trip");
-      }
+
+      setMessage("✅ Trajet mis à jour avec succès");
+      fetchTrips();
+      setShowEditModal(false);
+      setEditingTrip(null);
+      setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      setError("Failed to update trip");
+      const msg = error instanceof Error ? error.message : "Erreur lors de la mise à jour du trajet";
+      setError(msg);
     }
   };
 
@@ -399,23 +363,15 @@ export default function CarsHistory() {
     }
     
     try {
-      const res = await fetch(`${API_BASE}/car-trips/${trip._id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-      });
-      
-      if (res.ok) {
-        setMessage("✅ Trajet supprimé avec succès");
-        fetchTrips();
-        if (showModal) setShowModal(false);
-        setTimeout(() => setMessage(null), 3000);
-      } else {
-        setError("Failed to delete trip");
-      }
+      await apiFetch(`/car-trips/${trip._id}`, { method: "DELETE" });
+
+      setMessage("✅ Trajet supprimé avec succès");
+      fetchTrips();
+      if (showModal) setShowModal(false);
+      setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      setError("Failed to delete trip");
+      const msg = error instanceof Error ? error.message : "Erreur lors de la suppression du trajet";
+      setError(msg);
     }
   };
 

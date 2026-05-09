@@ -1,11 +1,10 @@
 // components/Cars.tsx
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { apiFetch } from "../services/authService";
 import { 
   Truck, 
   MapPin, 
   User, 
-  Phone, 
   Package, 
   Calendar, 
   DollarSign,
@@ -50,12 +49,10 @@ interface CarTrip {
   notes: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL;
+type ProductsResponse = Product[] | { products?: Product[] };
 
 export default function Cars() {
-  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,38 +92,28 @@ export default function Cars() {
 
   const loadProducts = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/products`, {
-        headers: {
-          Authorization: `Bearer ${token || ""}`,
-        },
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        const productsList = Array.isArray(data) ? data : data.products || [];
-        setProducts(productsList);
-      }
+      const data = await apiFetch<ProductsResponse>("/products");
+      const productsList = Array.isArray(data) ? data : data.products || [];
+      setProducts(productsList);
     } catch (error) {
       console.error("Error loading products:", error);
+      setError(getErrorMessage(error, "Erreur lors du chargement des produits"));
     }
   };
 
   const totalPieces = form.cargo.boxesCount * form.cargo.piecesPerBox;
   const totalCost = form.fuelCost + form.tollCost + form.otherCosts;
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    return error instanceof Error ? error.message : fallback;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
     if (name.includes(".")) {
       const [parent, child] = name.split(".");
-      setForm(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof CarTrip] as any,
-          [child]: value,
-        },
-      }));
+      setForm(prev => updateNestedFormValue(prev, parent, child, value));
     } else {
       setForm(prev => ({
         ...prev,
@@ -141,13 +128,7 @@ export default function Cars() {
     
     if (name.includes(".")) {
       const [parent, child] = name.split(".");
-      setForm(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof CarTrip] as any,
-          [child]: numValue,
-        },
-      }));
+      setForm(prev => updateNestedFormValue(prev, parent, child, numValue));
     } else {
       setForm(prev => ({
         ...prev,
@@ -211,59 +192,49 @@ export default function Cars() {
     setMessage(null);
     
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE}/cars`, {
+      await apiFetch("/cars", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token || ""}`,
-        },
         body: JSON.stringify(form),
       });
       
-      if (response.ok) {
-        setMessage("✅ Trajet enregistré avec succès !");
+      setMessage("✅ Trajet enregistré avec succès !");
         
-        // Reset form
-        setForm({
-          origin: "",
-          destination: "",
-          driver: {
-            name: "",
-            phone: "",
-            licenseNumber: "",
-          },
-          vehicle: {
-            plateNumber: "",
-            model: "",
-            capacity: 0,
-          },
-          cargo: {
-            productId: "",
-            boxesCount: 1,
-            piecesPerBox: 1,
-            weight: 0,
-            value: 0,
-          },
-          departureTime: "",
-          expectedArrivalTime: "",
-          fuelCost: 0,
-          tollCost: 0,
-          otherCosts: 0,
-          notes: "",
-        });
+      // Reset form
+      setForm({
+        origin: "",
+        destination: "",
+        driver: {
+          name: "",
+          phone: "",
+          licenseNumber: "",
+        },
+        vehicle: {
+          plateNumber: "",
+          model: "",
+          capacity: 0,
+        },
+        cargo: {
+          productId: "",
+          boxesCount: 1,
+          piecesPerBox: 1,
+          weight: 0,
+          value: 0,
+        },
+        departureTime: "",
+        expectedArrivalTime: "",
+        fuelCost: 0,
+        tollCost: 0,
+        otherCosts: 0,
+        notes: "",
+      });
         
-        // Trigger refresh in CarsHistory
-        window.dispatchEvent(new Event("tripCreated"));
+      // Trigger refresh in CarsHistory
+      window.dispatchEvent(new Event("tripCreated"));
         
-        setTimeout(() => setMessage(null), 5000);
-      } else {
-        const data = await response.json();
-        setError(data.error || "Erreur lors de l'enregistrement du trajet");
-      }
+      setTimeout(() => setMessage(null), 5000);
     } catch (error) {
       console.error("Error creating trip:", error);
-      setError("Erreur de connexion. Veuillez réessayer.");
+      setError(getErrorMessage(error, "Erreur de connexion. Veuillez réessayer."));
     } finally {
       setSubmitting(false);
     }
@@ -685,4 +656,40 @@ export default function Cars() {
       </div>
     </div>
   );
+}
+
+function updateNestedFormValue(
+  form: CarTrip,
+  parent: string,
+  child: string,
+  value: string | number
+): CarTrip {
+  switch (parent) {
+    case "driver":
+      return {
+        ...form,
+        driver: {
+          ...form.driver,
+          [child]: String(value),
+        },
+      };
+    case "vehicle":
+      return {
+        ...form,
+        vehicle: {
+          ...form.vehicle,
+          [child]: child === "capacity" ? Number(value) : String(value),
+        },
+      };
+    case "cargo":
+      return {
+        ...form,
+        cargo: {
+          ...form.cargo,
+          [child]: child === "productId" ? String(value) : Number(value),
+        },
+      };
+    default:
+      return form;
+  }
 }
