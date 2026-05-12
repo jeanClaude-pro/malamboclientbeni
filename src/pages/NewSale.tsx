@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { 
-  DollarSign, 
-  RefreshCw, 
-  Calculator, 
+import {
+  DollarSign,
+  RefreshCw,
+  Calculator,
   Search,
   ShoppingCart,
   User,
@@ -12,7 +12,10 @@ import {
   Mail,
   Package,
   Trash2,
-  Plus
+  Plus,
+  CreditCard,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Product {
@@ -210,7 +213,11 @@ export default function NewSale() {
     customerPhone: "",
     customerEmail: "",
     paymentMethod: "cash" as UiPayment,
-    currencyMode: "usd" as "usd" | "fc" // New field for currency mode
+    currencyMode: "usd" as "usd" | "fc",
+    // Credit sale fields
+    paymentMode: "normal" as "normal" | "credit",
+    creditAmountPaid: "",
+    creditDueDate: "",
   });
 
   const [message, setMessage] = useState<string | null>(null);
@@ -361,10 +368,14 @@ export default function NewSale() {
   const itemTotal = getLineTotal(paidQuantity, piecesPerCarton, unitPrice);
   const cartTotal = cart.reduce((sum, item) => sum + item.total, 0);
 
+  const creditAmountPaidNum = parseFloat(form.creditAmountPaid) || 0;
+  const isCreditSale = form.paymentMode === "credit";
+
+  // Credit sales require customer name + phone; normal sales have optional customer info
   const isFormValid =
     cart.length > 0 &&
-    form.customerName.trim() !== "" &&
-    form.customerPhone.trim() !== "";
+    (!isCreditSale || (form.customerName.trim() !== "" && form.customerPhone.trim() !== "")) &&
+    (!isCreditSale || creditAmountPaidNum <= cartTotal);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -856,28 +867,46 @@ export default function NewSale() {
       
       <div class="total-section">
         <div class="total-row">
-          <div><strong>SOUS-TOTAL:</strong></div>
-          <div><strong>$${receiptData.total.toFixed(2)}</strong></div>
-        </div>
-        <div class="total-row">
           <div><strong>TOTAL:</strong></div>
           <div><strong>$${receiptData.total.toFixed(2)}</strong></div>
         </div>
+        ${receiptData.isCredit ? `
+        <div class="total-row" style="color:#d97706">
+          <div><strong>VERSE:</strong></div>
+          <div><strong>$${receiptData.creditAmountPaid.toFixed(2)}</strong></div>
+        </div>
+        <div class="total-row" style="color:#ef4444">
+          <div><strong>SOLDE DU:</strong></div>
+          <div><strong>$${receiptData.creditAmountDue.toFixed(2)}</strong></div>
+        </div>
+        ${receiptData.creditDueDate ? `<div class="total-row" style="font-size:11px"><div><strong>ECHEANCE:</strong></div><div><strong>${receiptData.creditDueDate}</strong></div></div>` : ''}
+        <div class="total-row" style="background:#7c2d12;padding:2mm;border-radius:2px;color:white">
+          <div><strong>VENTE A CREDIT</strong></div>
+          <div><strong>⚠</strong></div>
+        </div>
+        ` : `
         <div class="total-row">
           <div><strong>PAIEMENT:</strong></div>
           <div class="payment-method"><strong>${receiptData.paymentMethod.toUpperCase()}</strong></div>
         </div>
+        `}
       </div>
-      
+
       <div class="sales-person">
         Agent: <strong>${receiptData.salesPerson.toUpperCase()}</strong>
       </div>
-      
+
       <div class="footer">
-        <div class="thank-you"><strong>MERCI POUR VOTRE ACHAT !</strong></div>
-        <div class="warning"><strong>Article non echangeable</strong></div>
-        <div class="warning"><strong>Non remboursable</strong></div>
-        <div class="thank-you"><strong>A BIENTOT !</strong></div>
+        ${receiptData.isCredit
+          ? `<div class="thank-you" style="color:#d97706"><strong>VENTE A CREDIT</strong></div>
+             <div class="warning"><strong>Solde du: $${receiptData.creditAmountDue.toFixed(2)}</strong></div>
+             ${receiptData.creditDueDate ? `<div class="warning"><strong>A regler avant: ${receiptData.creditDueDate}</strong></div>` : ''}
+             <div class="warning"><strong>Entre Nous Renove</strong></div>`
+          : `<div class="thank-you"><strong>MERCI POUR VOTRE ACHAT !</strong></div>
+             <div class="warning"><strong>Article non echangeable</strong></div>
+             <div class="warning"><strong>Non remboursable</strong></div>
+             <div class="thank-you"><strong>A BIENTOT !</strong></div>`
+        }
       </div>
       
       <!-- PAPER CUT INDICATOR -->
@@ -1176,10 +1205,25 @@ export default function NewSale() {
           <div><strong>TOTAL VENTE:</strong></div>
           <div><strong>$${receiptData.total.toFixed(2)}</strong></div>
         </div>
+        ${receiptData.isCredit ? `
+        <div class="total-row" style="color:#d97706">
+          <div><strong>VERSE:</strong></div>
+          <div><strong>$${receiptData.creditAmountPaid.toFixed(2)}</strong></div>
+        </div>
+        <div class="total-row" style="color:#ef4444">
+          <div><strong>SOLDE DU:</strong></div>
+          <div><strong>$${receiptData.creditAmountDue.toFixed(2)}</strong></div>
+        </div>
+        <div class="total-row" style="background:#7c2d12;padding:2mm;border-radius:2px;color:white">
+          <div><strong>CREDIT</strong></div>
+          <div><strong>⚠</strong></div>
+        </div>
+        ` : `
         <div class="total-row">
           <div><strong>PAIEMENT:</strong></div>
           <div class="payment-method"><strong>${receiptData.paymentMethod.toUpperCase()}</strong></div>
         </div>
+        `}
       </div>
       
       <div class="sales-person">
@@ -1287,7 +1331,10 @@ export default function NewSale() {
         return;
       }
 
-      const body = {
+      const isCreditSale = form.paymentMode === "credit";
+      const creditAmountPaidNum = isCreditSale ? parseFloat(form.creditAmountPaid) || 0 : 0;
+
+      const body: Record<string, unknown> = {
         customer: {
           name: form.customerName,
           phone: form.customerPhone,
@@ -1310,6 +1357,11 @@ export default function NewSale() {
         total: cartTotal,
         paymentMethod: uiToModelPayment(form.paymentMethod),
         salesPerson: currentUser?.username || "unknown",
+        paymentType: isCreditSale ? "credit" : "cash",
+        ...(isCreditSale && {
+          creditAmountPaid: creditAmountPaidNum,
+          creditDueDate: form.creditDueDate || undefined,
+        }),
       };
 
       const res = await fetch(`${API_BASE}/sales`, {
@@ -1357,8 +1409,13 @@ export default function NewSale() {
         paymentMethod: form.paymentMethod,
         salesPerson: currentUser?.username || "Agent",
         date: formatGmt2DateTime(new Date()),
-        receiptNumber: saleId, // Use actual sale ID from API
-        stubNumber: saleId, // Use actual sale ID from API for stub as well
+        receiptNumber: saleId,
+        stubNumber: saleId,
+        // Credit info
+        isCredit: isCreditSale,
+        creditAmountPaid: isCreditSale ? creditAmountPaidNum : cartTotal,
+        creditAmountDue: isCreditSale ? Math.max(0, cartTotal - creditAmountPaidNum) : 0,
+        creditDueDate: form.creditDueDate || null,
       };
 
       setReceiptData(newReceiptData);
@@ -1388,7 +1445,10 @@ export default function NewSale() {
         customerPhone: "",
         customerEmail: "",
         paymentMethod: form.paymentMethod,
-        currencyMode: "usd"
+        currencyMode: "usd",
+        paymentMode: "normal",
+        creditAmountPaid: "",
+        creditDueDate: "",
       });
       setCart([]);
       setSearchTerm("");
@@ -1781,11 +1841,88 @@ export default function NewSale() {
             <User className="w-5 h-5" />
             Informations du client
           </h3>
+
+          {/* Payment Mode Toggle */}
+          <div className="mb-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, paymentMode: "normal", creditAmountPaid: "", creditDueDate: "" }))}
+              className={`flex-1 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 border transition-all duration-200 ${
+                !isCreditSale
+                  ? "bg-green-700 border-green-500 text-white shadow-lg shadow-green-900/40"
+                  : "bg-black/30 border-blue-800/50 text-blue-300 hover:bg-blue-900/30"
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Vente normale (Payée)
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, paymentMode: "credit" }))}
+              className={`flex-1 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 border transition-all duration-200 ${
+                isCreditSale
+                  ? "bg-amber-700 border-amber-500 text-white shadow-lg shadow-amber-900/40"
+                  : "bg-black/30 border-blue-800/50 text-blue-300 hover:bg-blue-900/30"
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              Vente à crédit
+            </button>
+          </div>
+
+          {/* Credit Warning Banner */}
+          {isCreditSale && (
+            <div className="mb-6 p-4 bg-amber-900/30 border border-amber-600/50 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-amber-300 font-semibold text-sm">Vente à crédit — les marchandises sont remises au client</p>
+                <p className="text-amber-200/70 text-xs mt-1">
+                  Le stock sera déduit immédiatement. Indiquez le montant versé à l'avance et la date d'échéance.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block mb-2 font-medium text-blue-200">
+                <Phone className="w-4 h-4 inline mr-1" />
+                Téléphone du client {isCreditSale ? <span className="text-red-400 text-xs">*</span> : <span className="text-blue-400/60 text-xs">(optionnel)</span>}
+              </label>
+              <input
+                type="tel"
+                name="customerPhone"
+                value={form.customerPhone}
+                onChange={handleChange}
+                onBlur={async (e) => {
+                  const phone = e.target.value.trim();
+                  if (!phone) return;
+                  try {
+                    const res = await fetch(`${API_BASE}/customers/phone/${encodeURIComponent(phone)}`, {
+                      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+                    });
+                    if (res.ok) {
+                      const found = await res.json();
+                      setForm((f) => ({
+                        ...f,
+                        customerName: found.name || f.customerName,
+                        customerEmail: found.email || f.customerEmail,
+                      }));
+                    }
+                  } catch {
+                    // silent — phone lookup is best-effort
+                  }
+                }}
+                placeholder="Ex: 0812345678"
+                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                required={isCreditSale}
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium text-blue-200">
                 <User className="w-4 h-4 inline mr-1" />
-                Nom du client *
+                Nom du client {isCreditSale ? <span className="text-red-400 text-xs">*</span> : <span className="text-blue-400/60 text-xs">(optionnel)</span>}
               </label>
               <input
                 type="text"
@@ -1794,23 +1931,7 @@ export default function NewSale() {
                 onChange={handleChange}
                 placeholder="Entrer le nom du client"
                 className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium text-blue-200">
-                <Phone className="w-4 h-4 inline mr-1" />
-                Numéro de téléphone du client *
-              </label>
-              <input
-                type="tel"
-                name="customerPhone"
-                value={form.customerPhone}
-                onChange={handleChange}
-                placeholder="Entrer le numéro de téléphone"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
-                required
+                required={isCreditSale}
               />
             </div>
 
@@ -1831,7 +1952,7 @@ export default function NewSale() {
 
             <div>
               <label className="block mb-2 font-medium text-blue-200">
-                Méthode de paiement
+                Méthode de paiement {isCreditSale && <span className="text-amber-400 text-xs">(versement initial)</span>}
               </label>
               <select
                 name="paymentMethod"
@@ -1849,13 +1970,68 @@ export default function NewSale() {
             </div>
           </div>
 
+          {/* Credit-specific fields */}
+          {isCreditSale && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-amber-950/20 border border-amber-700/30 rounded-lg">
+              <div>
+                <label className="block mb-2 font-medium text-amber-300 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Montant versé à l'avance (USD)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={cartTotal}
+                  name="creditAmountPaid"
+                  value={form.creditAmountPaid}
+                  onChange={handleChange}
+                  placeholder="0.00 (laisser vide si rien payé)"
+                  className="w-full p-3 bg-black/50 border border-amber-700/50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white placeholder-amber-300/40"
+                />
+                {creditAmountPaidNum > 0 && cartTotal > 0 && (
+                  <p className="text-xs text-amber-300 mt-1">
+                    Solde restant: <strong className="text-white">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
+                    {exchangeRate && (
+                      <span className="ml-1 text-amber-200/60">
+                        ≈ {formatFc(Math.max(0, cartTotal - creditAmountPaidNum) * exchangeRate.rate)}
+                      </span>
+                    )}
+                  </p>
+                )}
+                {creditAmountPaidNum === 0 && cartTotal > 0 && (
+                  <p className="text-xs text-amber-400 mt-1">
+                    Tout le montant ({formatCurrency(cartTotal)}) est dû à crédit
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block mb-2 font-medium text-amber-300 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Date d'échéance de paiement
+                </label>
+                <input
+                  type="date"
+                  name="creditDueDate"
+                  value={form.creditDueDate}
+                  onChange={handleChange}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full p-3 bg-black/50 border border-amber-700/50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                />
+                <p className="text-xs text-amber-300/60 mt-1">Optionnel — date limite de règlement</p>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             onClick={handleSale}
             disabled={!isFormValid || submitting}
             className={`w-full px-8 py-4 rounded-xl font-medium text-lg transition-all duration-200 ${
               isFormValid && !submitting
-                ? "bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white shadow-lg shadow-green-900/50 border border-green-400/30"
+                ? isCreditSale
+                  ? "bg-gradient-to-r from-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white shadow-lg shadow-amber-900/50 border border-amber-400/30"
+                  : "bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white shadow-lg shadow-green-900/50 border border-green-400/30"
                 : "bg-gray-800 cursor-not-allowed text-gray-500 border border-gray-700"
             }`}
           >
@@ -1863,6 +2039,16 @@ export default function NewSale() {
               <span className="flex items-center justify-center gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin" />
                 En cours d'enregistrement...
+              </span>
+            ) : isCreditSale ? (
+              <span className="flex items-center justify-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Enregistrer la vente à crédit
+                {cartTotal > 0 && creditAmountPaidNum < cartTotal && (
+                  <span className="text-sm opacity-80">
+                    ({formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))} à récupérer)
+                  </span>
+                )}
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">

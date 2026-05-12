@@ -23,6 +23,7 @@ import {
   FileText,
   History,
   Navigation,
+  PackageCheck,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
@@ -54,6 +55,14 @@ interface CarTrip {
   departureTime: string;
   expectedArrivalTime: string;
   actualArrivalTime: string | null;
+  arrivalDetails?: {
+    confirmedAt: string | null;
+    confirmedBy: string;
+    receivedBoxes: number;
+    receivedPieces: number;
+    totalReceivedPieces: number;
+    notes: string;
+  };
   status: "planned" | "en_route" | "delayed" | "arrived" | "cancelled" | "completed";
   currentLocation: string;
   lastUpdate: string;
@@ -159,6 +168,16 @@ export default function CarsHistory() {
   
   const [editForm, setEditForm] = useState<EditFormData>({});
   const [editReason, setEditReason] = useState("");
+
+  const [showArrivalModal, setShowArrivalModal] = useState(false);
+  const [arrivalTrip, setArrivalTrip] = useState<CarTrip | null>(null);
+  const [arrivalForm, setArrivalForm] = useState({
+    arrivalDate: new Date().toISOString().slice(0, 10),
+    receivedBoxes: 0,
+    receivedPieces: 0,
+    notes: "",
+  });
+  const [arrivalSubmitting, setArrivalSubmitting] = useState(false);
 
   useEffect(() => {
     fetchCurrentUser();
@@ -494,6 +513,56 @@ export default function CarsHistory() {
     }));
   };
 
+  const openArrivalModal = (trip: CarTrip) => {
+    setArrivalTrip(trip);
+    setArrivalForm({
+      arrivalDate: new Date().toISOString().slice(0, 10),
+      receivedBoxes: trip.cargo.boxesCount,
+      receivedPieces: trip.cargo.piecesPerBox,
+      notes: "",
+    });
+    setShowArrivalModal(true);
+  };
+
+  const handleConfirmArrival = async () => {
+    if (!arrivalTrip) return;
+
+    if (arrivalForm.receivedBoxes < 0) {
+      setError("Le nombre de cartons reçus ne peut pas être négatif");
+      return;
+    }
+    if (arrivalForm.receivedPieces < 0) {
+      setError("Le nombre de pièces reçues ne peut pas être négatif");
+      return;
+    }
+
+    setArrivalSubmitting(true);
+    setError(null);
+
+    try {
+      await apiFetch(`/car-trips/${arrivalTrip._id}/confirm-arrival`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          actualArrivalTime: `${arrivalForm.arrivalDate}T12:00:00`,
+          receivedBoxes: arrivalForm.receivedBoxes,
+          receivedPieces: arrivalForm.receivedPieces,
+          notes: arrivalForm.notes.trim(),
+        }),
+      });
+
+      setMessage(`Arrivée confirmée pour le trajet ${arrivalTrip.tripId}`);
+      setShowArrivalModal(false);
+      setArrivalTrip(null);
+      if (showModal && selectedTrip?._id === arrivalTrip._id) setShowModal(false);
+      fetchTrips();
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de la confirmation d'arrivée");
+    } finally {
+      setArrivalSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -700,7 +769,7 @@ export default function CarsHistory() {
                         {formatDate(trip.departureTime)}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => viewTripDetails(trip)}
                             className="text-blue-600 hover:text-blue-900"
@@ -722,6 +791,15 @@ export default function CarsHistory() {
                           >
                             <Navigation className="w-4 h-4" />
                           </button>
+                          {(trip.status === "en_route" || trip.status === "delayed") && (
+                            <button
+                              onClick={() => openArrivalModal(trip)}
+                              className="text-emerald-700 hover:text-emerald-900"
+                              title="Confirmer l'arrivée"
+                            >
+                              <PackageCheck className="w-4 h-4" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               onClick={() => handleDeleteTrip(trip)}
@@ -902,6 +980,51 @@ export default function CarsHistory() {
                 </div>
               </div>
               
+              {/* Arrival Details */}
+              {selectedTrip.status === "arrived" && selectedTrip.arrivalDetails?.confirmedAt && (
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <PackageCheck className="w-4 h-4 text-green-600" />
+                    Réception confirmée
+                  </h4>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500">Confirmé le</p>
+                        <p className="font-medium">{formatDate(selectedTrip.arrivalDetails.confirmedAt)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Confirmé par</p>
+                        <p className="font-medium">{selectedTrip.arrivalDetails.confirmedBy || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Cartons reçus</p>
+                        <p className="font-medium text-green-700">{selectedTrip.arrivalDetails.receivedBoxes}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Pièces reçues/carton</p>
+                        <p className="font-medium text-green-700">{selectedTrip.arrivalDetails.receivedPieces}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm border-t border-green-200 pt-3">
+                      <span className="text-gray-600">Total pièces reçues:</span>
+                      <span className="font-bold text-green-800 text-lg">
+                        {selectedTrip.arrivalDetails.totalReceivedPieces.toLocaleString()}
+                      </span>
+                    </div>
+                    {selectedTrip.arrivalDetails.totalReceivedPieces !== selectedTrip.cargo.totalPieces && (
+                      <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                        Différence: {(selectedTrip.arrivalDetails.totalReceivedPieces - selectedTrip.cargo.totalPieces).toLocaleString()} pièces
+                        ({selectedTrip.arrivalDetails.totalReceivedPieces > selectedTrip.cargo.totalPieces ? "surplus" : "manquant"})
+                      </div>
+                    )}
+                    {selectedTrip.arrivalDetails.notes && (
+                      <p className="text-sm text-gray-600 italic">{selectedTrip.arrivalDetails.notes}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Notes */}
               {selectedTrip.notes && (
                 <div className="border-t pt-4">
@@ -937,7 +1060,7 @@ export default function CarsHistory() {
               )}
               
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t">
+              <div className="flex gap-3 pt-4 border-t flex-wrap">
                 <button
                   onClick={() => generateTripPDF(selectedTrip)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -959,6 +1082,15 @@ export default function CarsHistory() {
                   <Navigation className="w-4 h-4" />
                   Changer statut
                 </button>
+                {(selectedTrip.status === "en_route" || selectedTrip.status === "delayed") && (
+                  <button
+                    onClick={() => { setShowModal(false); openArrivalModal(selectedTrip); }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    Confirmer l'arrivée
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1029,6 +1161,110 @@ export default function CarsHistory() {
         </div>
       )}
       
+      {/* Arrival Confirmation Modal */}
+      {showArrivalModal && arrivalTrip && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl max-w-lg w-full mx-4 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                <PackageCheck className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirmer l'arrivée</h3>
+                <p className="text-sm text-gray-500">Trajet {arrivalTrip.tripId} — {arrivalTrip.origin} → {arrivalTrip.destination}</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 text-sm">
+              <p className="text-blue-700 font-medium">Chargement envoyé:</p>
+              <p className="text-blue-600">
+                {arrivalTrip.cargo.productName} — {arrivalTrip.cargo.boxesCount} cartons × {arrivalTrip.cargo.piecesPerBox} pièces
+                = <strong>{arrivalTrip.cargo.totalPieces.toLocaleString()} pièces</strong>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date d'arrivée *</label>
+                <input
+                  type="date"
+                  value={arrivalForm.arrivalDate}
+                  onChange={(e) => setArrivalForm(f => ({ ...f, arrivalDate: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cartons reçus *</label>
+                  <input
+                    type="number"
+                    value={arrivalForm.receivedBoxes}
+                    onChange={(e) => setArrivalForm(f => ({ ...f, receivedBoxes: parseInt(e.target.value) || 0 }))}
+                    min="0"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pièces par carton reçu *</label>
+                  <input
+                    type="number"
+                    value={arrivalForm.receivedPieces}
+                    onChange={(e) => setArrivalForm(f => ({ ...f, receivedPieces: parseInt(e.target.value) || 0 }))}
+                    min="0"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 text-sm flex justify-between items-center">
+                <span className="text-gray-600">Total pièces reçues:</span>
+                <span className="font-bold text-lg text-gray-900">
+                  {(arrivalForm.receivedBoxes * arrivalForm.receivedPieces).toLocaleString()}
+                </span>
+              </div>
+
+              {arrivalForm.receivedBoxes * arrivalForm.receivedPieces !== arrivalTrip.cargo.totalPieces && (
+                <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  Différence vs envoi: {((arrivalForm.receivedBoxes * arrivalForm.receivedPieces) - arrivalTrip.cargo.totalPieces).toLocaleString()} pièces
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes de réception</label>
+                <textarea
+                  value={arrivalForm.notes}
+                  onChange={(e) => setArrivalForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="État de la marchandise, observations..."
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleConfirmArrival}
+                disabled={arrivalSubmitting || !arrivalForm.arrivalDate}
+                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+              >
+                {arrivalSubmitting ? (
+                  <><RefreshCw className="w-4 h-4 animate-spin" /> Enregistrement...</>
+                ) : (
+                  <><PackageCheck className="w-4 h-4" /> Confirmer l'arrivée</>
+                )}
+              </button>
+              <button
+                onClick={() => { setShowArrivalModal(false); setArrivalTrip(null); }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Modal */}
       {showEditModal && editingTrip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

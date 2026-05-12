@@ -1,654 +1,381 @@
 // components/Cars.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { apiFetch } from "../services/authService";
-import { 
-  Truck, 
-  MapPin, 
-  User, 
-  Package, 
-  Calendar, 
-  DollarSign,
+import {
+  Truck,
+  MapPin,
+  User,
+  Package,
+  Calendar,
   RefreshCw,
   Plus,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
 
-interface Product {
-  _id: string;
-  name: string;
-  stock: number;
-  price?: number;
-}
-
-interface CarTrip {
+interface CarTripForm {
   origin: string;
   destination: string;
-  driver: {
-    name: string;
-    phone: string;
-    licenseNumber: string;
-  };
-  vehicle: {
-    plateNumber: string;
-    model: string;
-    capacity: number;
-  };
-  cargo: {
-    productId: string;
-    boxesCount: number;
-    piecesPerBox: number;
-    weight: number;
-    value: number;
-  };
-  departureTime: string;
-  expectedArrivalTime: string;
-  fuelCost: number;
-  tollCost: number;
-  otherCosts: number;
+  driver: { name: string; phone: string; licenseNumber: string };
+  vehicle: { plateNumber: string; model: string; capacity: number };
+  cargo: { productName: string; boxesCount: number; piecesPerBox: number; weight: number };
+  departureDate: string;
   notes: string;
 }
 
-type ProductsResponse = Product[] | { products?: Product[] };
+const EMPTY_FORM: CarTripForm = {
+  origin: "",
+  destination: "",
+  driver: { name: "", phone: "", licenseNumber: "" },
+  vehicle: { plateNumber: "", model: "", capacity: 0 },
+  cargo: { productName: "", boxesCount: 1, piecesPerBox: 1, weight: 0 },
+  departureDate: new Date().toISOString().slice(0, 10),
+  notes: "",
+};
 
 export default function Cars() {
-  const [products, setProducts] = useState<Product[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  const [form, setForm] = useState<CarTrip>({
-    origin: "",
-    destination: "",
-    driver: {
-      name: "",
-      phone: "",
-      licenseNumber: "",
-    },
-    vehicle: {
-      plateNumber: "",
-      model: "",
-      capacity: 0,
-    },
-    cargo: {
-      productId: "",
-      boxesCount: 1,
-      piecesPerBox: 1,
-      weight: 0,
-      value: 0,
-    },
-    departureTime: "",
-    expectedArrivalTime: "",
-    fuelCost: 0,
-    tollCost: 0,
-    otherCosts: 0,
-    notes: "",
-  });
-
-  // Load products
-  useEffect(() => {
-    loadProducts();
-  }, []);
-
-  const loadProducts = async () => {
-    try {
-      const data = await apiFetch<ProductsResponse>("/products");
-      const productsList = Array.isArray(data) ? data : data.products || [];
-      setProducts(productsList);
-    } catch (error) {
-      console.error("Error loading products:", error);
-      setError(getErrorMessage(error, "Erreur lors du chargement des produits"));
-    }
-  };
+  const [form, setForm] = useState<CarTripForm>(EMPTY_FORM);
 
   const totalPieces = form.cargo.boxesCount * form.cargo.piecesPerBox;
-  const totalCost = form.fuelCost + form.tollCost + form.otherCosts;
 
-  const getErrorMessage = (error: unknown, fallback: string) => {
-    return error instanceof Error ? error.message : fallback;
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
-      setForm(prev => updateNestedFormValue(prev, parent, child, value));
-    } else {
-      setForm(prev => ({
+  const setStr = (path: string, value: string) => {
+    const [parent, child] = path.split(".");
+    if (child) {
+      setForm((prev) => ({
         ...prev,
-        [name]: value,
+        [parent]: { ...((prev as unknown as Record<string, unknown>)[parent] as object), [child]: value },
       }));
-    }
-  };
-
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    const numValue = value === "" ? 0 : parseFloat(value);
-    
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
-      setForm(prev => updateNestedFormValue(prev, parent, child, numValue));
     } else {
-      setForm(prev => ({
-        ...prev,
-        [name]: numValue,
-      }));
+      setForm((prev) => ({ ...prev, [path]: value }));
     }
   };
 
-  const validateForm = (): boolean => {
-    if (!form.origin.trim()) {
-      setError("Veuillez saisir le lieu de départ");
-      return false;
+  const setNum = (path: string, value: number) => {
+    const [parent, child] = path.split(".");
+    if (child) {
+      setForm((prev) => ({
+        ...prev,
+        [parent]: { ...((prev as unknown as Record<string, unknown>)[parent] as object), [child]: value },
+      }));
+    } else {
+      setForm((prev) => ({ ...prev, [path]: value }));
     }
-    if (!form.destination.trim()) {
-      setError("Veuillez saisir la destination");
-      return false;
-    }
-    if (!form.driver.name.trim()) {
-      setError("Veuillez saisir le nom du chauffeur");
-      return false;
-    }
-    if (!form.driver.phone.trim()) {
-      setError("Veuillez saisir le numéro de téléphone du chauffeur");
-      return false;
-    }
-    if (!form.vehicle.plateNumber.trim()) {
-      setError("Veuillez saisir le numéro de plaque du véhicule");
-      return false;
-    }
-    if (!form.cargo.productId) {
-      setError("Veuillez sélectionner un produit");
-      return false;
-    }
-    if (form.cargo.boxesCount < 1) {
-      setError("Le nombre de cartons doit être au moins 1");
-      return false;
-    }
-    if (form.cargo.piecesPerBox < 1) {
-      setError("Le nombre de pièces par carton doit être au moins 1");
-      return false;
-    }
-    if (!form.departureTime) {
-      setError("Veuillez saisir la date et heure de départ");
-      return false;
-    }
-    if (!form.expectedArrivalTime) {
-      setError("Veuillez saisir la date et heure d'arrivée prévue");
-      return false;
-    }
-    
-    return true;
+  };
+
+  const validate = (): string | null => {
+    if (!form.origin.trim()) return "Veuillez saisir le lieu de départ";
+    if (!form.destination.trim()) return "Veuillez saisir la destination";
+    if (!form.driver.name.trim()) return "Veuillez saisir le nom du chauffeur";
+    if (!form.driver.phone.trim()) return "Veuillez saisir le téléphone du chauffeur";
+    if (!form.vehicle.plateNumber.trim()) return "Veuillez saisir le numéro de plaque";
+    if (!form.cargo.productName.trim()) return "Veuillez saisir le nom du produit";
+    if (form.cargo.boxesCount < 1) return "Le nombre de cartons doit être au moins 1";
+    if (form.cargo.piecesPerBox < 1) return "Le nombre de pièces par carton doit être au moins 1";
+    if (!form.departureDate) return "Veuillez saisir la date de départ";
+    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) return;
-    
+    const err = validate();
+    if (err) { setError(err); return; }
+
     setSubmitting(true);
     setError(null);
     setMessage(null);
-    
+
     try {
       await apiFetch("/cars", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          origin: form.origin.trim(),
+          destination: form.destination.trim(),
+          driver: {
+            name: form.driver.name.trim(),
+            phone: form.driver.phone.trim(),
+            licenseNumber: form.driver.licenseNumber.trim(),
+          },
+          vehicle: {
+            plateNumber: form.vehicle.plateNumber.trim().toUpperCase(),
+            model: form.vehicle.model.trim(),
+            capacity: form.vehicle.capacity,
+          },
+          cargo: {
+            productName: form.cargo.productName.trim(),
+            boxesCount: form.cargo.boxesCount,
+            piecesPerBox: form.cargo.piecesPerBox,
+            weight: form.cargo.weight,
+          },
+          departureTime: `${form.departureDate}T06:00:00`,
+          notes: form.notes.trim(),
+        }),
       });
-      
-      setMessage("✅ Trajet enregistré avec succès !");
-        
-      // Reset form
-      setForm({
-        origin: "",
-        destination: "",
-        driver: {
-          name: "",
-          phone: "",
-          licenseNumber: "",
-        },
-        vehicle: {
-          plateNumber: "",
-          model: "",
-          capacity: 0,
-        },
-        cargo: {
-          productId: "",
-          boxesCount: 1,
-          piecesPerBox: 1,
-          weight: 0,
-          value: 0,
-        },
-        departureTime: "",
-        expectedArrivalTime: "",
-        fuelCost: 0,
-        tollCost: 0,
-        otherCosts: 0,
-        notes: "",
-      });
-        
-      // Trigger refresh in CarsHistory
+
+      setMessage("Trajet enregistré avec succès ! Le camion est en route.");
+      setForm({ ...EMPTY_FORM, departureDate: new Date().toISOString().slice(0, 10) });
       window.dispatchEvent(new Event("tripCreated"));
-        
-      setTimeout(() => setMessage(null), 5000);
-    } catch (error) {
-      console.error("Error creating trip:", error);
-      setError(getErrorMessage(error, "Erreur de connexion. Veuillez réessayer."));
+      setTimeout(() => setMessage(null), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de connexion. Veuillez réessayer.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const inputCls =
+    "w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 outline-none";
+  const labelCls = "block mb-2 font-medium text-blue-200";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
+        <div className="mb-2">
+          <div className="flex items-center gap-3 mb-1">
             <Truck className="w-8 h-8 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white">Nouveau Trajet</h1>
+            <h1 className="text-2xl font-bold text-white">Nouveau Départ de Camion</h1>
           </div>
           <p className="text-blue-200/70">
-            Enregistrer un nouveau trajet de camion avec les détails du chargement
+            Enregistrez le départ. L'arrivée et la réception seront confirmées dans l'historique.
           </p>
         </div>
-        
-        {/* Messages */}
+
         {message && (
           <div className="p-4 bg-green-900/50 border border-green-700/50 text-green-300 rounded-xl flex items-center gap-2">
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5 shrink-0" />
             {message}
           </div>
         )}
         {error && (
           <div className="p-4 bg-red-900/50 border border-red-700/50 text-red-300 rounded-xl flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
+            <AlertCircle className="w-5 h-5 shrink-0" />
             {error}
           </div>
         )}
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Section 1: Origin & Destination */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
+          {/* Route */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
             <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <MapPin className="w-5 h-5" />
-              Itinéraire
+              <MapPin className="w-5 h-5" /> Itinéraire
             </h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Lieu de départ *
-                </label>
+                <label className={labelCls}>Lieu de départ *</label>
                 <input
                   type="text"
-                  name="origin"
                   value={form.origin}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("origin", e.target.value)}
                   placeholder="Ex: Lubumbashi"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Destination *
-                </label>
+                <label className={labelCls}>Destination *</label>
                 <input
                   type="text"
-                  name="destination"
                   value={form.destination}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("destination", e.target.value)}
                   placeholder="Ex: Kinshasa"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
             </div>
-          </div>
-          
-          {/* Section 2: Driver Information */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
+          </section>
+
+          {/* Departure date */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
             <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <User className="w-5 h-5" />
-              Informations du Chauffeur
+              <Calendar className="w-5 h-5" /> Date de départ
             </h2>
-            
+            <div className="max-w-xs">
+              <label className={labelCls}>Jour du départ *</label>
+              <input
+                type="date"
+                value={form.departureDate}
+                onChange={(e) => setStr("departureDate", e.target.value)}
+                className={inputCls}
+              />
+              <p className="mt-1 text-xs text-blue-300/50">
+                L'heure exacte sera enregistrée au moment de la soumission. L'arrivée est confirmée séparément.
+              </p>
+            </div>
+          </section>
+
+          {/* Driver */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
+            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+              <User className="w-5 h-5" /> Chauffeur
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Nom complet *
-                </label>
+                <label className={labelCls}>Nom complet *</label>
                 <input
                   type="text"
-                  name="driver.name"
                   value={form.driver.name}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("driver.name", e.target.value)}
                   placeholder="Nom du chauffeur"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Téléphone *
-                </label>
+                <label className={labelCls}>Téléphone *</label>
                 <input
                   type="tel"
-                  name="driver.phone"
                   value={form.driver.phone}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("driver.phone", e.target.value)}
                   placeholder="+243 XXX XXX XXX"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Permis de conduire
-                </label>
+                <label className={labelCls}>N° Permis</label>
                 <input
                   type="text"
-                  name="driver.licenseNumber"
                   value={form.driver.licenseNumber}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("driver.licenseNumber", e.target.value)}
                   placeholder="Numéro de permis"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
             </div>
-          </div>
-          
-          {/* Section 3: Vehicle Information */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
+          </section>
+
+          {/* Vehicle */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
             <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <Truck className="w-5 h-5" />
-              Informations du Véhicule
+              <Truck className="w-5 h-5" /> Véhicule
             </h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Numéro de plaque *
-                </label>
+                <label className={labelCls}>N° de plaque *</label>
                 <input
                   type="text"
-                  name="vehicle.plateNumber"
                   value={form.vehicle.plateNumber}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("vehicle.plateNumber", e.target.value)}
                   placeholder="Ex: LU 1234 A"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 uppercase"
+                  className={`${inputCls} uppercase`}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Modèle
-                </label>
+                <label className={labelCls}>Modèle</label>
                 <input
                   type="text"
-                  name="vehicle.model"
                   value={form.vehicle.model}
-                  onChange={handleChange}
+                  onChange={(e) => setStr("vehicle.model", e.target.value)}
                   placeholder="Ex: Mercedes Actros"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className={inputCls}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Capacité (tonnes)
-                </label>
+                <label className={labelCls}>Capacité (tonnes)</label>
                 <input
                   type="number"
-                  name="vehicle.capacity"
                   value={form.vehicle.capacity || ""}
-                  onChange={handleNumberChange}
+                  onChange={(e) => setNum("vehicle.capacity", parseFloat(e.target.value) || 0)}
                   placeholder="0"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
                   min="0"
                   step="0.5"
+                  className={inputCls}
                 />
               </div>
             </div>
-          </div>
-          
-          {/* Section 4: Cargo Details */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
+          </section>
+
+          {/* Cargo */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
             <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <Package className="w-5 h-5" />
-              Détails du Chargement
+              <Package className="w-5 h-5" /> Chargement envoyé
             </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Produit *
-                </label>
-                <select
-                  name="cargo.productId"
-                  value={form.cargo.productId}
-                  onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                >
-                  <option value="">Sélectionner un produit</option>
-                  {products.map(product => (
-                    <option key={product._id} value={product._id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Nombre de cartons *
-                </label>
-                <input
-                  type="number"
-                  name="cargo.boxesCount"
-                  value={form.cargo.boxesCount}
-                  onChange={handleNumberChange}
-                  min="1"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Pièces par carton *
-                </label>
-                <input
-                  type="number"
-                  name="cargo.piecesPerBox"
-                  value={form.cargo.piecesPerBox}
-                  onChange={handleNumberChange}
-                  min="1"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Poids total (kg)
-                </label>
-                <input
-                  type="number"
-                  name="cargo.weight"
-                  value={form.cargo.weight || ""}
-                  onChange={handleNumberChange}
-                  min="0"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Valeur estimée (USD)
-                </label>
-                <input
-                  type="number"
-                  name="cargo.value"
-                  value={form.cargo.value || ""}
-                  onChange={handleNumberChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
-              </div>
-            </div>
-            
-            {/* Summary Card */}
-            <div className="bg-blue-950/30 rounded-lg p-4 border border-blue-800/30">
-              <h3 className="text-sm font-semibold text-blue-300 mb-2">Résumé du chargement</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-300">Cartons:</span>
-                  <p className="text-white font-semibold">{form.cargo.boxesCount}</p>
-                </div>
-                <div>
-                  <span className="text-blue-300">Pièces/carton:</span>
-                  <p className="text-white font-semibold">{form.cargo.piecesPerBox}</p>
-                </div>
-                <div>
-                  <span className="text-blue-300">Total pièces:</span>
-                  <p className="text-white font-semibold">{totalPieces.toLocaleString()}</p>
-                </div>
-                <div>
-                  <span className="text-blue-300">Valeur totale:</span>
-                  <p className="text-white font-semibold">${form.cargo.value.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Section 5: Schedule */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <Calendar className="w-5 h-5" />
-              Calendrier du Trajet
-            </h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Date et heure de départ *
-                </label>
+                <label className={labelCls}>Désignation du produit *</label>
                 <input
-                  type="datetime-local"
-                  name="departureTime"
-                  value={form.departureTime}
-                  onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  type="text"
+                  value={form.cargo.productName}
+                  onChange={(e) => setStr("cargo.productName", e.target.value)}
+                  placeholder="Ex: Ciment Portland, Farine de blé..."
+                  className={inputCls}
                 />
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Date et heure d'arrivée prévue *
-                </label>
+                <label className={labelCls}>Nombre de cartons *</label>
                 <input
-                  type="datetime-local"
-                  name="expectedArrivalTime"
-                  value={form.expectedArrivalTime}
-                  onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  type="number"
+                  value={form.cargo.boxesCount}
+                  onChange={(e) => setNum("cargo.boxesCount", parseInt(e.target.value) || 1)}
+                  min="1"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Pièces par carton *</label>
+                <input
+                  type="number"
+                  value={form.cargo.piecesPerBox}
+                  onChange={(e) => setNum("cargo.piecesPerBox", parseInt(e.target.value) || 1)}
+                  min="1"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Poids total (kg)</label>
+                <input
+                  type="number"
+                  value={form.cargo.weight || ""}
+                  onChange={(e) => setNum("cargo.weight", parseFloat(e.target.value) || 0)}
+                  min="0"
+                  className={inputCls}
                 />
               </div>
             </div>
-          </div>
-          
-          {/* Section 6: Costs */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <DollarSign className="w-5 h-5" />
-              Coûts du Trajet
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+            {/* Summary */}
+            <div className="mt-4 bg-blue-950/40 rounded-lg p-4 border border-blue-800/30 grid grid-cols-3 gap-4 text-sm text-center">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Carburant (USD)
-                </label>
-                <input
-                  type="number"
-                  name="fuelCost"
-                  value={form.fuelCost || ""}
-                  onChange={handleNumberChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
+                <p className="text-blue-300">Cartons</p>
+                <p className="text-white font-bold text-lg">{form.cargo.boxesCount}</p>
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Péage (USD)
-                </label>
-                <input
-                  type="number"
-                  name="tollCost"
-                  value={form.tollCost || ""}
-                  onChange={handleNumberChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
+                <p className="text-blue-300">Pcs/carton</p>
+                <p className="text-white font-bold text-lg">{form.cargo.piecesPerBox}</p>
               </div>
-              
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
-                  Autres frais (USD)
-                </label>
-                <input
-                  type="number"
-                  name="otherCosts"
-                  value={form.otherCosts || ""}
-                  onChange={handleNumberChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                />
+                <p className="text-blue-300">Total pièces</p>
+                <p className="text-white font-bold text-lg">{totalPieces.toLocaleString()}</p>
               </div>
             </div>
-            
-            {/* Total Cost */}
-            <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-lg p-4 text-center">
-              <p className="text-blue-300 text-sm mb-1">Coût total du trajet</p>
-              <p className="text-2xl font-bold text-white">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            </div>
-          </div>
-          
-          {/* Section 7: Notes */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-            <label className="block mb-2 font-medium text-blue-200">
-              Notes supplémentaires
-            </label>
+          </section>
+
+          {/* Notes */}
+          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
+            <label className={labelCls}>Notes supplémentaires</label>
             <textarea
-              name="notes"
               value={form.notes}
-              onChange={handleChange}
+              onChange={(e) => setStr("notes", e.target.value)}
               rows={3}
               placeholder="Informations supplémentaires sur le trajet..."
-              className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+              className={inputCls}
             />
-          </div>
-          
-          {/* Submit Button */}
+          </section>
+
           <button
             type="submit"
             disabled={submitting}
-            className="w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl font-medium text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-900/50 border border-blue-400/30 flex items-center justify-center gap-2"
+            className="w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl font-semibold text-lg transition-all duration-200 disabled:opacity-50 shadow-lg border border-blue-400/30 flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                Enregistrement en cours...
+                Enregistrement...
               </>
             ) : (
               <>
                 <Plus className="w-5 h-5" />
-                Enregistrer le trajet
+                Enregistrer le départ
               </>
             )}
           </button>
@@ -656,40 +383,4 @@ export default function Cars() {
       </div>
     </div>
   );
-}
-
-function updateNestedFormValue(
-  form: CarTrip,
-  parent: string,
-  child: string,
-  value: string | number
-): CarTrip {
-  switch (parent) {
-    case "driver":
-      return {
-        ...form,
-        driver: {
-          ...form.driver,
-          [child]: String(value),
-        },
-      };
-    case "vehicle":
-      return {
-        ...form,
-        vehicle: {
-          ...form.vehicle,
-          [child]: child === "capacity" ? Number(value) : String(value),
-        },
-      };
-    case "cargo":
-      return {
-        ...form,
-        cargo: {
-          ...form.cargo,
-          [child]: child === "productId" ? String(value) : Number(value),
-        },
-      };
-    default:
-      return form;
-  }
 }

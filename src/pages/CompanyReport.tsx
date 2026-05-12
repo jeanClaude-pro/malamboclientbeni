@@ -20,7 +20,7 @@ import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
 
 const API_BASE = import.meta.env.VITE_API_URL;
-const COMPANY_NAME = "Ets Dieu merci";
+const COMPANY_NAME = "Entre Nous Renove";
 
 type ReportRange = "today" | "month" | "year" | "custom";
 
@@ -91,9 +91,9 @@ export default function CompanyReport() {
   const reportRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  const [range, setRange] = useState<ReportRange>("month");
-  const [fromDate, setFromDate] = useState(monthStartIso());
-  const [toDate, setToDate] = useState(monthEndIso());
+  const [range, setRange] = useState<ReportRange>("today");
+  const [fromDate, setFromDate] = useState(todayIso());
+  const [toDate, setToDate] = useState(todayIso());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ReportData>({
@@ -105,14 +105,14 @@ export default function CompanyReport() {
   });
 
   const reportPeriod = useMemo(() => {
-    if (range === "today") return { from: todayIso(), to: todayIso(), label: "Aujourd'hui" };
-    if (range === "year") {
-      const year = new Date().getFullYear();
-      return { from: `${year}-01-01`, to: `${year}-12-31`, label: `Année ${year}` };
-    }
-    if (range === "custom") return { from: fromDate, to: toDate, label: "Période personnalisée" };
-    return { from: monthStartIso(), to: monthEndIso(), label: "Mois en cours" };
-  }, [fromDate, range, toDate]);
+    const labels: Record<ReportRange, string> = {
+      today: `Aujourd'hui — ${new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date())}`,
+      month: "Mois en cours",
+      year: `Année ${new Date().getFullYear()}`,
+      custom: "Période personnalisée",
+    };
+    return { from: fromDate, to: toDate, label: labels[range] };
+  }, [fromDate, toDate, range]);
 
   const authHeaders = () => {
     const token = localStorage.getItem("token");
@@ -199,6 +199,13 @@ export default function CompanyReport() {
       (product) => Number(product.stock || 0) <= Number(product.minStock || 0)
     ).length;
 
+    // Credit sale metrics
+    const creditSales = data.sales.filter((s: any) => s.paymentType === "credit");
+    const creditTotal = creditSales.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
+    const creditCollected = creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountPaid || 0), 0);
+    const creditOutstanding = creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountDue || 0), 0);
+    const creditFullyPaid = creditSales.filter((s: any) => s.creditDetails?.fullyPaid).length;
+
     return {
       salesRevenue,
       validatedExpenses,
@@ -210,6 +217,11 @@ export default function CompanyReport() {
       productsCount: data.products.length,
       customersCount: data.customers.length,
       lowStock,
+      creditSalesCount: creditSales.length,
+      creditTotal,
+      creditCollected,
+      creditOutstanding,
+      creditFullyPaid,
     };
   }, [data]);
 
@@ -323,6 +335,15 @@ export default function CompanyReport() {
     line("Résultat net estimé", formatMoney(totals.netResult));
     line("Taux du jour", data.exchangeRate?.rate ? `1 USD = ${formatNumber(data.exchangeRate.rate)} FC` : "Non disponible");
 
+    if (totals.creditSalesCount > 0) {
+      sectionTitle("Ventes à crédit");
+      line("Nombre de ventes à crédit", formatNumber(totals.creditSalesCount));
+      line("Total crédit accordé", formatMoney(totals.creditTotal));
+      line("Montant encaissé", formatMoney(totals.creditCollected));
+      line("Créances impayées", formatMoney(totals.creditOutstanding));
+      line("Crédits soldés", `${formatNumber(totals.creditFullyPaid)} / ${formatNumber(totals.creditSalesCount)}`);
+    }
+
     sectionTitle("Activité");
     line("Nombre de ventes", formatNumber(totals.salesCount));
     line("Nombre d'entrées", formatNumber(totals.entriesCount));
@@ -343,6 +364,57 @@ export default function CompanyReport() {
       });
     }
 
+    // Full sales detail table in PDF
+    if (data.sales.length > 0) {
+      sectionTitle(`Détail des ventes (${data.sales.length})`);
+      addPageIfNeeded(8);
+      // Table header
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(226, 232, 240);
+      doc.rect(margin, y, pageWidth - margin * 2, 7, "F");
+      doc.text("Référence", margin + 1, y + 5);
+      doc.text("Date", margin + 28, y + 5);
+      doc.text("Client", margin + 58, y + 5);
+      doc.text("Paiement", margin + 110, y + 5);
+      doc.text("Total", pageWidth - margin - 2, y + 5, { align: "right" });
+      y += 8;
+
+      doc.setFont("helvetica", "normal");
+      data.sales.forEach((sale: any, idx: number) => {
+        addPageIfNeeded(7);
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y - 1, pageWidth - margin * 2, 7, "F");
+        }
+        const ref = (sale.saleId || sale.saleNumber || `#${idx + 1}`).toString().slice(-8);
+        const dateStr = sale.createdAt
+          ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(sale.createdAt))
+          : "-";
+        const client = (sale.customer?.name || "Anonyme").slice(0, 22);
+        const payment = sale.paymentType === "credit"
+          ? `Crédit${sale.creditDetails?.fullyPaid ? " ✓" : ` -$${Number(sale.creditDetails?.amountDue || 0).toFixed(0)}`}`
+          : (sale.paymentMethod || "Espèces");
+        doc.text(ref, margin + 1, y + 4);
+        doc.text(dateStr, margin + 28, y + 4);
+        doc.text(client, margin + 58, y + 4);
+        doc.text(payment.slice(0, 24), margin + 110, y + 4);
+        doc.text(formatMoney(Number(sale.total || 0)), pageWidth - margin - 2, y + 4, { align: "right" });
+        y += 7;
+      });
+
+      // Sales total row
+      addPageIfNeeded(9);
+      doc.setFillColor(237, 242, 247);
+      doc.rect(margin, y, pageWidth - margin * 2, 8, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("TOTAL DES VENTES", margin + 1, y + 5.5);
+      doc.text(formatMoney(totals.salesRevenue), pageWidth - margin - 2, y + 5.5, { align: "right" });
+      doc.setFontSize(10);
+      y += 12;
+    }
+
     sectionTitle("Derniers mouvements");
     recentMovements.forEach((movement) => {
       line(
@@ -353,6 +425,10 @@ export default function CompanyReport() {
 
     sectionTitle("Validation");
     doc.setFont("helvetica", "normal");
+    doc.text(`Généré le: ${formatDateTime(new Date())}`, margin, y);
+    y += 8;
+    doc.text(`Par: ${user?.username || "Utilisateur"}`, margin, y);
+    y += 12;
     doc.text("Date: ______________________________", margin, y);
     y += 12;
     doc.text("Nom et signature du responsable: ______________________________", margin, y);
@@ -361,6 +437,15 @@ export default function CompanyReport() {
     doc.text("Cachet de l'entreprise", margin + 7, y + 16);
     doc.rect(pageWidth - margin - 55, y, 55, 28);
     doc.text("Signature", pageWidth - margin - 39, y + 16);
+
+    // Page numbers
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Page ${i} / ${pageCount} — ${COMPANY_NAME}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+    }
 
     doc.save(`rapport-${COMPANY_NAME.toLowerCase().replaceAll(" ", "-")}-${reportPeriod.from}-${reportPeriod.to}.pdf`);
   }
@@ -394,6 +479,15 @@ export default function CompanyReport() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 sm:p-6">
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          .no-print { display: none !important; }
+          .report-paper { box-shadow: none !important; margin: 0 !important; padding: 16px !important; }
+          @page { margin: 15mm 12mm; size: A4; }
+          tr { page-break-inside: avoid; }
+        }
+      `}</style>
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="no-print rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -414,7 +508,16 @@ export default function CompanyReport() {
                 Période
                 <select
                   value={range}
-                  onChange={(event) => setRange(event.target.value as ReportRange)}
+                  onChange={(event) => {
+                    const r = event.target.value as ReportRange;
+                    setRange(r);
+                    if (r === "today") { setFromDate(todayIso()); setToDate(todayIso()); }
+                    else if (r === "month") { setFromDate(monthStartIso()); setToDate(monthEndIso()); }
+                    else if (r === "year") {
+                      const y = new Date().getFullYear();
+                      setFromDate(`${y}-01-01`); setToDate(`${y}-12-31`);
+                    }
+                  }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 >
                   <option value="today">Aujourd'hui</option>
@@ -428,10 +531,9 @@ export default function CompanyReport() {
                 Du
                 <input
                   type="date"
-                  value={reportPeriod.from}
-                  disabled={range !== "custom"}
-                  onChange={(event) => setFromDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                  value={fromDate}
+                  onChange={(event) => { setFromDate(event.target.value); setRange("custom"); }}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </label>
 
@@ -439,10 +541,9 @@ export default function CompanyReport() {
                 Au
                 <input
                   type="date"
-                  value={reportPeriod.to}
-                  disabled={range !== "custom"}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+                  value={toDate}
+                  onChange={(event) => { setToDate(event.target.value); setRange("custom"); }}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </label>
 
@@ -526,6 +627,42 @@ export default function CompanyReport() {
               );
             })}
           </section>
+
+          {/* Credit Sales Section */}
+          {totals.creditSalesCount > 0 && (
+            <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-lg">💳</span>
+                <h3 className="font-bold text-amber-900">Ventes à crédit</h3>
+                <span className="ml-auto text-sm bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                  {totals.creditSalesCount} vente{totals.creditSalesCount > 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="bg-white rounded-lg p-3 border border-amber-200">
+                  <p className="text-gray-500 text-xs">Total crédit accordé</p>
+                  <p className="font-black text-lg text-amber-800">{formatMoney(totals.creditTotal)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-gray-500 text-xs">Montant encaissé</p>
+                  <p className="font-black text-lg text-green-700">{formatMoney(totals.creditCollected)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-red-200">
+                  <p className="text-gray-500 text-xs">Solde impayé (créances)</p>
+                  <p className="font-black text-lg text-red-700">{formatMoney(totals.creditOutstanding)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-slate-200">
+                  <p className="text-gray-500 text-xs">Crédits soldés</p>
+                  <p className="font-black text-lg text-slate-800">{formatNumber(totals.creditFullyPaid)} / {formatNumber(totals.creditSalesCount)}</p>
+                </div>
+              </div>
+              {totals.creditOutstanding > 0 && (
+                <p className="mt-3 text-xs text-amber-700 bg-amber-100 rounded px-3 py-2 border border-amber-200">
+                  ⚠️ <strong>{formatMoney(totals.creditOutstanding)}</strong> de créances impayées sont à recouvrer auprès des clients.
+                </p>
+              )}
+            </section>
+          )}
 
           <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="rounded-lg border border-slate-200 p-4">
@@ -674,6 +811,73 @@ export default function CompanyReport() {
               </div>
             </div>
           </section>
+
+          {/* Full sales detail table */}
+          {data.sales.length > 0 && (
+            <section className="mt-6 rounded-lg border border-slate-200 p-4">
+              <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-700" />
+                Détail complet des ventes ({data.sales.length})
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b-2 border-slate-300 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="py-2 pr-2">Réf.</th>
+                      <th className="py-2 pr-2">Date</th>
+                      <th className="py-2 pr-2">Client</th>
+                      <th className="py-2 pr-2">Articles</th>
+                      <th className="py-2 pr-2">Paiement</th>
+                      <th className="py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {data.sales.map((sale: any, idx: number) => (
+                      <tr key={sale._id || idx} className="hover:bg-slate-50">
+                        <td className="py-1.5 pr-2 text-slate-500 text-xs font-mono">
+                          {(sale.saleId || sale.saleNumber || `#${idx + 1}`).toString().slice(-8)}
+                        </td>
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-xs">
+                          {formatDateTime(sale.createdAt || sale.saleDate)}
+                        </td>
+                        <td className="py-1.5 pr-2 font-medium">
+                          {sale.customer?.name || "Client anonyme"}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs text-slate-600">
+                          {(sale.items || []).slice(0, 2).map((item: any, i: number) => (
+                            <span key={i}>
+                              {i > 0 && ", "}
+                              {item.name} ×{item.quantity}
+                              {item.bonusQuantity > 0 ? ` (+${item.bonusQuantity})` : ""}
+                            </span>
+                          ))}
+                          {(sale.items || []).length > 2 && (
+                            <span className="text-slate-400"> +{(sale.items || []).length - 2} autres</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          {sale.paymentType === "credit" ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              Crédit {sale.creditDetails?.fullyPaid ? "✓" : `— dû ${formatMoney(sale.creditDetails?.amountDue || 0)}`}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">{sale.paymentMethod || "Espèces"}</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 text-right font-semibold">{formatMoney(Number(sale.total || 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-slate-300 bg-slate-50">
+                    <tr>
+                      <td colSpan={5} className="py-2 font-bold text-slate-700">TOTAL</td>
+                      <td className="py-2 text-right font-black text-slate-900">{formatMoney(totals.salesRevenue)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="mt-6 rounded-lg border border-slate-200 p-4">
             <div className="flex items-center gap-2 text-slate-900">

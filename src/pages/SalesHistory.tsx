@@ -43,6 +43,23 @@ interface EditHistoryEntry {
   _id?: string;
 }
 
+interface CreditPaymentEntry {
+  _id?: string;
+  amount: number;
+  date: string;
+  method: string;
+  recordedBy: string;
+  notes: string;
+}
+
+interface CreditDetails {
+  amountPaid: number;
+  amountDue: number;
+  dueDate?: string;
+  fullyPaid: boolean;
+  payments: CreditPaymentEntry[];
+}
+
 interface Sale {
   _id: string;
   saleId: string;
@@ -55,6 +72,8 @@ interface Sale {
   subtotal: number;
   total: number;
   paymentMethod: string;
+  paymentType?: "cash" | "credit";
+  creditDetails?: CreditDetails;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -219,6 +238,15 @@ export default function SalesHistory() {
   // UI state
   const [showFilters, setShowFilters] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Credit sale state
+  const [creditFilter, setCreditFilter] = useState<"all" | "credit_only" | "credit_pending" | "credit_partial" | "credit_paid">("all");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentSale, setPaymentSale] = useState<Sale | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   // Fetch current user on component mount
   useEffect(() => {
@@ -511,19 +539,39 @@ export default function SalesHistory() {
     }
   };
 
-  const filteredSales = showEditedSales 
-    ? editedSales.filter(sale =>
-        sale.saleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.customer.phone.includes(searchTerm) ||
-        (sale.salesPerson && sale.salesPerson.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-    : sales.filter(sale =>
-        sale.saleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.customer.phone.includes(searchTerm) ||
-        (sale.salesPerson && sale.salesPerson.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+  const applyCreditFilter = (salesToFilter: Sale[]): Sale[] => {
+    if (creditFilter === "all") return salesToFilter;
+    return salesToFilter.filter((sale) => {
+      if (creditFilter === "credit_only") return sale.paymentType === "credit";
+      if (creditFilter === "credit_pending")
+        return sale.paymentType === "credit" && !sale.creditDetails?.fullyPaid && (sale.creditDetails?.amountPaid ?? 0) === 0;
+      if (creditFilter === "credit_partial")
+        return sale.paymentType === "credit" && !sale.creditDetails?.fullyPaid && (sale.creditDetails?.amountPaid ?? 0) > 0;
+      if (creditFilter === "credit_paid")
+        return sale.paymentType === "credit" && sale.creditDetails?.fullyPaid === true;
+      return true;
+    });
+  };
+
+  const textFilter = (s: Sale) =>
+    s.saleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.customer.phone.includes(searchTerm) ||
+    (s.salesPerson && s.salesPerson.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const filteredSales = applyCreditFilter(
+    showEditedSales ? editedSales.filter(textFilter) : sales.filter(textFilter)
+  );
+
+  const creditStats = {
+    totalCredit: sales.filter((s) => s.paymentType === "credit").length,
+    totalOutstanding: sales
+      .filter((s) => s.paymentType === "credit" && !s.creditDetails?.fullyPaid)
+      .reduce((sum, s) => sum + (s.creditDetails?.amountDue ?? 0), 0),
+    totalCollected: sales
+      .filter((s) => s.paymentType === "credit")
+      .reduce((sum, s) => sum + (s.creditDetails?.amountPaid ?? 0), 0),
+  };
 
   const formatDate = (dateString: string) => {
     return formatDateTimeGmt2(dateString, "en-US");
@@ -1435,6 +1483,61 @@ export default function SalesHistory() {
 
   const { subtotal, total } = calculateTotals();
 
+  const openPaymentModal = (sale: Sale) => {
+    setPaymentSale(sale);
+    setPaymentAmount("");
+    setPaymentMethod("cash");
+    setPaymentNotes("");
+    setShowPaymentModal(true);
+  };
+
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setPaymentSale(null);
+    setPaymentAmount("");
+    setPaymentNotes("");
+  };
+
+  const handleRecordCreditPayment = async () => {
+    if (!paymentSale) return;
+    const amount = parseFloat(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Le montant doit être supérieur à zéro");
+      return;
+    }
+    const due = paymentSale.creditDetails?.amountDue ?? 0;
+    if (amount > due + 0.001) {
+      setError(`Le montant ne peut pas dépasser le solde dû ($${due.toFixed(2)})`);
+      return;
+    }
+    setPaymentSubmitting(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/sales/${paymentSale._id}/credit-payment`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          },
+          body: JSON.stringify({ amount, method: paymentMethod, notes: paymentNotes }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(data.message || "✅ Paiement enregistré avec succès");
+        closePaymentModal();
+        await fetchSales();
+      } else {
+        setError(data.error || "Échec de l'enregistrement du paiement");
+      }
+    } catch {
+      setError("Erreur de connexion au serveur");
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1590,6 +1693,47 @@ export default function SalesHistory() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Credit Sales Summary Banner */}
+        {creditStats.totalCredit > 0 && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-700 font-bold text-sm">💳 Ventes à crédit ({creditStats.totalCredit})</span>
+              </div>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span className="bg-white px-3 py-1 rounded-full border border-amber-200 text-amber-800">
+                  Encaissé: <strong className="text-green-700">{formatCurrency(creditStats.totalCollected)}</strong>
+                </span>
+                <span className="bg-white px-3 py-1 rounded-full border border-red-200 text-red-800">
+                  Solde dû: <strong className="text-red-700">{formatCurrency(creditStats.totalOutstanding)}</strong>
+                </span>
+              </div>
+            </div>
+            {/* Credit Filter Tabs */}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {([
+                { key: "all", label: "Toutes les ventes" },
+                { key: "credit_only", label: "Tout le crédit" },
+                { key: "credit_pending", label: "Crédit non payé" },
+                { key: "credit_partial", label: "Crédit partiel" },
+                { key: "credit_paid", label: "Crédit soldé" },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setCreditFilter(tab.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    creditFilter === tab.key
+                      ? "bg-amber-600 text-white border-amber-600"
+                      : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1937,9 +2081,26 @@ export default function SalesHistory() {
                           {formatCurrency(sale.total)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                            {sale.paymentMethod}
-                          </span>
+                          {sale.paymentType === "credit" ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                💳 CRÉDIT
+                              </span>
+                              {sale.creditDetails && (
+                                <span className={`text-xs font-medium ${sale.creditDetails.fullyPaid ? "text-green-600" : "text-red-600"}`}>
+                                  {sale.creditDetails.fullyPaid
+                                    ? "✅ Soldé"
+                                    : sale.creditDetails.amountPaid > 0
+                                    ? `Dû: $${sale.creditDetails.amountDue.toFixed(2)}`
+                                    : `Total dû: $${sale.creditDetails.amountDue.toFixed(2)}`}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                              {sale.paymentMethod}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -1983,6 +2144,15 @@ export default function SalesHistory() {
                             )}
                             {!showEditedSales && (
                               <>
+                                {sale.paymentType === "credit" && !sale.creditDetails?.fullyPaid && sale.status !== "voided" && (
+                                  <button
+                                    onClick={() => openPaymentModal(sale)}
+                                    className="p-1 rounded transition-colors text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-bold px-2"
+                                    title="Enregistrer un paiement crédit"
+                                  >
+                                    💰 Payer
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => openEditModal(sale)}
                                   disabled={
@@ -2199,6 +2369,61 @@ export default function SalesHistory() {
                   ))}
                 </div>
               </div>
+
+              {/* Credit Details */}
+              {selectedSale.paymentType === "credit" && selectedSale.creditDetails && (
+                <div className={`rounded-lg p-4 border ${selectedSale.creditDetails.fullyPaid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+                  <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <span>💳</span>
+                    Détails du crédit
+                    <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${selectedSale.creditDetails.fullyPaid ? "bg-green-200 text-green-800" : "bg-amber-200 text-amber-800"}`}>
+                      {selectedSale.creditDetails.fullyPaid ? "Soldé" : "En cours"}
+                    </span>
+                  </h4>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-500">Total vente</p>
+                      <p className="font-bold">{formatCurrency(selectedSale.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Versé</p>
+                      <p className="font-bold text-green-700">{formatCurrency(selectedSale.creditDetails.amountPaid)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Solde dû</p>
+                      <p className={`font-bold ${selectedSale.creditDetails.fullyPaid ? "text-green-700" : "text-red-700"}`}>
+                        {formatCurrency(selectedSale.creditDetails.amountDue)}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedSale.creditDetails.dueDate && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      Échéance: <strong>{new Date(selectedSale.creditDetails.dueDate).toLocaleDateString("fr-FR")}</strong>
+                    </p>
+                  )}
+                  {selectedSale.creditDetails.payments.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-amber-200">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Historique des paiements:</p>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {selectedSale.creditDetails.payments.map((p, i) => (
+                          <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-amber-100">
+                            <span>{new Date(p.date).toLocaleDateString("fr-FR")} — {p.method}</span>
+                            <strong className="text-green-700">{formatCurrency(p.amount)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {!selectedSale.creditDetails.fullyPaid && (
+                    <button
+                      onClick={() => { setShowModal(false); openPaymentModal(selectedSale); }}
+                      className="mt-3 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      💰 Enregistrer un paiement
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Show edit history if available */}
               {selectedSale.editHistory && selectedSale.editHistory.length > 0 && (
@@ -2763,6 +2988,99 @@ export default function SalesHistory() {
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Credit Payment Modal */}
+      {showPaymentModal && paymentSale && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl max-w-md w-full mx-4 shadow-2xl border border-amber-200">
+            <div className="px-6 py-4 border-b border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-amber-900 flex items-center gap-2">
+                💳 Enregistrer un paiement crédit
+              </h3>
+              <button onClick={closePaymentModal} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200 text-sm">
+                <p className="font-semibold text-amber-900">{paymentSale.customer.name} — {paymentSale.saleId}</p>
+                <div className="flex justify-between mt-1">
+                  <span className="text-gray-600">Total: <strong>{formatCurrency(paymentSale.total)}</strong></span>
+                  <span className="text-gray-600">Versé: <strong className="text-green-700">{formatCurrency(paymentSale.creditDetails?.amountPaid ?? 0)}</strong></span>
+                  <span className="text-gray-600">Dû: <strong className="text-red-700">{formatCurrency(paymentSale.creditDetails?.amountDue ?? 0)}</strong></span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Montant à verser (USD) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={paymentSale.creditDetails?.amountDue ?? 0}
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder={`Max: $${(paymentSale.creditDetails?.amountDue ?? 0).toFixed(2)}`}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentAmount(((paymentSale.creditDetails?.amountDue ?? 0) / 2).toFixed(2))}
+                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-600"
+                  >
+                    50%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentAmount((paymentSale.creditDetails?.amountDue ?? 0).toFixed(2))}
+                    className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 rounded border text-green-700 font-semibold"
+                  >
+                    Solde total
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Méthode de paiement</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="transfer">M-Pesa / Airtel / Transfert</option>
+                  <option value="card">Carte Visa</option>
+                  <option value="other">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
+                <input
+                  type="text"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  placeholder="Ex: reçu en espèces, virement confirmé..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleRecordCreditPayment}
+                  disabled={paymentSubmitting || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                  className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  {paymentSubmitting ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Enregistrement...</>
+                  ) : (
+                    <>💰 Confirmer le paiement</>
+                  )}
+                </button>
+                <button onClick={closePaymentModal} className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                  Annuler
                 </button>
               </div>
             </div>
