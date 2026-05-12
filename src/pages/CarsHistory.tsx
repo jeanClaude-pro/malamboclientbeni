@@ -734,8 +734,9 @@ export default function CarsHistory() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chauffeur</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Itinéraire</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pièces</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cartons</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Départ</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Arrivée</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -763,10 +764,18 @@ export default function CarsHistory() {
                         {trip.cargo.productName}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {trip.cargo.totalPieces.toLocaleString()}
+                        <div className="font-medium">{trip.cargo.boxesCount} ctn</div>
+                        <div className="text-xs text-gray-500">× {trip.cargo.piecesPerBox} pcs = {trip.cargo.totalPieces.toLocaleString()}</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {formatDate(trip.departureTime)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {trip.actualArrivalTime ? (
+                          <span className="text-green-700 font-medium">{formatDate(trip.actualArrivalTime)}</span>
+                        ) : (
+                          <span className="text-gray-400 italic">En attente</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2 flex-wrap">
@@ -868,13 +877,15 @@ export default function CarsHistory() {
                   <div className="bg-green-50 p-3 rounded-lg">
                     <p className="text-xs text-green-600">Destination</p>
                     <p className="font-medium">{selectedTrip.destination}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-500 mt-1">
                       Prévue: {formatDate(selectedTrip.expectedArrivalTime)}
                     </p>
-                    {selectedTrip.actualArrivalTime && (
-                      <p className="text-sm text-green-600">
+                    {selectedTrip.actualArrivalTime ? (
+                      <p className="text-sm font-semibold text-green-700 mt-1">
                         Arrivée: {formatDate(selectedTrip.actualArrivalTime)}
                       </p>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic mt-1">Pas encore arrivé</p>
                     )}
                   </div>
                 </div>
@@ -922,23 +933,24 @@ export default function CarsHistory() {
                   <Package className="w-4 h-4 text-blue-600" />
                   Chargement
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Produit</p>
-                    <p className="font-medium">{selectedTrip.cargo.productName}</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3">
+                  <p className="text-xs text-blue-600 mb-1">Produit</p>
+                  <p className="font-semibold text-gray-900 text-lg">{selectedTrip.cargo.productName}</p>
+                  <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
+                    <span className="bg-white border border-blue-200 rounded-md px-3 py-1 font-bold text-blue-800">
+                      {selectedTrip.cargo.boxesCount} carton{selectedTrip.cargo.boxesCount > 1 ? "s" : ""}
+                    </span>
+                    <span className="text-gray-500">×</span>
+                    <span className="bg-white border border-blue-200 rounded-md px-3 py-1 font-bold text-blue-800">
+                      {selectedTrip.cargo.piecesPerBox} pièce{selectedTrip.cargo.piecesPerBox > 1 ? "s" : ""}/carton
+                    </span>
+                    <span className="text-gray-500">=</span>
+                    <span className="bg-blue-600 text-white rounded-md px-3 py-1 font-bold">
+                      {selectedTrip.cargo.totalPieces.toLocaleString()} pièces total
+                    </span>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Cartons</p>
-                    <p className="font-medium">{selectedTrip.cargo.boxesCount}</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Pièces/Carton</p>
-                    <p className="font-medium">{selectedTrip.cargo.piecesPerBox}</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="text-xs text-gray-500">Total Pièces</p>
-                    <p className="font-medium">{selectedTrip.cargo.totalPieces.toLocaleString()}</p>
-                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {selectedTrip.cargo.weight > 0 && (
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <p className="text-xs text-gray-500">Poids</p>
