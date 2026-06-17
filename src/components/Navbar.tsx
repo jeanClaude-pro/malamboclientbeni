@@ -465,7 +465,7 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
                     <h1 className="text-lg font-bold text-white">
                       Entre Nous Renove
                     </h1>
-                    <p className="text-xs text-gray-400"><strong>Beni</strong></p>
+                    <p className="text-xs text-gray-400"><strong>Butembo</strong></p>
                   </div>
                 </motion.div>
               ) : !isMobile ? (
