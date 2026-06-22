@@ -22,7 +22,7 @@ import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
 const API_BASE = import.meta.env.VITE_API_URL;
 const COMPANY_NAME = "Entre Nous Renove";
 
-type ReportRange = "today" | "month" | "year" | "custom";
+type ReportRange = "today" | "day" | "month" | "year" | "custom";
 
 interface ReportData {
   sales: any[];
@@ -38,16 +38,6 @@ interface ReportData {
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-
-function monthStartIso() {
-  const date = new Date();
-  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function monthEndIso() {
-  const date = new Date();
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
-}
 
 function formatDate(value?: string | Date) {
   if (!value) return "-";
@@ -83,6 +73,21 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("fr-FR").format(Number.isFinite(value) ? value : 0);
 }
 
+function getPiecesPerCarton(value?: number) {
+  return Math.max(1, Math.floor(Number(value || 1)));
+}
+
+function formatStock(totalPieces: number, piecesPerCarton: number) {
+  const safeTotal = Math.max(0, Math.floor(Number(totalPieces || 0)));
+  const perCarton = getPiecesPerCarton(piecesPerCarton);
+  if (perCarton <= 1) return `${formatNumber(safeTotal)} pièce${safeTotal > 1 ? "s" : ""}`;
+  const cartons = Math.floor(safeTotal / perCarton);
+  const pieces = safeTotal % perCarton;
+  return pieces > 0
+    ? `${formatNumber(cartons)} carton${cartons > 1 ? "s" : ""} et ${formatNumber(pieces)} pièce${pieces > 1 ? "s" : ""}`
+    : `${formatNumber(cartons)} carton${cartons > 1 ? "s" : ""}`;
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Une erreur est survenue";
 }
@@ -92,6 +97,11 @@ export default function CompanyReport() {
   const { user } = useAuth();
 
   const [range, setRange] = useState<ReportRange>("today");
+  const [selectedDate, setSelectedDate] = useState(todayIso());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(
+    String(new Date().getMonth() + 1).padStart(2, "0")
+  );
   const [fromDate, setFromDate] = useState(todayIso());
   const [toDate, setToDate] = useState(todayIso());
   const [loading, setLoading] = useState(false);
@@ -105,14 +115,44 @@ export default function CompanyReport() {
   });
 
   const reportPeriod = useMemo(() => {
+    const year = Number(selectedYear);
+    const month = Number(selectedMonth);
     const labels: Record<ReportRange, string> = {
-      today: `Aujourd'hui — ${new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date())}`,
-      month: "Mois en cours",
-      year: `Année ${new Date().getFullYear()}`,
+      today: `Aujourd'hui — ${formatDate(new Date())}`,
+      day: `Jour du ${formatDate(selectedDate)}`,
+      month: new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1)),
+      year: `Année ${selectedYear}`,
       custom: "Période personnalisée",
     };
+    if (range === "today") return { from: todayIso(), to: todayIso(), label: labels[range] };
+    if (range === "day") return { from: selectedDate, to: selectedDate, label: labels[range] };
+    if (range === "month") {
+      return {
+        from: `${selectedYear}-${selectedMonth}-01`,
+        to: new Date(year, month, 0).toISOString().slice(0, 10),
+        label: labels[range],
+      };
+    }
+    if (range === "year") {
+      return { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31`, label: labels[range] };
+    }
     return { from: fromDate, to: toDate, label: labels[range] };
-  }, [fromDate, toDate, range]);
+  }, [fromDate, range, selectedDate, selectedMonth, selectedYear, toDate]);
+
+  const timeframeParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (range === "day") params.set("date", selectedDate);
+    if (range === "month") {
+      params.set("year", selectedYear);
+      params.set("month", selectedMonth);
+    }
+    if (range === "year") params.set("year", selectedYear);
+    if (range === "custom") {
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+    }
+    return params.toString();
+  }, [fromDate, range, selectedDate, selectedMonth, selectedYear, toDate]);
 
   const authHeaders = () => {
     const token = localStorage.getItem("token");
@@ -136,10 +176,7 @@ export default function CompanyReport() {
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        from: reportPeriod.from,
-        to: reportPeriod.to,
-      });
+      const query = timeframeParams ? `?${timeframeParams}` : "";
 
       const [
         salesRes,
@@ -149,9 +186,9 @@ export default function CompanyReport() {
         customersRes,
         exchangeRateRes,
       ] = await Promise.all([
-        apiGet(`/sales?${params.toString()}`),
-        apiGet(`/expenses?${params.toString()}&status=all`),
-        apiGet(`/entries?${params.toString()}&status=all`),
+        apiGet(`/sales${query}`),
+        apiGet(`/expenses${query}${query ? "&" : "?"}status=all`),
+        apiGet(`/entries${query}${query ? "&" : "?"}status=all`),
         apiGet("/products"),
         apiGet("/customers/all"),
         apiGet("/exchange-rates/current").catch(() => null),
@@ -179,7 +216,7 @@ export default function CompanyReport() {
   useEffect(() => {
     loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportPeriod.from, reportPeriod.to]);
+  }, [timeframeParams]);
 
   const totals = useMemo(() => {
     const salesRevenue =
@@ -225,15 +262,61 @@ export default function CompanyReport() {
     };
   }, [data]);
 
-  const topProducts = useMemo(() => {
-    const byName = new Map<string, { name: string; quantity: number; bonus: number; revenue: number }>();
+  const productPerformance = useMemo(() => {
+    const byName = new Map<string, {
+      name: string;
+      paidQuantity: number;
+      soldCartons: number;
+      soldPieces: number;
+      bonusQuantity: number;
+      bonusCartons: number;
+      bonusPieces: number;
+      piecesPerCarton: number;
+      remainingStock: number;
+      revenue: number;
+    }>();
 
     data.sales.forEach((sale) => {
       (sale.items || []).forEach((item: any) => {
         const name = item.name || "Article";
-        const current = byName.get(name) || { name, quantity: 0, bonus: 0, revenue: 0 };
-        current.quantity += Number(item.quantity || 0);
-        current.bonus += Number(item.bonusQuantity || 0);
+        const product = data.products.find((candidate) =>
+          String(candidate._id) === String(item.productId || "") || candidate.name === name
+        );
+        const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton || product?.piecesPerCarton);
+        const bonusQuantity = Math.max(0, Number(item.bonusQuantity || 0));
+        const paidQuantity = Math.max(
+          0,
+          Number(item.paidQuantity ?? Math.max(0, Number(item.quantity || 0) - bonusQuantity))
+        );
+        const hasRecordedPaidParts = Number(item.cartonQuantity || 0) + Number(item.looseQuantity || 0) > 0;
+        const hasRecordedBonusParts = Number(item.bonusCartons || 0) + Number(item.bonusPieces || 0) > 0;
+        const current = byName.get(name) || {
+          name,
+          paidQuantity: 0,
+          soldCartons: 0,
+          soldPieces: 0,
+          bonusQuantity: 0,
+          bonusCartons: 0,
+          bonusPieces: 0,
+          piecesPerCarton,
+          remainingStock: Number(product?.stock || 0),
+          revenue: 0,
+        };
+        current.paidQuantity += paidQuantity;
+        current.soldCartons += hasRecordedPaidParts
+          ? Number(item.cartonQuantity || 0)
+          : Math.floor(paidQuantity / piecesPerCarton);
+        current.soldPieces += hasRecordedPaidParts
+          ? Number(item.looseQuantity || 0)
+          : paidQuantity % piecesPerCarton;
+        current.bonusQuantity += bonusQuantity;
+        current.bonusCartons += hasRecordedBonusParts
+          ? Number(item.bonusCartons || 0)
+          : Math.floor(bonusQuantity / piecesPerCarton);
+        current.bonusPieces += hasRecordedBonusParts
+          ? Number(item.bonusPieces || 0)
+          : bonusQuantity % piecesPerCarton;
+        current.remainingStock = Number(product?.stock ?? current.remainingStock);
         current.revenue += Number(
           item.total ||
             (Number(item.price || 0) *
@@ -245,35 +328,13 @@ export default function CompanyReport() {
       });
     });
 
-    return Array.from(byName.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6);
-  }, [data.sales]);
+    return Array.from(byName.values()).sort((a, b) => b.paidQuantity - a.paidQuantity);
+  }, [data.products, data.sales]);
 
-  const recentMovements = useMemo(() => {
-    const sales = data.sales.slice(0, 5).map((sale) => ({
-      date: sale.createdAt || sale.saleDate,
-      label: sale.saleId || sale.saleNumber || sale.customer?.name || "Vente",
-      type: "Vente",
-      amount: Number(sale.total || 0),
-    }));
-    const expenses = data.expenses.slice(0, 5).map((expense) => ({
-      date: expense.createdAt,
-      label: expense.reason || expense.expenseId || "Sortie",
-      type: "Sortie",
-      amount: -Number(expense.amount || 0),
-    }));
-    const entries = data.entries.slice(0, 5).map((entry) => ({
-      date: entry.createdAt,
-      label: entry.source || entry.entryId || "Entrée",
-      type: "Entrée",
-      amount: Number(entry.amount || 0),
-    }));
-
-    return [...sales, ...expenses, ...entries]
-      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
-      .slice(0, 10);
-  }, [data.entries, data.expenses, data.sales]);
+  const topProducts = productPerformance;
+  const bonusProducts = productPerformance
+    .filter((product) => product.bonusQuantity > 0)
+    .sort((a, b) => b.bonusQuantity - a.bonusQuantity);
 
   function handlePrint() {
     window.print();
@@ -359,13 +420,25 @@ export default function CompanyReport() {
       topProducts.forEach((product, index) => {
         line(
           `${index + 1}. ${product.name.slice(0, 28)}`,
-          `${formatNumber(product.quantity)} pcs (${formatNumber(product.bonus)} bonus) - ${formatMoney(product.revenue)}`
+          `${formatNumber(product.soldCartons)} cartons${product.soldPieces > 0 ? ` + ${formatNumber(product.soldPieces)} pièces` : ""} - stock: ${formatStock(product.remainingStock, product.piecesPerCarton)}`
         );
       });
     }
 
-    // Full sales detail table in PDF
-    if (data.sales.length > 0) {
+    sectionTitle("Produits donnés en bonus");
+    if (bonusProducts.length === 0) {
+      line("Observation", "Aucun bonus accordé sur la période.");
+    } else {
+      bonusProducts.forEach((product) => {
+        line(
+          product.name.slice(0, 28),
+          `${formatNumber(product.bonusCartons)} cartons${product.bonusPieces > 0 ? ` + ${formatNumber(product.bonusPieces)} pièces` : ""}`
+        );
+      });
+    }
+
+    // Detailed transactions are intentionally omitted from the executive report.
+    if (false && data.sales.length > 0) {
       sectionTitle(`Détail des ventes (${data.sales.length})`);
       addPageIfNeeded(8);
       // Table header
@@ -414,14 +487,6 @@ export default function CompanyReport() {
       doc.setFontSize(10);
       y += 12;
     }
-
-    sectionTitle("Derniers mouvements");
-    recentMovements.forEach((movement) => {
-      line(
-        `${formatDate(movement.date)} - ${movement.type}`,
-        `${movement.label.slice(0, 30)} - ${formatMoney(movement.amount)}`
-      );
-    });
 
     sectionTitle("Validation");
     doc.setFont("helvetica", "normal");
@@ -503,49 +568,101 @@ export default function CompanyReport() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[160px_160px_160px_auto_auto]">
-              <label className="text-sm font-medium text-slate-700">
-                Période
-                <select
-                  value={range}
-                  onChange={(event) => {
-                    const r = event.target.value as ReportRange;
-                    setRange(r);
-                    if (r === "today") { setFromDate(todayIso()); setToDate(todayIso()); }
-                    else if (r === "month") { setFromDate(monthStartIso()); setToDate(monthEndIso()); }
-                    else if (r === "year") {
-                      const y = new Date().getFullYear();
-                      setFromDate(`${y}-01-01`); setToDate(`${y}-12-31`);
-                    }
-                  }}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  <option value="today">Aujourd'hui</option>
-                  <option value="month">Mois en cours</option>
-                  <option value="year">Année en cours</option>
-                  <option value="custom">Personnalisée</option>
-                </select>
-              </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="sm:col-span-2 lg:col-span-6">
+                <p className="text-sm font-medium text-slate-700">Période</p>
+                <div className="mt-1 flex flex-wrap gap-2 rounded-lg bg-slate-100 p-1">
+                  {([
+                    ["today", "Aujourd'hui"],
+                    ["day", "Jour spécifique"],
+                    ["month", "Mois spécifique"],
+                    ["year", "Année spécifique"],
+                    ["custom", "Période personnalisée"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRange(value)}
+                      className={`rounded-md px-3 py-2 text-xs font-semibold transition sm:text-sm ${
+                        range === value
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-              <label className="text-sm font-medium text-slate-700">
+              {range === "day" && <label className="text-sm font-medium text-slate-700">
+                Date
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>}
+
+              {range === "month" && <>
+                <label className="text-sm font-medium text-slate-700">
+                  Année
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={selectedYear}
+                    onChange={(event) => setSelectedYear(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Mois
+                  <select
+                    value={selectedMonth}
+                    onChange={(event) => setSelectedMonth(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    {Array.from({ length: 12 }, (_, index) => {
+                      const value = String(index + 1).padStart(2, "0");
+                      return <option key={value} value={value}>{new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2000, index, 1))}</option>;
+                    })}
+                  </select>
+                </label>
+              </>}
+
+              {range === "year" && <label className="text-sm font-medium text-slate-700">
+                Année
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={selectedYear}
+                  onChange={(event) => setSelectedYear(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>}
+
+              {range === "custom" && <label className="text-sm font-medium text-slate-700">
                 Du
                 <input
                   type="date"
                   value={fromDate}
-                  onChange={(event) => { setFromDate(event.target.value); setRange("custom"); }}
+                  onChange={(event) => setFromDate(event.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
-              </label>
+              </label>}
 
-              <label className="text-sm font-medium text-slate-700">
+              {range === "custom" && <label className="text-sm font-medium text-slate-700">
                 Au
                 <input
                   type="date"
                   value={toDate}
-                  onChange={(event) => { setToDate(event.target.value); setRange("custom"); }}
+                  onChange={(event) => setToDate(event.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
-              </label>
+              </label>}
 
               <button
                 type="button"
@@ -739,22 +856,24 @@ export default function CompanyReport() {
             </div>
           </section>
 
-          <section className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <section className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
             <div className="rounded-lg border border-slate-200 p-4">
               <h3 className="font-bold text-slate-900">Meilleurs articles vendus</h3>
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-sm">
+                <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="py-2 pr-3">Article</th>
-                      <th className="py-2 pr-3">Quantité</th>
+                      <th className="py-2 pr-3">Cartons vendus</th>
+                      <th className="py-2 pr-3">Pièces séparées</th>
+                      <th className="py-2 pr-3">Stock restant actuel</th>
                       <th className="py-2 text-right">Montant</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {topProducts.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="py-4 text-center text-slate-500">
+                        <td colSpan={5} className="py-4 text-center text-slate-500">
                           Aucun article vendu sur cette période.
                         </td>
                       </tr>
@@ -762,9 +881,14 @@ export default function CompanyReport() {
                       topProducts.map((product) => (
                         <tr key={product.name}>
                           <td className="py-2 pr-3 font-medium">{product.name}</td>
-                          <td className="py-2 pr-3">
-                            {formatNumber(product.quantity)}
-                            {product.bonus > 0 ? ` (${formatNumber(product.bonus)} bonus)` : ""}
+                          <td className="py-2 pr-3 font-bold text-blue-700">
+                            {formatNumber(product.soldCartons)} carton{product.soldCartons > 1 ? "s" : ""}
+                          </td>
+                          <td className="py-2 pr-3 text-slate-600">
+                            {formatNumber(product.soldPieces)} pièce{product.soldPieces > 1 ? "s" : ""}
+                          </td>
+                          <td className="py-2 pr-3 font-medium text-emerald-700">
+                            {formatStock(product.remainingStock, product.piecesPerCarton)}
                           </td>
                           <td className="py-2 text-right font-semibold">{formatMoney(product.revenue)}</td>
                         </tr>
@@ -775,109 +899,40 @@ export default function CompanyReport() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="font-bold text-slate-900">Derniers mouvements</h3>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-3">Date</th>
-                      <th className="py-2 pr-3">Type</th>
-                      <th className="py-2 pr-3">Libellé</th>
-                      <th className="py-2 text-right">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {recentMovements.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-4 text-center text-slate-500">
-                          Aucun mouvement sur cette période.
-                        </td>
-                      </tr>
-                    ) : (
-                      recentMovements.map((movement, index) => (
-                        <tr key={`${movement.type}-${index}`}>
-                          <td className="py-2 pr-3">{formatDate(movement.date)}</td>
-                          <td className="py-2 pr-3">{movement.type}</td>
-                          <td className="py-2 pr-3 font-medium">{movement.label}</td>
-                          <td className={`py-2 text-right font-semibold ${movement.amount < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                            {formatMoney(movement.amount)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900">Produits donnés en bonus</h3>
+                  <p className="mt-1 text-xs text-slate-500">Quantités offertes pendant la période sélectionnée</p>
+                </div>
+                <Package className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
+                {bonusProducts.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-amber-200 bg-white p-5 text-center text-sm text-slate-500">
+                    Aucun bonus accordé sur cette période.
+                  </div>
+                ) : (
+                  bonusProducts.map((product) => (
+                    <div key={product.name} className="rounded-lg border border-amber-200 bg-white p-3">
+                      <p className="font-semibold text-slate-900">{product.name}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold text-amber-800">
+                          {formatNumber(product.bonusCartons)} carton{product.bonusCartons > 1 ? "s" : ""}
+                        </span>
+                        {product.bonusPieces > 0 && (
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                            {formatNumber(product.bonusPieces)} pièce{product.bonusPieces > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </section>
 
-          {/* Full sales detail table */}
-          {data.sales.length > 0 && (
-            <section className="mt-6 rounded-lg border border-slate-200 p-4">
-              <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-700" />
-                Détail complet des ventes ({data.sales.length})
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b-2 border-slate-300 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-2">Réf.</th>
-                      <th className="py-2 pr-2">Date</th>
-                      <th className="py-2 pr-2">Client</th>
-                      <th className="py-2 pr-2">Articles</th>
-                      <th className="py-2 pr-2">Paiement</th>
-                      <th className="py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.sales.map((sale: any, idx: number) => (
-                      <tr key={sale._id || idx} className="hover:bg-slate-50">
-                        <td className="py-1.5 pr-2 text-slate-500 text-xs font-mono">
-                          {(sale.saleId || sale.saleNumber || `#${idx + 1}`).toString().slice(-8)}
-                        </td>
-                        <td className="py-1.5 pr-2 whitespace-nowrap text-xs">
-                          {formatDateTime(sale.createdAt || sale.saleDate)}
-                        </td>
-                        <td className="py-1.5 pr-2 font-medium">
-                          {sale.customer?.name || "Client anonyme"}
-                        </td>
-                        <td className="py-1.5 pr-2 text-xs text-slate-600">
-                          {(sale.items || []).slice(0, 2).map((item: any, i: number) => (
-                            <span key={i}>
-                              {i > 0 && ", "}
-                              {item.name} ×{item.quantity}
-                              {item.bonusQuantity > 0 ? ` (+${item.bonusQuantity})` : ""}
-                            </span>
-                          ))}
-                          {(sale.items || []).length > 2 && (
-                            <span className="text-slate-400"> +{(sale.items || []).length - 2} autres</span>
-                          )}
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          {sale.paymentType === "credit" ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                              Crédit {sale.creditDetails?.fullyPaid ? "✓" : `— dû ${formatMoney(sale.creditDetails?.amountDue || 0)}`}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-500">{sale.paymentMethod || "Espèces"}</span>
-                          )}
-                        </td>
-                        <td className="py-1.5 text-right font-semibold">{formatMoney(Number(sale.total || 0))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-slate-300 bg-slate-50">
-                    <tr>
-                      <td colSpan={5} className="py-2 font-bold text-slate-700">TOTAL</td>
-                      <td className="py-2 text-right font-black text-slate-900">{formatMoney(totals.salesRevenue)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </section>
-          )}
+          </section>
 
           <section className="mt-6 rounded-lg border border-slate-200 p-4">
             <div className="flex items-center gap-2 text-slate-900">

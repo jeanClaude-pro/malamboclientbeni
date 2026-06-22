@@ -42,6 +42,11 @@ interface SaleItem {
   name: string;
   quantity: number;
   bonusQuantity?: number;
+  paidQuantity?: number;
+  cartonQuantity?: number;
+  looseQuantity?: number;
+  bonusCartons?: number;
+  bonusPieces?: number;
   price: number;
   total?: number;
   piecesPerCarton?: number;
@@ -104,6 +109,19 @@ function formatCartonStock(totalPieces: number, piecesPerCarton: number) {
   const cartonLabel = cartons > 1 ? "cartons" : "carton";
   if (pieces === 0) return `${cartons} ${cartonLabel}`;
   return `${cartons} ${cartonLabel} et ${pieces} pièce${pieces > 1 ? "s" : ""}`;
+}
+
+function getPaidQuantity(item: SaleItem) {
+  const bonus = Math.max(0, Number(item.bonusQuantity || 0));
+  return Math.max(0, Number(item.paidQuantity ?? Number(item.quantity || 0) - bonus));
+}
+
+function getSoldCartons(item: SaleItem, piecesPerCarton: number) {
+  const paid = getPaidQuantity(item);
+  const recordedParts = Number(item.cartonQuantity || 0) + Number(item.looseQuantity || 0);
+  return recordedParts > 0
+    ? Math.max(0, Number(item.cartonQuantity || 0))
+    : Math.floor(paid / getPiecesPerCarton({ piecesPerCarton }));
 }
 
 export default function Products() {
@@ -259,7 +277,7 @@ export default function Products() {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const res = await fetch(
-        `${serverUrl}/sales?from=2020-01-01&to=${today}`,
+        `${serverUrl}/sales?from=1970-01-01&to=${today}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
       );
       if (res.ok) {
@@ -319,7 +337,7 @@ export default function Products() {
         .filter((item) => item.productId === product._id || item.name === product.name)
         .map((item) => ({ ...item, sale }))
     );
-    const totalSold = productItems.reduce((s, i) => s + Number(i.quantity || 0), 0);
+    const totalSoldCartons = productItems.reduce((s, item) => s + getSoldCartons(item, ppc), 0);
     const totalBonus = productItems.reduce((s, i) => s + Number(i.bonusQuantity || 0), 0);
     const creditSales = sales.filter((s) => s.paymentType === "credit");
     const creditOutstanding = creditSales
@@ -339,7 +357,7 @@ export default function Products() {
     doc.text(`Stock actuel: ${formatCartonStock(product.stock, ppc)}${product.brand ? `   Marque: ${product.brand}` : ""}`, left, y);
     y += 5;
     doc.text(
-      `Vendu: ${totalSold} pcs  |  Bonus: ${totalBonus} pcs  |  Crédit: ${creditSales.length}  |  Créances impayées: $${creditOutstanding.toFixed(2)}`,
+      `Cartons vendus: ${totalSoldCartons}  |  Bonus: ${formatCartonStock(totalBonus, ppc)}  |  Crédit: ${creditSales.length}  |  Créances impayées: $${creditOutstanding.toFixed(2)}`,
       left, y
     );
     y += 8;
@@ -366,16 +384,17 @@ export default function Products() {
       const myItems = (sale.items || []).filter(
         (item) => item.productId === product._id || item.name === product.name
       );
-      const qty = myItems.reduce((s, item) => s + Number(item.quantity || 0), 0);
+      const soldCartons = myItems.reduce((s, item) => s + getSoldCartons(item, ppc), 0);
       const bonus = myItems.reduce((s, item) => s + Number(item.bonusQuantity || 0), 0);
+      const productTotal = myItems.reduce((s, item) => s + Number(item.total || 0), 0);
       if (i % 2 === 0) { doc.setFillColor(235, 242, 255); doc.rect(left, y - 4, pageW - 28, 6, "F"); }
       const row = [
         new Date(sale.createdAt).toLocaleDateString("fr-FR"),
         (sale.customer?.name || "—").slice(0, 22),
-        formatCartonStock(qty, ppc).slice(0, 14),
+        `${soldCartons} carton${soldCartons > 1 ? "s" : ""}`.slice(0, 14),
         bonus > 0 ? formatCartonStock(bonus, ppc).slice(0, 10) : "—",
         (sale.paymentType === "credit" ? "Crédit" : (sale.paymentMethod || "Espèces")).slice(0, 12),
-        `$${Number(sale.total || 0).toFixed(2)}`,
+        `$${productTotal.toFixed(2)}`,
       ];
       x = left;
       row.forEach((cell, j) => { doc.text(cell, x + 1, y); x += sColW[j]; });
@@ -389,9 +408,9 @@ export default function Products() {
     doc.rect(left, y - 4, pageW - 28, 6, "F");
     doc.text("TOTAL", left + 1, y);
     x = left + sColW[0] + sColW[1];
-    doc.text(formatCartonStock(totalSold, ppc).slice(0, 14), x + 1, y); x += sColW[2];
+    doc.text(`${totalSoldCartons} carton${totalSoldCartons > 1 ? "s" : ""}`.slice(0, 14), x + 1, y); x += sColW[2];
     doc.text(totalBonus > 0 ? formatCartonStock(totalBonus, ppc).slice(0, 10) : "—", x + 1, y); x += sColW[3] + sColW[4];
-    doc.text(`$${sales.reduce((s, sale) => s + Number(sale.total || 0), 0).toFixed(2)}`, x + 1, y);
+    doc.text(`$${productItems.reduce((s, item) => s + Number(item.total || 0), 0).toFixed(2)}`, x + 1, y);
     y += 10;
 
     // Credit section
@@ -480,7 +499,7 @@ export default function Products() {
 
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const res = await fetch(`${serverUrl}/sales?from=2020-01-01&to=${today}`, {
+      const res = await fetch(`${serverUrl}/sales?from=1970-01-01&to=${today}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
       });
       if (!res.ok) { toast.error("Impossible de charger les ventes"); return; }
@@ -1240,7 +1259,7 @@ export default function Products() {
             .filter((item) => item.productId === ficheProduct._id || item.name === ficheProduct.name)
             .map((item) => ({ ...item, sale }))
         );
-        const totalSold = productItems.reduce((s, i) => s + Number(i.quantity || 0), 0);
+        const totalSoldCartons = productItems.reduce((s, item) => s + getSoldCartons(item, ppc), 0);
         const totalBonus = productItems.reduce((s, i) => s + Number(i.bonusQuantity || 0), 0);
         const creditSales = ficheSales.filter((s) => s.paymentType === "credit");
         const creditOutstanding = creditSales
@@ -1293,7 +1312,7 @@ export default function Products() {
                 {/* Summary cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                   {[
-                    { label: "Pièces vendues", value: totalSold, icon: <TrendingDown className="w-4 h-4" />, color: "blue" },
+                    { label: "Cartons vendus", value: totalSoldCartons, icon: <TrendingDown className="w-4 h-4" />, color: "blue" },
                     { label: "Bonus donnés", value: totalBonus, icon: <TrendingDown className="w-4 h-4" />, color: "green" },
                     { label: "Ventes à crédit", value: creditSales.length, icon: <CreditCard className="w-4 h-4" />, color: "amber" },
                     {
@@ -1363,9 +1382,6 @@ export default function Products() {
                     {/* All sales tab */}
                     {ficheTab === "sales" && (
                       <div>
-                        <p className="text-xs text-blue-300/50 mb-3 uppercase tracking-wider">
-                          {ficheSales.length} vente{ficheSales.length !== 1 ? "s" : ""} trouvée{ficheSales.length !== 1 ? "s" : ""}
-                        </p>
                         {ficheSales.length === 0 ? (
                           <p className="text-blue-300/60 text-sm py-10 text-center">
                             Aucune vente enregistrée pour cet article.
@@ -1377,7 +1393,7 @@ export default function Products() {
                                 <tr>
                                   <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
                                   <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Client</th>
-                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Qté</th>
+                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Cartons vendus</th>
                                   <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Bonus</th>
                                   <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Paiement</th>
                                   <th className="text-right py-2 text-blue-300/70 font-medium">Total vente</th>
@@ -1388,8 +1404,9 @@ export default function Products() {
                                   const myItems = (sale.items || []).filter(
                                     (item) => item.productId === ficheProduct._id || item.name === ficheProduct.name
                                   );
-                                  const qty = myItems.reduce((s, i) => s + Number(i.quantity || 0), 0);
+                                  const soldCartons = myItems.reduce((s, item) => s + getSoldCartons(item, ppc), 0);
                                   const bonus = myItems.reduce((s, i) => s + Number(i.bonusQuantity || 0), 0);
+                                  const productTotal = myItems.reduce((s, item) => s + Number(item.total || 0), 0);
                                   return (
                                     <tr key={sale._id} className="hover:bg-blue-900/10">
                                       <td className="py-2.5 pr-3 text-blue-200/80">
@@ -1399,7 +1416,7 @@ export default function Products() {
                                         {sale.customer?.name || "—"}
                                       </td>
                                       <td className="py-2.5 pr-3 text-right text-white">
-                                        {formatCartonStock(qty, ppc)}
+                                        {soldCartons} carton{soldCartons > 1 ? "s" : ""}
                                       </td>
                                       <td className="py-2.5 pr-3 text-right">
                                         {bonus > 0 ? (
@@ -1418,7 +1435,7 @@ export default function Products() {
                                         )}
                                       </td>
                                       <td className="py-2.5 text-right font-semibold text-white">
-                                        ${Number(sale.total || 0).toFixed(2)}
+                                        ${productTotal.toFixed(2)}
                                       </td>
                                     </tr>
                                   );
@@ -1427,13 +1444,15 @@ export default function Products() {
                               <tfoot className="border-t border-blue-700/40 bg-blue-900/10">
                                 <tr>
                                   <td colSpan={2} className="py-2 text-blue-300/70 font-semibold text-sm">TOTAL</td>
-                                  <td className="py-2 text-right font-bold text-white">{formatCartonStock(totalSold, ppc)}</td>
+                                  <td className="py-2 text-right font-bold text-white">
+                                    {totalSoldCartons} carton{totalSoldCartons > 1 ? "s" : ""}
+                                  </td>
                                   <td className="py-2 text-right font-bold text-green-400">
                                     {totalBonus > 0 ? formatCartonStock(totalBonus, ppc) : "—"}
                                   </td>
                                   <td />
                                   <td className="py-2 text-right font-bold text-white">
-                                    ${ficheSales.reduce((s, sale) => s + Number(sale.total || 0), 0).toFixed(2)}
+                                    ${productItems.reduce((s, item) => s + Number(item.total || 0), 0).toFixed(2)}
                                   </td>
                                 </tr>
                               </tfoot>
@@ -1470,7 +1489,7 @@ export default function Products() {
                                       +{formatCartonStock(Number(i.bonusQuantity || 0), ppc)} bonus
                                     </p>
                                     <p className="text-xs text-blue-300/50">
-                                      Vendu: {formatCartonStock(Number(i.quantity || 0), ppc)}
+                                      Vendu: {getSoldCartons(i, ppc)} carton{getSoldCartons(i, ppc) > 1 ? "s" : ""}
                                     </p>
                                   </div>
                                 </div>

@@ -25,6 +25,13 @@ interface SaleItem {
   productId?: string;
   name?: string;
   quantity?: number;
+  paidQuantity?: number;
+  bonusQuantity?: number;
+  cartonQuantity?: number;
+  looseQuantity?: number;
+  bonusCartons?: number;
+  bonusPieces?: number;
+  piecesPerCarton?: number;
   price?: number;
   total?: number;
 }
@@ -56,6 +63,13 @@ interface Customer {
   totalSpent?: number;
   totalPurchases?: number;
   email?: string;
+}
+
+interface ProductStock {
+  _id: string;
+  name: string;
+  stock: number;
+  piecesPerCarton?: number;
 }
 
 interface Expense {
@@ -120,7 +134,19 @@ interface AnalyticsData {
       revenue: number;
     }[];
   }[];
-  topProducts: { name: string; quantity: number; revenue: number }[];
+  topProducts: {
+    name: string;
+    quantity: number;
+    revenue: number;
+    paidQuantity: number;
+    bonusQuantity: number;
+    piecesPerCarton: number;
+    normalCartons: number;
+    normalPieces: number;
+    bonusCartons: number;
+    bonusPieces: number;
+    remainingStock: number;
+  }[];
   topCustomers: { name: string; purchases: number; totalSpent: number }[];
   recentTrends: {
     salesGrowth: number;
@@ -180,6 +206,36 @@ const getHeaders = () => {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+};
+
+// Helper function to get the number of pieces per carton, defaulting to 1
+const getPiecesPerCarton = (value?: number): number => {
+  return Math.max(1, Math.floor(Number(value || 1)));
+};
+
+// Helper function to format a piece count as cartons (and remaining pieces)
+const formatCartonQuantity = (totalPieces: number, piecesPerCarton?: number): string => {
+  const perCarton = getPiecesPerCarton(piecesPerCarton);
+  const safeTotal = Math.max(0, Math.floor(Number(totalPieces || 0)));
+
+  if (perCarton <= 1) {
+    return `${safeTotal} pièce${safeTotal > 1 ? "s" : ""}`;
+  }
+
+  const cartons = Math.floor(safeTotal / perCarton);
+  const pieces = safeTotal % perCarton;
+
+  if (pieces === 0) {
+    return `${cartons} carton${cartons > 1 ? "s" : ""}`;
+  }
+  return `${cartons} carton${cartons > 1 ? "s" : ""} et ${pieces} pièce${pieces > 1 ? "s" : ""}`;
+};
+
+const formatRecordedUnits = (cartons: number, pieces: number): string => {
+  const parts: string[] = [];
+  if (cartons > 0) parts.push(`${cartons} carton${cartons > 1 ? "s" : ""}`);
+  if (pieces > 0) parts.push(`${pieces} pièce${pieces > 1 ? "s" : ""}`);
+  return parts.length > 0 ? parts.join(" et ") : "0 produit";
 };
 
 // Helper function to get timeframe parameters based on selection
@@ -291,7 +347,7 @@ export default function Analytics() {
       const timeframeParams = `date=${today}`;
       
       // Fetch sales, expenses, and entries for today
-      const [salesResponse, expensesResponse, entriesResponse] = await Promise.all([
+      const [salesResponse, expensesResponse, entriesResponse, productsResponse] = await Promise.all([
         fetch(`${serverUrl}/sales?${timeframeParams}`, {
           headers: getHeaders(),
         }),
@@ -300,7 +356,8 @@ export default function Analytics() {
         }),
         fetch(`${serverUrl}/entries?${timeframeParams}`, {
           headers: getHeaders(),
-        })
+        }),
+        fetch(`${serverUrl}/products`, { headers: getHeaders() })
       ]);
 
       if (!salesResponse.ok) {
@@ -310,12 +367,14 @@ export default function Analytics() {
       const salesData = await salesResponse.json();
       const expensesData = expensesResponse.ok ? await expensesResponse.json() : { data: [], summary: { totalAmount: 0 } };
       const entriesData = entriesResponse.ok ? await entriesResponse.json() : { data: [], summary: { totalAmount: 0 } };
+      const productsData = productsResponse.ok ? await productsResponse.json() : [];
 
       // Process the data for today
       const processedAnalytics = processTodayData(
         salesData,
         expensesData,
-        entriesData
+        entriesData,
+        Array.isArray(productsData) ? productsData : productsData.data || productsData.products || []
       );
       
       setAnalytics(processedAnalytics);
@@ -334,7 +393,7 @@ export default function Analytics() {
       const timeframeParams = getTimeframeParams(timeframe, selectedYear, selectedDate);
       
       // Fetch sales, expenses, and entries with timeframe filtering
-      const [salesResponse, expensesResponse, entriesResponse, customersResponse] = await Promise.all([
+      const [salesResponse, expensesResponse, entriesResponse, customersResponse, productsResponse] = await Promise.all([
         fetch(`${serverUrl}/sales?${timeframeParams}`, {
           headers: getHeaders(),
         }),
@@ -346,7 +405,8 @@ export default function Analytics() {
         }),
         fetch(`${serverUrl}/customers?limit=0`, {
           headers: getHeaders(),
-        })
+        }),
+        fetch(`${serverUrl}/products`, { headers: getHeaders() })
       ]);
 
       if (!salesResponse.ok) {
@@ -357,6 +417,7 @@ export default function Analytics() {
       const expensesData = expensesResponse.ok ? await expensesResponse.json() : { data: [], summary: { totalAmount: 0 } };
       const entriesData = entriesResponse.ok ? await entriesResponse.json() : { data: [], summary: { totalAmount: 0 } };
       const customersData = customersResponse.ok ? await customersResponse.json() : [];
+      const productsData = productsResponse.ok ? await productsResponse.json() : [];
 
       // Extract customers from response
       const customers = Array.isArray(customersData) 
@@ -368,7 +429,8 @@ export default function Analytics() {
         salesData,
         expensesData,
         entriesData,
-        customers
+        customers,
+        Array.isArray(productsData) ? productsData : productsData.data || productsData.products || []
       );
       
       setAnalytics(processedAnalytics);
@@ -393,7 +455,8 @@ export default function Analytics() {
   const processTodayData = (
     salesData: any,
     expensesData: any,
-    entriesData: any
+    entriesData: any,
+    products: ProductStock[]
   ): AnalyticsData => {
     const sales = salesData.data || [];
     const expenses = expensesData.data || [];
@@ -466,16 +529,42 @@ export default function Analytics() {
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach((item: SaleItem) => {
           const productName = item.name || "Unknown Product";
+          const bonusQuantity = item.bonusQuantity || 0;
+          const paidQuantity = item.paidQuantity ?? Math.max(0, (item.quantity || 0) - bonusQuantity);
+          const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton);
+          const product = products.find((candidate) =>
+            candidate._id === String(item.productId || "") || candidate.name === productName
+          );
+          const normalCartons = item.cartonQuantity ?? Math.floor(paidQuantity / piecesPerCarton);
+          const normalPieces = item.looseQuantity ?? paidQuantity % piecesPerCarton;
+          const bonusCartons = item.bonusCartons ?? Math.floor(bonusQuantity / piecesPerCarton);
+          const bonusPieces = item.bonusPieces ?? bonusQuantity % piecesPerCarton;
           if (productStats.has(productName)) {
             const existing = productStats.get(productName);
             productStats.set(productName, {
               quantity: existing.quantity + (item.quantity || 0),
               revenue: existing.revenue + (item.total || 0),
+              paidQuantity: existing.paidQuantity + paidQuantity,
+              bonusQuantity: existing.bonusQuantity + bonusQuantity,
+              piecesPerCarton: existing.piecesPerCarton || piecesPerCarton,
+              normalCartons: existing.normalCartons + normalCartons,
+              normalPieces: existing.normalPieces + normalPieces,
+              bonusCartons: existing.bonusCartons + bonusCartons,
+              bonusPieces: existing.bonusPieces + bonusPieces,
+              remainingStock: product?.stock ?? existing.remainingStock,
             });
           } else {
             productStats.set(productName, {
               quantity: item.quantity || 0,
               revenue: item.total || 0,
+              paidQuantity,
+              bonusQuantity,
+              piecesPerCarton,
+              normalCartons,
+              normalPieces,
+              bonusCartons,
+              bonusPieces,
+              remainingStock: product?.stock ?? 0,
             });
           }
         });
@@ -484,8 +573,7 @@ export default function Analytics() {
 
     const topProducts = Array.from(productStats.entries())
       .map(([name, stats]) => ({ name, ...stats }))
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 50);
+      .sort((a, b) => b.paidQuantity - a.paidQuantity);
 
     // Top customers from today's sales
     const customerStats = new Map();
@@ -544,7 +632,8 @@ export default function Analytics() {
     salesData: any,
     expensesData: any,
     entriesData: any,
-    customers: Customer[]
+    customers: Customer[],
+    products: ProductStock[]
   ): AnalyticsData => {
     const sales = salesData.data || [];
     const expensesSummary = expensesData.summary || { totalAmount: 0 };
@@ -598,16 +687,42 @@ export default function Analytics() {
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach((item: SaleItem) => {
           const productName = item.name || "Unknown Product";
+          const bonusQuantity = item.bonusQuantity || 0;
+          const paidQuantity = item.paidQuantity ?? Math.max(0, (item.quantity || 0) - bonusQuantity);
+          const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton);
+          const product = products.find((candidate) =>
+            candidate._id === String(item.productId || "") || candidate.name === productName
+          );
+          const normalCartons = item.cartonQuantity ?? Math.floor(paidQuantity / piecesPerCarton);
+          const normalPieces = item.looseQuantity ?? paidQuantity % piecesPerCarton;
+          const bonusCartons = item.bonusCartons ?? Math.floor(bonusQuantity / piecesPerCarton);
+          const bonusPieces = item.bonusPieces ?? bonusQuantity % piecesPerCarton;
           if (productStats.has(productName)) {
             const existing = productStats.get(productName);
             productStats.set(productName, {
               quantity: existing.quantity + (item.quantity || 0),
               revenue: existing.revenue + (item.total || 0),
+              paidQuantity: existing.paidQuantity + paidQuantity,
+              bonusQuantity: existing.bonusQuantity + bonusQuantity,
+              piecesPerCarton: existing.piecesPerCarton || piecesPerCarton,
+              normalCartons: existing.normalCartons + normalCartons,
+              normalPieces: existing.normalPieces + normalPieces,
+              bonusCartons: existing.bonusCartons + bonusCartons,
+              bonusPieces: existing.bonusPieces + bonusPieces,
+              remainingStock: product?.stock ?? existing.remainingStock,
             });
           } else {
             productStats.set(productName, {
               quantity: item.quantity || 0,
               revenue: item.total || 0,
+              paidQuantity,
+              bonusQuantity,
+              piecesPerCarton,
+              normalCartons,
+              normalPieces,
+              bonusCartons,
+              bonusPieces,
+              remainingStock: product?.stock ?? 0,
             });
           }
         });
@@ -616,8 +731,7 @@ export default function Analytics() {
 
     const topProducts = Array.from(productStats.entries())
       .map(([name, stats]) => ({ name, ...stats }))
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 50);
+      .sort((a, b) => b.paidQuantity - a.paidQuantity);
 
     // Top customers
     const customerStats = new Map();
@@ -1407,13 +1521,13 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Top Products and Customers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Product performance */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
           <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                Articles Vendus ({getTimeframeLabel()})
+                Meilleurs articles vendus ({getTimeframeLabel()})
               </h3>
             </div>
             <div className="p-4 sm:p-6 space-y-3 max-h-96 overflow-y-auto">
@@ -1421,20 +1535,31 @@ export default function Analytics() {
                 analytics.topProducts.map((product, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-white rounded-lg hover:from-red-50 hover:to-blue-50 transition-all duration-200 border border-gray-100 hover:border-red-200"
+                    className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-red-50 hover:to-blue-50 transition-all duration-200 border border-gray-100 hover:border-red-200"
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
                       <p className="font-medium text-gray-900 truncate text-sm sm:text-base">
                         {index + 1}. {product.name}
                       </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        {product.quantity} unités vendues
-                      </p>
-                    </div>
-                    <div className="text-right ml-2">
+                      <p className="text-xs text-gray-500">Classement par volume vendu</p>
+                      </div>
                       <p className="font-medium text-gray-900 text-sm sm:text-base whitespace-nowrap">
                         {formatCurrency(product.revenue)}
                       </p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 font-semibold text-blue-800">
+                        {product.normalCartons} carton{product.normalCartons > 1 ? "s" : ""}
+                      </span>
+                      {product.normalPieces > 0 && (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-700">
+                          {product.normalPieces} pièce{product.normalPieces > 1 ? "s" : ""} vendue{product.normalPieces > 1 ? "s" : ""} séparément
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs text-emerald-700">
+                        Stock: {formatCartonQuantity(product.remainingStock, product.piecesPerCarton)}
+                      </span>
                     </div>
                   </div>
                 ))
@@ -1445,6 +1570,40 @@ export default function Analytics() {
                     Aucun produit vendu
                   </p>
                   <p className="text-xs sm:text-sm">dans cette période</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-white">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Package className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+                Produits donnés en bonus ({getTimeframeLabel()})
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">Quantités offertes, séparées des ventes normales</p>
+            </div>
+            <div className="p-4 sm:p-6 space-y-3 max-h-96 overflow-y-auto">
+              {analytics.topProducts.some((product) => product.bonusQuantity > 0) ? (
+                analytics.topProducts
+                  .filter((product) => product.bonusQuantity > 0)
+                  .sort((a, b) => b.bonusQuantity - a.bonusQuantity)
+                  .map((product) => (
+                    <div key={product.name} className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
+                          Bonus
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-amber-800">
+                        {formatRecordedUnits(product.bonusCartons, product.bonusPieces)}
+                      </p>
+                    </div>
+                  ))
+              ) : (
+                <div className="py-8 text-center text-sm text-gray-500">
+                  Aucun produit donné en bonus pendant cette période.
                 </div>
               )}
             </div>

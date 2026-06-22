@@ -29,6 +29,10 @@ interface SaleItem {
   quantity: number;
   paidQuantity?: number;
   bonusQuantity?: number;
+  cartonQuantity?: number;
+  looseQuantity?: number;
+  bonusCartons?: number;
+  bonusPieces?: number;
   piecesPerCarton?: number;
   price: number;
   total: number;
@@ -162,8 +166,10 @@ function formatBoxQuantity(totalPieces: number, piecesPerCarton?: number) {
 
 function formatSaleItemQuantity(item: SaleItem) {
   const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton);
-  const paidQuantity = Number(item.paidQuantity ?? item.quantity ?? 0);
   const bonusQuantity = Number(item.bonusQuantity || 0);
+  const paidQuantity = Number(
+    item.paidQuantity ?? Math.max(0, Number(item.quantity || 0) - bonusQuantity)
+  );
   if (!bonusQuantity) return formatBoxQuantity(paidQuantity, piecesPerCarton);
   return `${formatBoxQuantity(paidQuantity, piecesPerCarton)} (+${formatBoxQuantity(
     bonusQuantity,
@@ -247,6 +253,7 @@ export default function SalesHistory() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [showUnpaidSales, setShowUnpaidSales] = useState(false);
 
   // Fetch current user on component mount
   useEffect(() => {
@@ -407,6 +414,38 @@ export default function SalesHistory() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchUnpaidSales = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sales/unpaid`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !Array.isArray(data.data)) {
+        throw new Error(data.error || "Impossible de charger les ventes impayees");
+      }
+      setSales(data.data);
+      setShowUnpaidSales(true);
+      setShowEditedSales(false);
+      setCreditFilter("all");
+      setTimeframeMetadata(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Impossible de charger les ventes impayees");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const returnToTimeframeSales = async () => {
+    setShowUnpaidSales(false);
+    setCreditFilter("all");
+    await fetchSales();
   };
 
   // Update edited sales when sales change
@@ -1236,7 +1275,25 @@ export default function SalesHistory() {
     setEditingSale(sale);
     setEditForm({
       customer: { ...sale.customer },
-      items: sale.items.map((item) => ({ ...item })),
+      items: sale.items.map((item) => {
+        const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton);
+        const bonusQuantity = Number(item.bonusQuantity || 0);
+        const paidQuantity = Number(
+          item.paidQuantity ?? Math.max(0, Number(item.quantity || 0) - bonusQuantity)
+        );
+        return {
+          ...item,
+          paidQuantity,
+          bonusQuantity,
+          quantity: paidQuantity + bonusQuantity,
+          cartonQuantity: item.cartonQuantity ?? Math.floor(paidQuantity / piecesPerCarton),
+          looseQuantity: item.looseQuantity ?? paidQuantity % piecesPerCarton,
+          bonusCartons: item.bonusCartons ?? Math.floor(bonusQuantity / piecesPerCarton),
+          bonusPieces: item.bonusPieces ?? bonusQuantity % piecesPerCarton,
+          piecesPerCarton,
+          total: (paidQuantity / piecesPerCarton) * item.price,
+        };
+      }),
       paymentMethod: sale.paymentMethod,
       reason: "",
     });
@@ -1261,21 +1318,37 @@ export default function SalesHistory() {
     setError(null);
   };
 
-  const updateItemQuantity = (index: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
-
+  const updateItemQuantities = (
+    index: number,
+    field: "cartonQuantity" | "looseQuantity" | "bonusCartons" | "bonusPieces",
+    value: number
+  ) => {
     const updatedItems = [...editForm.items];
+    const item = { ...updatedItems[index], [field]: Math.max(0, Math.floor(value || 0)) };
     const product = products.find(
-      (p) => p._id === updatedItems[index].productId
+      (p) => p._id === item.productId
     );
+    const piecesPerCarton = getPiecesPerCarton(product?.piecesPerCarton ?? item.piecesPerCarton);
+    const paidQuantity = Number(item.cartonQuantity || 0) * piecesPerCarton + Number(item.looseQuantity || 0);
+    const bonusQuantity = Number(item.bonusCartons || 0) * piecesPerCarton + Number(item.bonusPieces || 0);
+    const originalItem = editingSale?.items.find((oldItem) => oldItem.productId === item.productId);
+    const originalQuantity = Number(originalItem?.quantity || 0);
 
-    if (product && newQuantity > product.stock + updatedItems[index].quantity) {
-      setError(`Insufficient stock. Available: ${product.stock}`);
+    if ((field === "looseQuantity" || field === "bonusPieces") && value >= piecesPerCarton) {
+      setError(`Le nombre de pieces doit etre inferieur a ${piecesPerCarton} par carton.`);
+      return;
+    }
+    if (product && paidQuantity + bonusQuantity > product.stock + originalQuantity) {
+      setError(`Stock insuffisant. Disponible: ${formatBoxQuantity(product.stock + originalQuantity, piecesPerCarton)}`);
       return;
     }
 
-    updatedItems[index].quantity = newQuantity;
-    updatedItems[index].total = newQuantity * updatedItems[index].price;
+    item.piecesPerCarton = piecesPerCarton;
+    item.paidQuantity = paidQuantity;
+    item.bonusQuantity = bonusQuantity;
+    item.quantity = paidQuantity + bonusQuantity;
+    item.total = (paidQuantity / piecesPerCarton) * item.price;
+    updatedItems[index] = item;
 
     setEditForm((prev) => ({
       ...prev,
@@ -1289,7 +1362,8 @@ export default function SalesHistory() {
 
     const updatedItems = [...editForm.items];
     updatedItems[index].price = newPrice;
-    updatedItems[index].total = newPrice * updatedItems[index].quantity;
+    updatedItems[index].total =
+      newPrice * (Number(updatedItems[index].paidQuantity || 0) / getPiecesPerCarton(updatedItems[index].piecesPerCarton));
 
     setEditForm((prev) => ({
       ...prev,
@@ -1315,7 +1389,14 @@ export default function SalesHistory() {
     const newItem: SaleItem = {
       productId: defaultProduct._id,
       name: defaultProduct.name,
-      quantity: 1,
+      quantity: getPiecesPerCarton(defaultProduct.piecesPerCarton),
+      paidQuantity: getPiecesPerCarton(defaultProduct.piecesPerCarton),
+      bonusQuantity: 0,
+      cartonQuantity: 1,
+      looseQuantity: 0,
+      bonusCartons: 0,
+      bonusPieces: 0,
+      piecesPerCarton: getPiecesPerCarton(defaultProduct.piecesPerCarton),
       price: defaultProduct.price,
       total: defaultProduct.price,
       _id: `temp-${Date.now()}`,
@@ -1338,7 +1419,14 @@ export default function SalesHistory() {
     updatedItems[index].productId = productId;
     updatedItems[index].name = product.name;
     updatedItems[index].price = product.price;
-    updatedItems[index].total = product.price * updatedItems[index].quantity;
+    const piecesPerCarton = getPiecesPerCarton(product.piecesPerCarton);
+    const paidQuantity = Number(updatedItems[index].cartonQuantity || 0) * piecesPerCarton + Number(updatedItems[index].looseQuantity || 0);
+    const bonusQuantity = Number(updatedItems[index].bonusCartons || 0) * piecesPerCarton + Number(updatedItems[index].bonusPieces || 0);
+    updatedItems[index].piecesPerCarton = piecesPerCarton;
+    updatedItems[index].paidQuantity = paidQuantity;
+    updatedItems[index].bonusQuantity = bonusQuantity;
+    updatedItems[index].quantity = paidQuantity + bonusQuantity;
+    updatedItems[index].total = product.price * (paidQuantity / piecesPerCarton);
 
     setEditForm((prev) => ({
       ...prev,
@@ -1383,6 +1471,13 @@ export default function SalesHistory() {
           productId: item.productId,
           name: item.name,
           quantity: item.quantity,
+          paidQuantity: item.paidQuantity,
+          bonusQuantity: item.bonusQuantity,
+          cartonQuantity: item.cartonQuantity,
+          looseQuantity: item.looseQuantity,
+          bonusCartons: item.bonusCartons,
+          bonusPieces: item.bonusPieces,
+          piecesPerCarton: item.piecesPerCarton,
           price: item.price,
           total: item.total,
         })),
@@ -1527,7 +1622,11 @@ export default function SalesHistory() {
       if (res.ok) {
         setMessage(data.message || "✅ Paiement enregistré avec succès");
         closePaymentModal();
-        await fetchSales();
+        if (showUnpaidSales) {
+          await fetchUnpaidSales();
+        } else {
+          await fetchSales();
+        }
       } else {
         setError(data.error || "Échec de l'enregistrement du paiement");
       }
@@ -1551,7 +1650,17 @@ export default function SalesHistory() {
               Voir toutes les transactions et ventes passées
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={showUnpaidSales ? returnToTimeframeSales : fetchUnpaidSales}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm border shadow-sm transition-colors ${
+                showUnpaidSales
+                  ? "bg-white text-blue-700 border-blue-300 hover:bg-blue-50"
+                  : "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
+              }`}
+            >
+              {showUnpaidSales ? "Retour aux ventes de la periode" : "Voir les ventes impayees"}
+            </button>
             {/* NEW: Edited Sales Filter Button */}
             <button
               onClick={() => setShowEditedSales(!showEditedSales)}
@@ -1744,7 +1853,8 @@ export default function SalesHistory() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                {showEditedSales ? "Ventes modifiées" : "Toutes les ventes"} - <span className="text-blue-700 font-bold">{getTimeframeDescription()}</span>
+                {showUnpaidSales ? "Toutes les ventes impayees" : showEditedSales ? "Ventes modifiées" : "Toutes les ventes"}
+                {!showUnpaidSales && <> - <span className="text-blue-700 font-bold">{getTimeframeDescription()}</span></>}
               </h3>
               
               <div className="flex flex-wrap gap-2">
@@ -2074,8 +2184,15 @@ export default function SalesHistory() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {sale.salesPerson || "Non spécifié"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {sale.items.length} Article(s)
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          <div className="min-w-48 space-y-1">
+                            {sale.items.map((item) => (
+                              <div key={item._id}>
+                                <span className="font-medium">{item.name}:</span>{" "}
+                                <span>{formatSaleItemQuantity(item)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {formatCurrency(sale.total)}
@@ -2124,7 +2241,7 @@ export default function SalesHistory() {
                           </td>
                         )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex gap-2">
+                          <div className="flex min-w-max flex-wrap gap-2">
                             {showEditedSales ? (
                               <button
                                 onClick={() => viewEditedSaleDetails(sale)}
@@ -2142,7 +2259,7 @@ export default function SalesHistory() {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            {!showEditedSales && (
+                            {(
                               <>
                                 {sale.paymentType === "credit" && !sale.creditDetails?.fullyPaid && sale.status !== "voided" && (
                                   <button
@@ -2447,7 +2564,7 @@ export default function SalesHistory() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-wrap gap-3 pt-4">
                 <button
                   onClick={() => generateReceiptPDF(selectedSale)}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
@@ -2875,40 +2992,53 @@ export default function SalesHistory() {
 
                         <div className="md:col-span-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nombre de pièces{" "}
+                            Vente normale (cartons / pieces)
                           </label>
-                          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateItemQuantity(index, item.quantity - 1)
-                              }
-                              className="p-2 bg-gray-100 hover:bg-gray-200 transition-colors"
-                              disabled={item.quantity <= 1}
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
+                          <div className="grid grid-cols-2 gap-2">
                             <input
                               type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updateItemQuantity(
-                                  index,
-                                  parseInt(e.target.value) || 1
-                                )
-                              }
-                              className="w-full p-2 text-center border-0 focus:ring-2 focus:ring-blue-500"
+                              min="0"
+                              value={item.cartonQuantity || 0}
+                              onChange={(e) => updateItemQuantities(index, "cartonQuantity", Number(e.target.value))}
+                              className="w-full p-2 border border-gray-300 rounded-lg"
+                              aria-label="Cartons vendus normalement"
+                              placeholder="Cartons"
                             />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateItemQuantity(index, item.quantity + 1)
-                              }
-                              className="p-2 bg-gray-100 hover:bg-gray-200 transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              max={getPiecesPerCarton(item.piecesPerCarton) - 1}
+                              value={item.looseQuantity || 0}
+                              onChange={(e) => updateItemQuantities(index, "looseQuantity", Number(e.target.value))}
+                              className="w-full p-2 border border-gray-300 rounded-lg"
+                              aria-label="Pieces vendues normalement"
+                              placeholder="Pieces"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Bonus</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.bonusCartons || 0}
+                              onChange={(e) => updateItemQuantities(index, "bonusCartons", Number(e.target.value))}
+                              className="w-full p-2 border border-amber-300 rounded-lg"
+                              aria-label="Cartons donnes en bonus"
+                              placeholder="Cartons"
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              max={getPiecesPerCarton(item.piecesPerCarton) - 1}
+                              value={item.bonusPieces || 0}
+                              onChange={(e) => updateItemQuantities(index, "bonusPieces", Number(e.target.value))}
+                              className="w-full p-2 border border-amber-300 rounded-lg"
+                              aria-label="Pieces donnees en bonus"
+                              placeholder="Pieces"
+                            />
                           </div>
                         </div>
 
@@ -3090,4 +3220,3 @@ export default function SalesHistory() {
     </div>
   );
 }
-
