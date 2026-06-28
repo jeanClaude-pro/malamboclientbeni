@@ -22,6 +22,7 @@ import {
    Wallet,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -78,12 +79,19 @@ const sidebarSections: SidebarSection[] = [
         path: "/entry",
         roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor
       },
-      { 
-        id: "sortie", 
-        label: "Sortie", 
-        icon: Wallet, 
+      {
+        id: "sortie",
+        label: "Sortie",
+        icon: Wallet,
         path: "/sortie",
         roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor
+      },
+      {
+        id: "transfert",
+        label: "Transfert",
+        icon: ArrowLeftRight,
+        path: "/transfert",
+        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can record transfers
       },
     ],
   },
@@ -126,12 +134,19 @@ const sidebarSections: SidebarSection[] = [
         path: "/EntryHistory",
         roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor and manager
       },
-      { 
-        id: "historicsortie", 
-        label: "Historique de Sortie", 
-        icon: Wallet, 
+      {
+        id: "historicsortie",
+        label: "Historique de Sortie",
+        icon: Wallet,
         path: "/sortiehistory",
         roles: ["admin","cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier
+      },
+      {
+        id: "historictransfert",
+        label: "Historique de Transferts",
+        icon: ArrowLeftRight,
+        path: "/transferthistory",
+        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access transfer history
       },
       { 
         id: "reports", 

@@ -26,6 +26,8 @@ import { RequireAuth } from "./components/RequireAuth";
 import { AuthProvider } from "./context/AuthProvider";
 import Cars from "./pages/Cars";
 import CarsHistory  from "./pages/CarsHistory";
+import Transfert from "./pages/Transfert";
+import TransfertHistory from "./pages/TransfertHistory";
 
 export default function App() {
   const token = localStorage.getItem("token");
@@ -141,6 +143,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <SortieHistory />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/transfert"
+                  element={
+                    <RequireAuth>
+                      <Transfert />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/transferthistory"
+                  element={
+                    <RequireAuth>
+                      <TransfertHistory />
                     </RequireAuth>
                   }
                 />

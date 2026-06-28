@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import jsPDF from "jspdf";
 import {
   AlertCircle,
+  ArrowLeftRight,
   Calendar,
   Download,
   FileText,
@@ -28,11 +29,13 @@ interface ReportData {
   sales: any[];
   expenses: any[];
   entries: any[];
+  transfers: any[];
   products: any[];
   customers: any[];
   salesSummary?: any;
   expensesSummary?: any;
   entriesSummary?: any;
+  transfersSummary?: any;
   customersStats?: any;
   exchangeRate?: any;
 }
@@ -88,6 +91,17 @@ function formatStock(totalPieces: number, piecesPerCarton: number) {
     : `${formatNumber(cartons)} carton${cartons > 1 ? "s" : ""}`;
 }
 
+// Transfers store cartons and loose pieces separately (cartons-first) — show cartons
+// as the headline figure and only mention loose pieces when there actually are some.
+function formatTransferQuantity(product?: { cartonQuantity?: number; looseQuantity?: number }) {
+  const cartons = Math.max(0, Math.floor(Number(product?.cartonQuantity || 0)));
+  const loose = Math.max(0, Math.floor(Number(product?.looseQuantity || 0)));
+  const cartonsLabel = `${formatNumber(cartons)} carton${cartons !== 1 ? "s" : ""}`;
+  return loose > 0
+    ? `${cartonsLabel} + ${formatNumber(loose)} pièce${loose !== 1 ? "s" : ""}`
+    : cartonsLabel;
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Une erreur est survenue";
 }
@@ -110,6 +124,7 @@ export default function CompanyReport() {
     sales: [],
     expenses: [],
     entries: [],
+    transfers: [],
     products: [],
     customers: [],
   });
@@ -182,6 +197,7 @@ export default function CompanyReport() {
         salesRes,
         expensesRes,
         entriesRes,
+        transfersRes,
         productsRes,
         customersRes,
         exchangeRateRes,
@@ -189,6 +205,7 @@ export default function CompanyReport() {
         apiGet(`/sales${query}`),
         apiGet(`/expenses${query}${query ? "&" : "?"}status=all`),
         apiGet(`/entries${query}${query ? "&" : "?"}status=all`),
+        apiGet(`/transfers${query}`).catch(() => null),
         apiGet("/products"),
         apiGet("/customers/all"),
         apiGet("/exchange-rates/current").catch(() => null),
@@ -198,11 +215,13 @@ export default function CompanyReport() {
         sales: Array.isArray(salesRes?.data) ? salesRes.data : [],
         expenses: Array.isArray(expensesRes?.data) ? expensesRes.data : [],
         entries: Array.isArray(entriesRes?.data) ? entriesRes.data : [],
+        transfers: Array.isArray(transfersRes?.data) ? transfersRes.data : [],
         products: Array.isArray(productsRes) ? productsRes : [],
         customers: Array.isArray(customersRes?.customers) ? customersRes.customers : [],
         salesSummary: salesRes?.summary,
         expensesSummary: expensesRes?.summary,
         entriesSummary: entriesRes?.summary,
+        transfersSummary: transfersRes?.summary,
         customersStats: customersRes?.stats,
         exchangeRate: exchangeRateRes,
       });
@@ -243,6 +262,20 @@ export default function CompanyReport() {
     const creditOutstanding = creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountDue || 0), 0);
     const creditFullyPaid = creditSales.filter((s: any) => s.creditDetails?.fullyPaid).length;
 
+    const transfersPending = data.transfers.filter((t: any) => t.status === "pending").length;
+    const transfersInTransit = data.transfers.filter((t: any) => t.status === "in_transit").length;
+    const transfersDelivered = data.transfers.filter((t: any) => t.status === "delivered").length;
+    const transfersCancelled = data.transfers.filter((t: any) => t.status === "cancelled").length;
+    // Cartons first — loose pieces are tracked separately and only shown when present
+    const transfersCartonsTotal = data.transfers.reduce(
+      (sum: number, t: any) => sum + Number(t.product?.cartonQuantity || 0),
+      0
+    );
+    const transfersLoosePiecesTotal = data.transfers.reduce(
+      (sum: number, t: any) => sum + Number(t.product?.looseQuantity || 0),
+      0
+    );
+
     return {
       salesRevenue,
       validatedExpenses,
@@ -259,8 +292,35 @@ export default function CompanyReport() {
       creditCollected,
       creditOutstanding,
       creditFullyPaid,
+      transfersCount: data.transfers.length,
+      transfersPending,
+      transfersInTransit,
+      transfersDelivered,
+      transfersCancelled,
+      transfersCartonsTotal,
+      transfersLoosePiecesTotal,
     };
   }, [data]);
+
+  // Reports are general, not record-specific: a product can be transferred several times
+  // (to different agencies, on different dates) during the period, so we aggregate by
+  // product and only show what was transferred in total — not per-transfer destination,
+  // receiver or transport details, which belong in TransfertHistory instead.
+  const transferProductSummary = useMemo(() => {
+    const byName = new Map<string, { name: string; cartonQuantity: number; looseQuantity: number }>();
+
+    data.transfers
+      .filter((transfer: any) => transfer.status !== "cancelled")
+      .forEach((transfer: any) => {
+        const name = transfer.product?.name || "Article";
+        const current = byName.get(name) || { name, cartonQuantity: 0, looseQuantity: 0 };
+        current.cartonQuantity += Number(transfer.product?.cartonQuantity || 0);
+        current.looseQuantity += Number(transfer.product?.looseQuantity || 0);
+        byName.set(name, current);
+      });
+
+    return Array.from(byName.values()).sort((a, b) => b.cartonQuantity - a.cartonQuantity);
+  }, [data.transfers]);
 
   const productPerformance = useMemo(() => {
     const byName = new Map<string, {
@@ -409,9 +469,26 @@ export default function CompanyReport() {
     line("Nombre de ventes", formatNumber(totals.salesCount));
     line("Nombre d'entrées", formatNumber(totals.entriesCount));
     line("Nombre de sorties", formatNumber(totals.expensesCount));
+    line("Nombre de transferts", formatNumber(totals.transfersCount));
     line("Clients enregistrés", formatNumber(totals.customersCount));
     line("Articles au catalogue", formatNumber(totals.productsCount));
     line("Articles en alerte stock", formatNumber(totals.lowStock));
+
+    if (totals.transfersCount > 0) {
+      sectionTitle("Informations sur les transferts");
+      line("En attente", formatNumber(totals.transfersPending));
+      line("En transit", formatNumber(totals.transfersInTransit));
+      line("Livrés", formatNumber(totals.transfersDelivered));
+      line("Annulés", formatNumber(totals.transfersCancelled));
+
+      if (transferProductSummary.length === 0) {
+        line("Articles transférés", "Aucun article transféré sur cette période.");
+      } else {
+        transferProductSummary.forEach((item) => {
+          line(item.name.slice(0, 32), formatTransferQuantity(item));
+        });
+      }
+    }
 
     sectionTitle("Meilleurs articles");
     if (topProducts.length === 0) {
@@ -855,6 +932,72 @@ export default function CompanyReport() {
               </dl>
             </div>
           </section>
+
+          {/* Transfer Information Section */}
+          {totals.transfersCount > 0 && (
+            <section className="mt-6 rounded-lg border border-slate-200 p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <ArrowLeftRight className="h-5 w-5 text-blue-700" />
+                <h3 className="font-bold text-slate-900">Informations sur les transferts</h3>
+                <span className="ml-auto text-sm bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">
+                  {totals.transfersCount} transfert{totals.transfersCount > 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
+                <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                  <p className="text-gray-500 text-xs">En attente</p>
+                  <p className="font-black text-lg text-yellow-700">{formatNumber(totals.transfersPending)}</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                  <p className="text-gray-500 text-xs">En transit</p>
+                  <p className="font-black text-lg text-blue-700">{formatNumber(totals.transfersInTransit)}</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                  <p className="text-gray-500 text-xs">Livrés</p>
+                  <p className="font-black text-lg text-green-700">{formatNumber(totals.transfersDelivered)}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <p className="text-gray-500 text-xs">Total cartons transférés</p>
+                  <p className="font-black text-lg text-slate-800">
+                    {formatNumber(totals.transfersCartonsTotal)}
+                    {totals.transfersLoosePiecesTotal > 0 && (
+                      <span className="ml-1 text-sm font-semibold text-slate-500">
+                        + {formatNumber(totals.transfersLoosePiecesTotal)} pcs
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="py-2 pr-3">Article transféré</th>
+                      <th className="py-2 text-right">Quantité (cartons)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {transferProductSummary.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} className="py-4 text-center text-slate-500">
+                          Aucun article transféré sur cette période.
+                        </td>
+                      </tr>
+                    ) : (
+                      transferProductSummary.map((item) => (
+                        <tr key={item.name}>
+                          <td className="py-2 pr-3 font-medium">{item.name}</td>
+                          <td className="py-2 text-right font-semibold text-blue-700">
+                            {formatTransferQuantity(item)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
             <div className="rounded-lg border border-slate-200 p-4">

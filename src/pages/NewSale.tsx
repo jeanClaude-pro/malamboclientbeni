@@ -16,6 +16,7 @@ import {
   CreditCard,
   Clock,
   AlertTriangle,
+  Calendar,
 } from "lucide-react";
 
 interface Product {
@@ -46,6 +47,14 @@ interface ExchangeRate {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL;
+
+function getTodayDate(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function getPiecesPerCarton(product?: Pick<Product, "piecesPerCarton"> | null) {
   return Math.max(1, Math.floor(Number(product?.piecesPerCarton || 1)));
@@ -218,6 +227,8 @@ export default function NewSale() {
     paymentMode: "normal" as "normal" | "credit",
     creditAmountPaid: "",
     creditDueDate: "",
+    // Admin-only: which calendar day this sale should be recorded/calculated under
+    saleDate: getTodayDate(),
   });
 
   const [message, setMessage] = useState<string | null>(null);
@@ -1362,6 +1373,9 @@ export default function NewSale() {
           creditAmountPaid: creditAmountPaidNum,
           creditDueDate: form.creditDueDate || undefined,
         }),
+        ...(isAdmin && form.saleDate && form.saleDate !== getTodayDate() && {
+          saleDate: form.saleDate,
+        }),
       };
 
       const res = await fetch(`${API_BASE}/sales`, {
@@ -1449,6 +1463,7 @@ export default function NewSale() {
         paymentMode: "normal",
         creditAmountPaid: "",
         creditDueDate: "",
+        saleDate: getTodayDate(),
       });
       setCart([]);
       setSearchTerm("");
@@ -1524,6 +1539,31 @@ export default function NewSale() {
               </div>
             </div>
           </div>
+
+          {/* Admin-only: choose which calendar day this sale belongs to */}
+          {isAdmin && (
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-gradient-to-br from-amber-900/30 to-amber-950/30 border border-amber-700/40 rounded-xl p-4">
+              <Calendar className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-amber-200 mb-1">
+                  Date de la vente (Admin)
+                </label>
+                <input
+                  type="date"
+                  value={form.saleDate}
+                  max={getTodayDate()}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, saleDate: e.target.value || getTodayDate() }))
+                  }
+                  className="w-full max-w-xs p-2 bg-black/50 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+              <p className="text-xs text-amber-300/70 sm:max-w-xs">
+                Cette vente sera enregistrée et comptabilisée à cette date dans l'historique et les
+                rapports.
+              </p>
+            </div>
+          )}
         </div>
 
         {message && (
