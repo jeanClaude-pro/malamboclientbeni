@@ -561,6 +561,10 @@ export default function Products() {
 
   useEffect(() => {
     fetchProducts();
+
+    const handleProductsUpdated = () => fetchProducts();
+    window.addEventListener("productsUpdated", handleProductsUpdated);
+    return () => window.removeEventListener("productsUpdated", handleProductsUpdated);
   }, []);
 
   const resetForm = () => {

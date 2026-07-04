@@ -93,6 +93,13 @@ const sidebarSections: SidebarSection[] = [
         path: "/transfert",
         roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can record transfers
       },
+      {
+        id: "transfer-reception",
+        label: "Réception",
+        icon: ArrowLeftRight,
+        path: "/transfer-reception",
+        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"]
+      },
     ],
   },
   {
@@ -147,6 +154,13 @@ const sidebarSections: SidebarSection[] = [
         icon: ArrowLeftRight,
         path: "/transferthistory",
         roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access transfer history
+      },
+      {
+        id: "historicreception",
+        label: "Historique Réceptions",
+        icon: ArrowLeftRight,
+        path: "/transfer-reception-history",
+        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"]
       },
       { 
         id: "reports", 

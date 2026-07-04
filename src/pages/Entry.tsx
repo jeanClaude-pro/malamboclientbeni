@@ -1,15 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { 
-  DollarSign, 
-  RefreshCw, 
-  User, 
+import {
+  Calendar,
+  DollarSign,
+  RefreshCw,
+  User,
   Calculator,
   Phone,
   Mail,
-  FileCheck
+  FileCheck,
 } from "lucide-react";
+
+function getTodayDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 interface ExchangeRate {
   rate: number;
@@ -59,6 +65,8 @@ export default function Entry() {
     currencyMode: "usd" as "usd" | "fc"
   });
 
+  const [operationDate, setOperationDate] = useState(getTodayDate());
+  const isAdmin = currentUser?.role === "admin";
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -889,7 +897,10 @@ export default function Entry() {
           name: form.receivedFromName,
           phone: form.receivedFromPhone,
           email: form.receivedFromEmail || "",
-        }
+        },
+        ...(isAdmin && operationDate && operationDate !== getTodayDate() && {
+          operationDate,
+        }),
       };
 
       console.log("Sending entry data:", body);
@@ -1218,6 +1229,26 @@ export default function Entry() {
               </div>
             </div>
           </div>
+
+          {/* Date de l'opération — Admin uniquement */}
+          {isAdmin && (
+            <div className="bg-gradient-to-br from-amber-950 to-orange-950 shadow-xl rounded-xl p-5 border border-amber-700/50">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="w-5 h-5 text-amber-400" />
+                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+              </div>
+              <input
+                type="date"
+                value={operationDate}
+                max={getTodayDate()}
+                onChange={(e) => setOperationDate(e.target.value)}
+                className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+              <p className="mt-2 text-xs text-amber-300/80">
+                Cette entrée sera enregistrée et comptabilisée à cette date dans l'historique et les rapports.
+              </p>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">

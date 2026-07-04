@@ -28,6 +28,8 @@ import Cars from "./pages/Cars";
 import CarsHistory  from "./pages/CarsHistory";
 import Transfert from "./pages/Transfert";
 import TransfertHistory from "./pages/TransfertHistory";
+import TransferReception from "./pages/TransferReception";
+import TransferReceptionHistory from "./pages/TransferReceptionHistory";
 
 export default function App() {
   const token = localStorage.getItem("token");
@@ -159,6 +161,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <TransfertHistory />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/transfer-reception"
+                  element={
+                    <RequireAuth>
+                      <TransferReception />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/transfer-reception-history"
+                  element={
+                    <RequireAuth>
+                      <TransferReceptionHistory />
                     </RequireAuth>
                   }
                 />

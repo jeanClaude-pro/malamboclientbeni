@@ -1,6 +1,7 @@
 // components/Cars.tsx
 import React, { useState } from "react";
 import { apiFetch } from "../services/authService";
+import { useAuth } from "../hooks/useAuth";
 import {
   Truck,
   MapPin,
@@ -12,6 +13,14 @@ import {
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
+
+function getTodayDate(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 interface CarTripForm {
   origin: string;
@@ -34,6 +43,9 @@ const EMPTY_FORM: CarTripForm = {
 };
 
 export default function Cars() {
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
+  const [operationDate, setOperationDate] = useState(getTodayDate());
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +123,9 @@ export default function Cars() {
           },
           departureTime: `${form.departureDate}T06:00:00`,
           notes: form.notes.trim(),
+          ...(isAdmin && operationDate && operationDate !== getTodayDate() && {
+            operationDate,
+          }),
         }),
       });
 
@@ -361,6 +376,25 @@ export default function Cars() {
               className={inputCls}
             />
           </section>
+
+          {isAdmin && (
+            <section className="bg-gradient-to-br from-amber-950 to-orange-950 rounded-xl p-5 border border-amber-700/50 shadow-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="w-5 h-5 text-amber-400" />
+                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+              </div>
+              <input
+                type="date"
+                value={operationDate}
+                max={getTodayDate()}
+                onChange={(e) => setOperationDate(e.target.value)}
+                className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+              <p className="mt-2 text-xs text-amber-300/80">
+                Ce trajet sera enregistré et comptabilisé à cette date dans l'historique et les rapports.
+              </p>
+            </section>
+          )}
 
           <button
             type="submit"

@@ -1,18 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { 
-  Calculator, 
-  DollarSign, 
-  RefreshCw, 
-  User, 
-  Phone, 
-  Wallet, 
+import {
+  Calendar,
+  Calculator,
+  DollarSign,
+  RefreshCw,
+  User,
+  Phone,
+  Wallet,
   FileText,
   Info,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
+
+function getTodayDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 interface SortieForm {
   reason: string;
@@ -49,6 +55,9 @@ export default function Sortie() {
 
   // Get the current user from your auth context
   const { user: currentUser } = useAuth();
+
+  const isAdmin = currentUser?.role === "admin";
+  const [operationDate, setOperationDate] = useState(getTodayDate());
 
   const [form, setForm] = useState<SortieForm>({
     reason: "",
@@ -171,6 +180,9 @@ export default function Sortie() {
         paymentMethod: form.paymentMethod,
         notes: form.notes || "",
         recordedBy: currentUser?.username || "unknown",
+        ...(isAdmin && operationDate && operationDate !== getTodayDate() && {
+          operationDate,
+        }),
       };
 
       // ✅ Changed from /sales to /expenses
@@ -463,6 +475,26 @@ export default function Sortie() {
                 {currentUser?.username || "Utilisateur"}
               </p>
             </div>
+
+            {/* Date de l'opération — Admin uniquement */}
+            {isAdmin && (
+              <div className="mt-4 bg-gradient-to-br from-amber-950 to-orange-950 rounded-xl p-4 border border-amber-700/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-semibold text-amber-300 text-sm">Date de l'opération (Admin)</h3>
+                </div>
+                <input
+                  type="date"
+                  value={operationDate}
+                  max={getTodayDate()}
+                  onChange={(e) => setOperationDate(e.target.value)}
+                  className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                />
+                <p className="mt-2 text-xs text-amber-300/80">
+                  Cette sortie sera enregistrée et comptabilisée à cette date dans l'historique et les rapports.
+                </p>
+              </div>
+            )}
 
             {/* Submit Button */}
             <button

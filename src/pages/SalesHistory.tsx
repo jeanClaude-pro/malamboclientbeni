@@ -1506,13 +1506,9 @@ export default function SalesHistory() {
         await response.json();
         setMessage("✅ Sale updated successfully");
 
-        // Refresh the sales list immediately
         await fetchSales();
-
-        // Also refresh customers to update their statistics
-        setTimeout(() => {
-          window.dispatchEvent(new Event("salesUpdated"));
-        }, 1000);
+        window.dispatchEvent(new CustomEvent("productsUpdated"));
+        window.dispatchEvent(new CustomEvent("salesUpdated"));
 
         closeEditModal();
       } else {
@@ -1564,6 +1560,8 @@ export default function SalesHistory() {
         setMessage("✅ Sale voided successfully");
         await fetchSales();
         setShowModal(false);
+        window.dispatchEvent(new CustomEvent("productsUpdated"));
+        window.dispatchEvent(new CustomEvent("salesUpdated"));
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to void sale");
@@ -1571,6 +1569,46 @@ export default function SalesHistory() {
     } catch (error) {
       setError("Failed to void sale");
       console.error("Error voiding sale:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSale = async (sale: Sale) => {
+    if (
+      !window.confirm(
+        `Permanently delete sale ${sale.saleId}? This cannot be undone and will restore inventory.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/sales/${sale._id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        setMessage("✅ Sale deleted successfully");
+        await fetchSales();
+        setShowModal(false);
+        window.dispatchEvent(new CustomEvent("productsUpdated"));
+        window.dispatchEvent(new CustomEvent("salesUpdated"));
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to delete sale");
+      }
+    } catch (error) {
+      setError("Failed to delete sale");
+      console.error("Error deleting sale:", error);
     } finally {
       setLoading(false);
     }
@@ -2306,12 +2344,21 @@ export default function SalesHistory() {
                                   className={`p-1 rounded transition-colors ${
                                     sale.status === "voided"
                                       ? "text-gray-400 cursor-not-allowed"
-                                      : "text-red-600 hover:text-red-900"
+                                      : "text-orange-600 hover:text-orange-900"
                                   }`}
-                                  title="Void Sale"
+                                  title="Annuler la vente"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Shield className="w-4 h-4" />
                                 </button>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => handleDeleteSale(sale)}
+                                    className="p-1 rounded transition-colors text-red-600 hover:text-red-900"
+                                    title="Supprimer définitivement"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
@@ -2595,6 +2642,29 @@ export default function SalesHistory() {
                   <Edit className="w-4 h-4" />
                   Modifier la vente
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => handleVoidSale(selectedSale)}
+                    disabled={selectedSale.status === "voided"}
+                    className={`px-4 py-2 border rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm ${
+                      selectedSale.status === "voided"
+                        ? "border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50"
+                        : "border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Annuler la vente
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDeleteSale(selectedSale)}
+                    className="px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer définitivement
+                  </button>
+                )}
                 <button
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"

@@ -7,6 +7,8 @@ import {
   AlertCircle,
   ArrowLeftRight,
   Calendar,
+  ChevronDown,
+  ChevronUp,
   Download,
   FileText,
   Package,
@@ -16,6 +18,7 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
@@ -24,6 +27,34 @@ const API_BASE = import.meta.env.VITE_API_URL;
 const COMPANY_NAME = "Entre Nous Renove";
 
 type ReportRange = "today" | "day" | "month" | "year" | "custom";
+
+interface DayBalance {
+  date: string;
+  openingBalance: number;
+  salesRevenue: number;
+  salesCount: number;
+  entriesAmount: number;
+  entriesCount: number;
+  expensesAmount: number;
+  expensesCount: number;
+  closingBalance: number;
+}
+
+interface DailyBalanceData {
+  days: DayBalance[];
+  periodSummary: {
+    openingBalance: number;
+    closingBalance: number;
+    totalSales: number;
+    totalEntries: number;
+    totalExpenses: number;
+    salesCount: number;
+    entriesCount: number;
+    expensesCount: number;
+    netChange: number;
+  };
+  currentBalance: number;
+}
 
 interface ReportData {
   sales: any[];
@@ -120,6 +151,9 @@ export default function CompanyReport() {
   const [toDate, setToDate] = useState(todayIso());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dailyBalance, setDailyBalance] = useState<DailyBalanceData | null>(null);
+  const [dailyBalanceLoading, setDailyBalanceLoading] = useState(false);
+  const [showDailyTable, setShowDailyTable] = useState(false);
   const [data, setData] = useState<ReportData>({
     sales: [],
     expenses: [],
@@ -232,10 +266,33 @@ export default function CompanyReport() {
     }
   }
 
+  async function loadDailyBalance() {
+    setDailyBalanceLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (reportPeriod.from) params.set("from", reportPeriod.from);
+      if (reportPeriod.to) params.set("to", reportPeriod.to);
+      const res = await apiGet(`/company-report/daily-balance?${params.toString()}`);
+      if (res.success) setDailyBalance(res as DailyBalanceData);
+    } catch {
+      // Non-blocking — main report still shows if balance fails
+    } finally {
+      setDailyBalanceLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadReport();
+    loadDailyBalance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframeParams]);
+
+  useEffect(() => {
+    const handleRefresh = () => { loadReport(); loadDailyBalance(); };
+    window.addEventListener("salesUpdated", handleRefresh);
+    return () => window.removeEventListener("salesUpdated", handleRefresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const totals = useMemo(() => {
     const salesRevenue =
@@ -820,6 +877,179 @@ export default function CompanyReport() {
                 </div>
               );
             })}
+          </section>
+
+          {/* ── Daily Rolling Balance (Solde) ─────────────────────────────── */}
+          <section className="mt-6 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Wallet className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Solde journalier</h3>
+                  <p className="text-xs text-slate-500">Résultat cumulé — chaque jour hérite du solde du jour précédent</p>
+                </div>
+              </div>
+              {dailyBalanceLoading && (
+                <RefreshCw className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+              )}
+            </div>
+
+            {dailyBalance ? (
+              <>
+                {/* Period balance cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-white rounded-xl p-3 border border-blue-200 shadow-sm">
+                    <p className="text-xs text-slate-500 font-medium">Solde d'ouverture</p>
+                    <p className={`text-lg font-black mt-1 ${dailyBalance.periodSummary.openingBalance >= 0 ? "text-blue-700" : "text-red-600"}`}>
+                      {formatMoney(dailyBalance.periodSummary.openingBalance)}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">Hérité de la période précédente</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-green-200 shadow-sm">
+                    <p className="text-xs text-slate-500 font-medium">Entrées de la période</p>
+                    <p className="text-lg font-black text-green-700 mt-1">
+                      +{formatMoney(dailyBalance.periodSummary.totalSales + dailyBalance.periodSummary.totalEntries)}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Ventes {formatMoney(dailyBalance.periodSummary.totalSales)} · Encaissements {formatMoney(dailyBalance.periodSummary.totalEntries)}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-red-200 shadow-sm">
+                    <p className="text-xs text-slate-500 font-medium">Sorties de la période</p>
+                    <p className="text-lg font-black text-red-600 mt-1">
+                      -{formatMoney(dailyBalance.periodSummary.totalExpenses)}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{dailyBalance.periodSummary.expensesCount} sortie{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""} validée{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""}</p>
+                  </div>
+                  <div className={`bg-white rounded-xl p-3 border shadow-sm ${dailyBalance.periodSummary.closingBalance >= 0 ? "border-emerald-300" : "border-red-300"}`}>
+                    <p className="text-xs text-slate-500 font-medium">Solde de clôture</p>
+                    <p className={`text-lg font-black mt-1 ${dailyBalance.periodSummary.closingBalance >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                      {formatMoney(dailyBalance.periodSummary.closingBalance)}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {dailyBalance.periodSummary.netChange >= 0 ? "▲" : "▼"}{" "}
+                      {formatMoney(Math.abs(dailyBalance.periodSummary.netChange))} sur la période
+                    </p>
+                  </div>
+                </div>
+
+                {/* Single day: show the detailed formula */}
+                {dailyBalance.days.length === 1 && (
+                  <div className="bg-white rounded-xl p-4 border border-blue-200 text-sm space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Calcul du {formatDate(dailyBalance.days[0].date)}</p>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-600">Solde d'ouverture (hérité)</span>
+                      <span className="font-bold text-blue-700">{formatMoney(dailyBalance.days[0].openingBalance)}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-600">+ Ventes ({dailyBalance.days[0].salesCount} transactions)</span>
+                      <span className="text-green-700">+{formatMoney(dailyBalance.days[0].salesRevenue)}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-600">+ Entrées de caisse ({dailyBalance.days[0].entriesCount})</span>
+                      <span className="text-teal-700">+{formatMoney(dailyBalance.days[0].entriesAmount)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-600">− Sorties validées ({dailyBalance.days[0].expensesCount})</span>
+                      <span className="text-red-600">-{formatMoney(dailyBalance.days[0].expensesAmount)}</span>
+                    </div>
+                    <div className="flex justify-between py-2 font-bold text-base">
+                      <span className="text-slate-800">= Solde de clôture</span>
+                      <span className={dailyBalance.days[0].closingBalance >= 0 ? "text-emerald-700" : "text-red-700"}>
+                        {formatMoney(dailyBalance.days[0].closingBalance)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Multi-day: collapsible breakdown table */}
+                {dailyBalance.days.length > 1 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDailyTable((p) => !p)}
+                      className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 font-semibold transition-colors"
+                    >
+                      {showDailyTable ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {showDailyTable ? "Masquer le détail journalier" : "Afficher le détail journalier"}
+                      <span className="text-blue-400 font-normal">({dailyBalance.days.length} jour{dailyBalance.days.length !== 1 ? "s" : ""})</span>
+                    </button>
+
+                    {showDailyTable && (
+                      <div className="mt-3 overflow-x-auto rounded-lg border border-blue-200 shadow-sm">
+                        <table className="w-full text-xs border-collapse bg-white">
+                          <thead>
+                            <tr className="bg-slate-100 border-b border-slate-200">
+                              <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Date</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-blue-700">Solde ouverture</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-green-700">+ Ventes</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-teal-700">+ Entrées</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-red-600">− Sorties</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-slate-700">Résultat net</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-blue-900">Solde clôture</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyBalance.days.map((day, idx) => {
+                              const dayNet = day.salesRevenue + day.entriesAmount - day.expensesAmount;
+                              return (
+                                <tr
+                                  key={day.date}
+                                  className={`border-b border-slate-100 last:border-0 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}`}
+                                >
+                                  <td className="px-3 py-2 font-medium text-slate-700 whitespace-nowrap">{formatDate(day.date)}</td>
+                                  <td className="px-3 py-2 text-right text-blue-700">{formatMoney(day.openingBalance)}</td>
+                                  <td className="px-3 py-2 text-right text-green-700">+{formatMoney(day.salesRevenue)}</td>
+                                  <td className="px-3 py-2 text-right text-teal-700">+{formatMoney(day.entriesAmount)}</td>
+                                  <td className="px-3 py-2 text-right text-red-600">-{formatMoney(day.expensesAmount)}</td>
+                                  <td className={`px-3 py-2 text-right font-bold ${dayNet >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                                    {dayNet >= 0 ? "+" : ""}{formatMoney(dayNet)}
+                                  </td>
+                                  <td className={`px-3 py-2 text-right font-bold ${day.closingBalance >= 0 ? "text-blue-900" : "text-red-700"}`}>
+                                    {formatMoney(day.closingBalance)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t-2 border-slate-300 bg-slate-100">
+                            <tr>
+                              <td className="px-3 py-2.5 font-bold text-slate-700">Total période</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-blue-700">{formatMoney(dailyBalance.periodSummary.openingBalance)}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-green-700">+{formatMoney(dailyBalance.periodSummary.totalSales)}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-teal-700">+{formatMoney(dailyBalance.periodSummary.totalEntries)}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-red-600">-{formatMoney(dailyBalance.periodSummary.totalExpenses)}</td>
+                              <td className={`px-3 py-2.5 text-right font-bold ${dailyBalance.periodSummary.netChange >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                                {dailyBalance.periodSummary.netChange >= 0 ? "+" : ""}{formatMoney(dailyBalance.periodSummary.netChange)}
+                              </td>
+                              <td className={`px-3 py-2.5 text-right font-bold ${dailyBalance.periodSummary.closingBalance >= 0 ? "text-blue-900" : "text-red-700"}`}>
+                                {formatMoney(dailyBalance.periodSummary.closingBalance)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* No transactions in this period */}
+                {dailyBalance.days.length === 0 && (
+                  <div className="bg-white rounded-xl p-4 border border-blue-100 text-sm text-slate-500 flex items-center justify-between">
+                    <span>Aucune transaction dans cette période.</span>
+                    <span className="font-bold text-blue-700">
+                      Solde courant: {formatMoney(dailyBalance.currentBalance)}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              !dailyBalanceLoading && (
+                <p className="text-sm text-slate-500">Calcul du solde journalier non disponible.</p>
+              )
+            )}
           </section>
 
           {/* Credit Sales Section */}
