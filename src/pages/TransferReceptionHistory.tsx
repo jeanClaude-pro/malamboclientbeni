@@ -17,8 +17,6 @@ import {
   FileText,
   History,
   X,
-  Filter,
-  ChevronDown,
   Plus,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -63,12 +61,6 @@ interface Reception {
   updatedAt: string;
 }
 
-interface CurrentUser {
-  _id?: string;
-  username?: string;
-  role?: string;
-}
-
 type TimeframeType = "today" | "day" | "month" | "year" | "custom";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -103,7 +95,6 @@ export default function TransferReceptionHistory() {
   const [error, setError] = useState<string | null>(null);
 
   // User
-  const [currentUser, setCurrentUser] = useState<CurrentUser>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
 
@@ -111,7 +102,6 @@ export default function TransferReceptionHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "voided">("all");
   const [timeframeType, setTimeframeType] = useState<TimeframeType>("today");
-  const [showFilters, setShowFilters] = useState(false);
   const [queryParams, setQueryParams] = useState({
     date: getTodayStr(),
     year: String(getCurrentYear()),
@@ -149,7 +139,6 @@ export default function TransferReceptionHistory() {
     const user = (() => {
       try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
     })();
-    setCurrentUser(user);
     setIsAdmin(user.role === "admin");
     setIsManager(user.role === "admin" || user.role === "manager");
 
