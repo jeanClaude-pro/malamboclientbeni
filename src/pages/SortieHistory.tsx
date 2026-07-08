@@ -1623,7 +1623,7 @@ export default function SortieHistory() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider sticky right-0 bg-black/95 sm:bg-black/50 z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)]">
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-blue-300 uppercase tracking-wider sticky right-0 bg-black/95 sm:bg-black/50 z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] min-w-[9.5rem] sm:min-w-[12rem]">
                       Actions
                     </th>
                   </tr>
@@ -1673,23 +1673,23 @@ export default function SortieHistory() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300">
                         {formatDate(expense.createdAt)}
                       </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-gray-900 sm:bg-transparent z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] sm:shadow-none">
-                        <div className="flex gap-1 sm:gap-2">
+                      <td className="px-3 sm:px-6 py-4 text-sm font-medium sticky right-0 bg-gray-900/95 sm:bg-gray-900/80 lg:bg-transparent z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] lg:shadow-none min-w-[9.5rem] sm:min-w-[12rem]">
+                        <div className="grid grid-cols-3 sm:flex sm:flex-wrap justify-center gap-2">
                           <button
                             onClick={() => viewExpenseDetails(expense)}
-                            className="text-blue-400 hover:text-blue-300 p-1 rounded transition-colors"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-500/40 bg-blue-900/60 text-blue-200 shadow-sm shadow-blue-950/40 transition-colors hover:bg-blue-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
                             title="Voir les détails"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-5 h-5" />
                           </button>
 
                           {/* History button */}
                           <button
                             onClick={() => fetchExpenseHistory(expense._id)}
-                            className="text-gray-400 hover:text-gray-300 p-1 rounded transition-colors"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-500/40 bg-slate-800/70 text-slate-200 shadow-sm shadow-slate-950/40 transition-colors hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-400"
                             title="Voir l'historique"
                           >
-                            <History className="w-4 h-4" />
+                            <History className="w-5 h-5" />
                           </button>
 
                           {/* Admin-only validation buttons */}
@@ -1702,20 +1702,20 @@ export default function SortieHistory() {
                                   disabled={
                                     actionLoading === `validating-${expense._id}`
                                   }
-                                  className="text-green-400 hover:text-green-300 p-1 rounded disabled:opacity-50 transition-colors"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-green-500/40 bg-green-900/60 text-green-200 shadow-sm shadow-green-950/40 transition-colors hover:bg-green-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-green-400 disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Valider la dépense"
                                 >
-                                  <CheckCircle className="w-4 h-4" />
+                                  <CheckCircle className="w-5 h-5" />
                                 </button>
                                 <button
                                   onClick={() => openValidationModal(expense)}
                                   disabled={
                                     actionLoading === `validating-${expense._id}`
                                   }
-                                  className="text-red-400 hover:text-red-300 p-1 rounded disabled:opacity-50 transition-colors"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-500/40 bg-red-900/60 text-red-200 shadow-sm shadow-red-950/40 transition-colors hover:bg-red-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Rejeter la dépense"
                                 >
-                                  <XCircle className="w-4 h-4" />
+                                  <XCircle className="w-5 h-5" />
                                 </button>
                               </>
                             )}
@@ -1724,10 +1724,10 @@ export default function SortieHistory() {
                           {canEditExpense(expense) && (
                             <button
                               onClick={() => openEditModal(expense)}
-                              className="text-yellow-400 hover:text-yellow-300 p-1 rounded transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-yellow-500/40 bg-yellow-900/60 text-yellow-100 shadow-sm shadow-yellow-950/40 transition-colors hover:bg-yellow-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
                               title="Modifier la dépense"
                             >
-                              <Edit className="w-4 h-4" />
+                              <Edit className="w-5 h-5" />
                             </button>
                           )}
 
@@ -1735,10 +1735,10 @@ export default function SortieHistory() {
                           {canDeleteExpense(expense) && (
                             <button
                               onClick={() => openDeleteModal(expense)}
-                              className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-500/40 bg-red-900/60 text-red-200 shadow-sm shadow-red-950/40 transition-colors hover:bg-red-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400"
                               title="Supprimer la dépense"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-5 h-5" />
                             </button>
                           )}
 
@@ -1746,10 +1746,10 @@ export default function SortieHistory() {
                           {expense.status === "validated" && (
                             <button
                               onClick={() => printExpenseReceipt(expense)}
-                              className="text-purple-400 hover:text-purple-300 p-1 rounded transition-colors"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-purple-500/40 bg-purple-900/60 text-purple-200 shadow-sm shadow-purple-950/40 transition-colors hover:bg-purple-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
                               title="Imprimer le reçu"
                             >
-                              <Printer className="w-4 h-4" />
+                              <Printer className="w-5 h-5" />
                             </button>
                           )}
                         </div>
