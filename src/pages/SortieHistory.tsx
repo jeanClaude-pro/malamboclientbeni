@@ -1623,7 +1623,7 @@ export default function SortieHistory() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider sticky right-0 bg-black/95 sm:bg-black/50 z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)]">
                       Actions
                     </th>
                   </tr>
@@ -1673,8 +1673,8 @@ export default function SortieHistory() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300">
                         {formatDate(expense.createdAt)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-gray-900 sm:bg-transparent z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] sm:shadow-none">
+                        <div className="flex gap-1 sm:gap-2">
                           <button
                             onClick={() => viewExpenseDetails(expense)}
                             className="text-blue-400 hover:text-blue-300 p-1 rounded transition-colors"
