@@ -251,6 +251,39 @@ export default function NewSale() {
     };
   }, []);
 
+  // Stock can change in a different module (reception, sale correction, or
+  // product maintenance) while this sales screen is open. Reload the catalogue
+  // from the server instead of relying on a stale in-memory stock value.
+  const refreshProducts = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/products`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+      });
+      const data = await readJsonSafe(res);
+      if (!res.ok) throw new Error((data as any)?.error || `Products fetch failed: ${res.status}`);
+      const list: Product[] = Array.isArray((data as any)?.products)
+        ? (data as any).products
+        : Array.isArray(data) && !(data as any).__nonJson
+          ? (data as any)
+          : [];
+      setProducts(list);
+    } catch (e: any) {
+      setError(e?.message || "Failed to refresh products");
+    }
+  };
+
+  useEffect(() => {
+    const handleDataChange = () => { void refreshProducts(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+    // The listener only needs the initial function; it reads the current token.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load exchange rate
   const loadExchangeRate = async () => {
     try {

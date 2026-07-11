@@ -120,6 +120,12 @@ export default function Entry() {
     loadExchangeRate();
   }, []);
 
+  useEffect(() => {
+    const handleDataChange = () => { void loadExchangeRate(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, []);
+
   // Calculate USD amount when FC amount changes
   useEffect(() => {
     if (form.currencyMode === "fc" && form.amountInFC && exchangeRate) {

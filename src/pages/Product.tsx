@@ -563,8 +563,10 @@ export default function Products() {
     fetchProducts();
 
     const handleProductsUpdated = () => fetchProducts();
-    window.addEventListener("productsUpdated", handleProductsUpdated);
-    return () => window.removeEventListener("productsUpdated", handleProductsUpdated);
+    window.addEventListener("appDataChanged", handleProductsUpdated);
+    return () => {
+      window.removeEventListener("appDataChanged", handleProductsUpdated);
+    };
   }, []);
 
   const resetForm = () => {

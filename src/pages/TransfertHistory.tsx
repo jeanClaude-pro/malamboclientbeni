@@ -118,10 +118,10 @@ export default function TransfertHistory() {
     fetchTransfers();
 
     const handleUpdate = () => fetchTransfers();
-    window.addEventListener("transferCreated", handleUpdate);
+    window.addEventListener("appDataChanged", handleUpdate);
 
     return () => {
-      window.removeEventListener("transferCreated", handleUpdate);
+      window.removeEventListener("appDataChanged", handleUpdate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, agencyFilter, timeframe]);
@@ -209,7 +209,9 @@ export default function TransfertHistory() {
 
   const openStatusModal = (transfer: Transfer) => {
     setEditingTransfer(transfer);
-    setStatusUpdate({ status: transfer.status, reason: "" });
+    // "delivered" is set automatically by confirming a reception and isn't a
+    // selectable target here, so default away from it if that's the current status.
+    setStatusUpdate({ status: transfer.status === "delivered" ? "in_transit" : transfer.status, reason: "" });
     setShowStatusModal(true);
   };
 
@@ -825,9 +827,11 @@ export default function TransfertHistory() {
                 >
                   <option value="pending">En attente</option>
                   <option value="in_transit">En transit</option>
-                  <option value="delivered">Livré</option>
                   <option value="cancelled">Annulé</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Le statut « Livré » est appliqué automatiquement lors de la confirmation d'une réception dans Réception de Transfert — il ne peut pas être choisi ici.
+                </p>
               </div>
 
               <div>

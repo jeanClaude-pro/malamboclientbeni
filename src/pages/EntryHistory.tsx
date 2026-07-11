@@ -185,6 +185,12 @@ export default function EntryHistory() {
     fetchEntries();
   }, []);
 
+  useEffect(() => {
+    const handleDataChange = () => { void fetchEntries(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, []);
+
   // Fetch entries when timeframe or filters change
   useEffect(() => {
     if (currentUser !== null) { // Only fetch entries after user data is loaded

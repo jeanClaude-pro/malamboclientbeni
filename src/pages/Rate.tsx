@@ -121,6 +121,12 @@ export default function TauxChange() {
     chargerTaux();
   }, []);
 
+  useEffect(() => {
+    const handleDataChange = () => { void chargerTaux(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     

@@ -317,6 +317,14 @@ export default function Analytics() {
     fetchAnalytics();
   }, [timeframe, selectedYear, selectedDate]);
 
+  useEffect(() => {
+    const handleDataChange = () => { void fetchAnalytics(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+    // The handler reads the current timeframe state from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch analytics data with server-side timeframe filtering
   const fetchAnalytics = async () => {
     try {

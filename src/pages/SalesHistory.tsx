@@ -263,12 +263,13 @@ export default function SalesHistory() {
     const handleSalesUpdate = () => {
       // Refresh sales when triggered from other components
       fetchSales();
+      fetchProducts();
     };
 
-    window.addEventListener("salesUpdated", handleSalesUpdate);
+    window.addEventListener("appDataChanged", handleSalesUpdate);
 
     return () => {
-      window.removeEventListener("salesUpdated", handleSalesUpdate);
+      window.removeEventListener("appDataChanged", handleSalesUpdate);
     };
   }, []);
 

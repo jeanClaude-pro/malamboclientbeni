@@ -43,6 +43,7 @@ interface EditHistoryEntry {
 interface Reception {
   _id: string;
   receptionId: string;
+  transferId?: string;
   product: ReceptionProduct;
   sourceLocation: string;
   transferReference: string;
@@ -145,8 +146,10 @@ export default function TransferReceptionHistory() {
     fetchReceptions();
 
     const handleUpdate = () => fetchReceptions();
-    window.addEventListener("transferReceptionUpdated", handleUpdate);
-    return () => window.removeEventListener("transferReceptionUpdated", handleUpdate);
+    window.addEventListener("appDataChanged", handleUpdate);
+    return () => {
+      window.removeEventListener("appDataChanged", handleUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -283,8 +286,9 @@ export default function TransferReceptionHistory() {
 
   const handleVoid = async (r: Reception) => {
     if (r.status === "voided") { showFeedback("Cette réception est déjà annulée", true); return; }
+    const reopenNote = r.transferId ? "\nLe transfert d'origine repassera en statut \"En transit\"." : "";
     const reason = window.prompt(
-      `Annuler la réception ${r.receptionId} ?\nCela retirera ${formatStock(r.product.totalPieces, r.product.piecesPerCarton)} du stock.\n\nRaison de l'annulation :`
+      `Annuler la réception ${r.receptionId} ?\nCela retirera ${formatStock(r.product.totalPieces, r.product.piecesPerCarton)} du stock.${reopenNote}\n\nRaison de l'annulation :`
     );
     if (reason === null) return; // cancelled
 
@@ -897,15 +901,22 @@ export default function TransferReceptionHistory() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Provenance</label>
                 <input type="text" value={editForm.sourceLocation}
+                  disabled={!!editingReception.transferId}
                   onChange={(e) => setEditForm((p) => ({ ...p, sourceLocation: e.target.value }))}
-                  className={inputClass} />
+                  className={`${inputClass} ${editingReception.transferId ? "bg-gray-100 cursor-not-allowed" : ""}`} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Réf. transfert</label>
                 <input type="text" value={editForm.transferReference}
+                  disabled={!!editingReception.transferId}
                   onChange={(e) => setEditForm((p) => ({ ...p, transferReference: e.target.value }))}
-                  className={inputClass} />
+                  className={`${inputClass} ${editingReception.transferId ? "bg-gray-100 cursor-not-allowed" : ""}`} />
               </div>
+              {editingReception.transferId && (
+                <p className="text-xs text-gray-500 -mt-2">
+                  La provenance et la référence sont liées au transfert d'origine et ne peuvent pas être modifiées ici.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Livré par</label>

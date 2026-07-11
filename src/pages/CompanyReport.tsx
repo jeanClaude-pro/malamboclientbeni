@@ -289,8 +289,10 @@ export default function CompanyReport() {
 
   useEffect(() => {
     const handleRefresh = () => { loadReport(); loadDailyBalance(); };
-    window.addEventListener("salesUpdated", handleRefresh);
-    return () => window.removeEventListener("salesUpdated", handleRefresh);
+    window.addEventListener("appDataChanged", handleRefresh);
+    return () => {
+      window.removeEventListener("appDataChanged", handleRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

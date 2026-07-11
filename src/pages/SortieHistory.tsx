@@ -228,6 +228,12 @@ export default function SortieHistory() {
     fetchExpenses();
   }, []);
 
+  useEffect(() => {
+    const handleDataChange = () => { void fetchExpenses(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, []);
+
   // Fetch data when query params change
   useEffect(() => {
     if (Object.keys(queryParams).length > 0) {

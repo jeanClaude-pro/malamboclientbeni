@@ -138,6 +138,12 @@ export default function Customers() {
     fetchRecent();
   }, [fetchRecent]);
 
+  useEffect(() => {
+    const handleDataChange = () => { void fetchRecent(); };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, [fetchRecent]);
+
   async function searchFiche(phone: string) {
     if (!phone.trim()) {
       setSearchError("Veuillez entrer un numéro de téléphone.");

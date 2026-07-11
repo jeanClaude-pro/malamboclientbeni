@@ -83,6 +83,16 @@ export default function Transfert() {
       .catch(() => setProducts([]));
   }, []);
 
+  useEffect(() => {
+    const handleDataChange = () => {
+      void apiFetch<Product[]>("/products")
+        .then((data) => setProducts(Array.isArray(data) ? data : []))
+        .catch(() => setProducts([]));
+    };
+    window.addEventListener("appDataChanged", handleDataChange);
+    return () => window.removeEventListener("appDataChanged", handleDataChange);
+  }, []);
+
   const setStr = (path: string, value: string) => {
     const [parent, child] = path.split(".");
     if (child) {
@@ -273,8 +283,8 @@ export default function Transfert() {
                   </p>
                 )}
                 <p className="mt-1 text-xs text-blue-300/50">
-                  Seul un article existant de l'inventaire peut être transféré, afin que le stock
-                  soit déduit automatiquement.
+                  Seul un article existant de l'inventaire peut être transféré. Le stock du
+                  destinataire ne sera mis à jour qu'une fois la réception confirmée.
                 </p>
               </div>
               <div>

@@ -184,10 +184,10 @@ export default function CarsHistory() {
     fetchTrips();
     
     const handleTripUpdate = () => fetchTrips();
-    window.addEventListener("tripCreated", handleTripUpdate);
+    window.addEventListener("appDataChanged", handleTripUpdate);
     
     return () => {
-      window.removeEventListener("tripCreated", handleTripUpdate);
+      window.removeEventListener("appDataChanged", handleTripUpdate);
     };
   }, [statusFilter, plateFilter, timeframe]);
 
