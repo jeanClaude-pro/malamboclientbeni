@@ -33,7 +33,15 @@ import TransferReceptionHistory from "./pages/TransferReceptionHistory";
 
 export default function App() {
   const token = localStorage.getItem("token");
+  const storedUser = localStorage.getItem("user");
   const isAuthenticated = !!token;
+  const isManager = (() => {
+    try {
+      return storedUser ? JSON.parse(storedUser).role === "manager" : false;
+    } catch {
+      return false;
+    }
+  })();
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     window.innerWidth < 1024 ? 0 : 280
   );
@@ -217,7 +225,7 @@ export default function App() {
                   path="/login"
                   element={
                     isAuthenticated ? (
-                      <Navigate to="/" replace />
+                      <Navigate to={isManager ? "/reports" : "/"} replace />
                     ) : (
                       <LoginPage />
                     )

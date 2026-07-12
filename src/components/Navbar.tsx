@@ -207,12 +207,11 @@ const isSunday = (): boolean => {
   return weekday === "Sun";
 };
 
-// Function to check if user has restricted access (non-admin outside allowed hours or on Sunday)
+// Admins and report-only managers can use the system at any time.
 const hasRestrictedAccess = (userRole: string | undefined): boolean => {
-  // Admin users always have access
-  if (userRole === "admin") return false;
+  if (userRole === "admin" || userRole === "manager") return false;
   
-  // Non-admin users have restricted access outside 8 AM - 8 PM or on Sundays
+  // Other users have restricted access outside 8 AM - 8 PM or on Sundays.
   return !isAllowedTime() || isSunday();
 };
 
@@ -340,6 +339,8 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
 
   // Check if user has access to a specific item
   const hasAccess = (item: SidebarItem): boolean => {
+    // Managers are intentionally limited to the company report screen.
+    if (user?.role === "manager") return item.path === "/reports";
     if (!item.roles) return true; // If no roles specified, allow access
     if (!user?.role) return false; // If user has no role, deny access
     

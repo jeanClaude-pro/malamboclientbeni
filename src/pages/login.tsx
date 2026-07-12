@@ -52,7 +52,7 @@ const LoginPage = () => {
         const { user, token } = await loginApi({ email, password });
         setAuth({ token, user });
         toast.success("Connexion réussie !");
-        navigate("/");
+        navigate(user.role === "manager" ? "/reports" : "/");
       }
     } catch (err: any) {
       const msg = err?.message || "Une erreur est survenue";

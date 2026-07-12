@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 export const RequireAuth: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
-  const { token, loading } = useAuth();
+  const { token, user, loading } = useAuth();
   const location = useLocation();
 
   // If not logged in, show toast once
@@ -19,5 +19,12 @@ export const RequireAuth: React.FC<React.PropsWithChildren> = ({
   if (loading) return null; // or a spinner
   if (!token)
     return <Navigate to="/login" replace state={{ from: location }} />;
+
+  // Keep this at the route boundary so manually entered URLs cannot bypass
+  // the manager's report-only access.
+  if (user?.role === "manager" && location.pathname !== "/reports") {
+    return <Navigate to="/reports" replace />;
+  }
+
   return <>{children}</>;
 };
