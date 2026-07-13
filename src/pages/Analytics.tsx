@@ -19,6 +19,7 @@ import {
   FileText,
   RefreshCw,
 } from "lucide-react";
+import { WALK_IN_CUSTOMER_NAME } from "../utils/constants";
 
 // Define interfaces for the data structures
 interface SaleItem {
@@ -586,7 +587,7 @@ export default function Analytics() {
     // Top customers from today's sales
     const customerStats = new Map();
     completedSales.forEach((sale: Sale) => {
-      const customerName = sale.customer?.name || sale.customerName || "Unknown Customer";
+      const customerName = sale.customer?.name || sale.customerName || WALK_IN_CUSTOMER_NAME;
       const key = customerName;
       
       if (customerStats.has(key)) {
@@ -606,7 +607,7 @@ export default function Analytics() {
     });
 
     const topCustomers = Array.from(customerStats.values())
-      .filter(customer => customer.purchases > 0 && customer.name !== "Unknown Customer")
+      .filter(customer => customer.purchases > 0 && customer.name !== WALK_IN_CUSTOMER_NAME)
       .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, 5);
 
@@ -744,7 +745,7 @@ export default function Analytics() {
     // Top customers
     const customerStats = new Map();
     completedSales.forEach((sale: Sale) => {
-      const customerName = sale.customer?.name || sale.customerName || "Unknown Customer";
+      const customerName = sale.customer?.name || sale.customerName || WALK_IN_CUSTOMER_NAME;
       const key = customerName;
       
       if (customerStats.has(key)) {
@@ -776,7 +777,7 @@ export default function Analytics() {
     });
 
     const topCustomers = Array.from(customerStats.values())
-      .filter(customer => customer.purchases > 0 && customer.name !== "Unknown Customer")
+      .filter(customer => customer.purchases > 0 && customer.name !== WALK_IN_CUSTOMER_NAME)
       .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, 5);
 

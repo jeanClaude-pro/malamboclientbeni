@@ -59,3 +59,10 @@ export const units = [
 ];
 
 export const serverUrl = import.meta.env.VITE_API_URL;
+
+// Display name used both when a cashier explicitly marks a sale as a walk-in
+// customer and as the fallback label for older sales saved without a name.
+export const WALK_IN_CUSTOMER_NAME = "Client de passage";
+
+export const getCustomerDisplayName = (name?: string | null) =>
+    name && name.trim() !== "" ? name : WALK_IN_CUSTOMER_NAME;

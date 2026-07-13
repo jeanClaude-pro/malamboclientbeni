@@ -339,8 +339,10 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
 
   // Check if user has access to a specific item
   const hasAccess = (item: SidebarItem): boolean => {
-    // Managers are intentionally limited to the company report screen.
-    if (user?.role === "manager") return item.path === "/reports";
+    // Managers are intentionally limited to reports, products, and sortie history.
+    if (user?.role === "manager") {
+      return ["/reports", "/products", "/sortiehistory"].includes(item.path);
+    }
     if (!item.roles) return true; // If no roles specified, allow access
     if (!user?.role) return false; // If user has no role, deny access
     

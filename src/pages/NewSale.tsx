@@ -8,6 +8,7 @@ import {
   Search,
   ShoppingCart,
   User,
+  UserX,
   Phone,
   Mail,
   Package,
@@ -18,6 +19,7 @@ import {
   AlertTriangle,
   Calendar,
 } from "lucide-react";
+import { WALK_IN_CUSTOMER_NAME } from "../utils/constants";
 
 interface Product {
   _id: string;
@@ -229,6 +231,8 @@ export default function NewSale() {
     creditDueDate: "",
     // Admin-only: which calendar day this sale should be recorded/calculated under
     saleDate: getTodayDate(),
+    // Walk-in customer: sale made to someone who won't provide their details
+    isWalkIn: false,
   });
 
   const [message, setMessage] = useState<string | null>(null);
@@ -1380,9 +1384,9 @@ export default function NewSale() {
 
       const body: Record<string, unknown> = {
         customer: {
-          name: form.customerName,
-          phone: form.customerPhone,
-          email: form.customerEmail || "",
+          name: form.isWalkIn ? WALK_IN_CUSTOMER_NAME : form.customerName,
+          phone: form.isWalkIn ? "" : form.customerPhone,
+          email: form.isWalkIn ? "" : form.customerEmail || "",
         },
         items: cart.map((item) => ({
           productId: item.productId,
@@ -1448,9 +1452,9 @@ export default function NewSale() {
         shopAddress: "",
         shopNumber: "",
         shopRegistration: "",
-        customerName: form.customerName,
-        customerPhone: form.customerPhone,
-        customerEmail: form.customerEmail,
+        customerName: form.isWalkIn ? WALK_IN_CUSTOMER_NAME : form.customerName,
+        customerPhone: form.isWalkIn ? "" : form.customerPhone,
+        customerEmail: form.isWalkIn ? "" : form.customerEmail,
         items: cart,
         total: cartTotal,
         paymentMethod: form.paymentMethod,
@@ -1497,6 +1501,7 @@ export default function NewSale() {
         creditAmountPaid: "",
         creditDueDate: "",
         saleDate: getTodayDate(),
+        isWalkIn: false,
       });
       setCart([]);
       setSearchTerm("");
@@ -1931,7 +1936,7 @@ export default function NewSale() {
             </button>
             <button
               type="button"
-              onClick={() => setForm((f) => ({ ...f, paymentMode: "credit" }))}
+              onClick={() => setForm((f) => ({ ...f, paymentMode: "credit", isWalkIn: false }))}
               className={`flex-1 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 border transition-all duration-200 ${
                 isCreditSale
                   ? "bg-amber-700 border-amber-500 text-white shadow-lg shadow-amber-900/40"
@@ -1942,6 +1947,37 @@ export default function NewSale() {
               Vente à crédit
             </button>
           </div>
+
+          {/* Walk-in Customer Toggle — sale to someone who won't provide their details */}
+          {!isCreditSale && (
+            <label
+              className={`mb-6 flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
+                form.isWalkIn
+                  ? "bg-purple-900/30 border-purple-600/50"
+                  : "bg-black/20 border-blue-800/50 hover:bg-blue-900/20"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={form.isWalkIn}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm((f) => ({
+                    ...f,
+                    isWalkIn: checked,
+                    customerName: checked ? "" : f.customerName,
+                    customerPhone: checked ? "" : f.customerPhone,
+                    customerEmail: checked ? "" : f.customerEmail,
+                  }));
+                }}
+                className="w-4 h-4 accent-purple-600"
+              />
+              <UserX className="w-4 h-4 text-purple-300" />
+              <span className="text-sm font-medium text-blue-100">
+                Client de passage (aucune information à fournir)
+              </span>
+            </label>
+          )}
 
           {/* Credit Warning Banner */}
           {isCreditSale && (
@@ -1987,8 +2023,9 @@ export default function NewSale() {
                   }
                 }}
                 placeholder="Ex: 0812345678"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 required={isCreditSale}
+                disabled={form.isWalkIn}
               />
             </div>
 
@@ -2000,11 +2037,12 @@ export default function NewSale() {
               <input
                 type="text"
                 name="customerName"
-                value={form.customerName}
+                value={form.isWalkIn ? WALK_IN_CUSTOMER_NAME : form.customerName}
                 onChange={handleChange}
                 placeholder="Entrer le nom du client"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 required={isCreditSale}
+                disabled={form.isWalkIn}
               />
             </div>
 
@@ -2019,7 +2057,8 @@ export default function NewSale() {
                 value={form.customerEmail}
                 onChange={handleChange}
                 placeholder="Entrer l'email du client"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                disabled={form.isWalkIn}
+                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 

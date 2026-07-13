@@ -22,9 +22,10 @@ import {
   RefreshCw,
   CreditCard,
   Download,
+  History,
 } from "lucide-react";
 import jsPDF from "jspdf";
-import { getProductStatus } from "../utils/constants";
+import { getProductStatus, getCustomerDisplayName } from "../utils/constants";
 import { toast } from "react-toastify";
 import type { Product } from "../types";
 import { serverUrl } from "../utils/constants";
@@ -34,7 +35,7 @@ interface User {
   _id: string;
   name: string;
   email: string;
-  role: "admin" | "staff";
+  role: "admin" | "manager" | "staff" | "cashier_supervisor" | "inventory_manager";
 }
 
 interface SaleItem {
@@ -68,6 +69,51 @@ interface FicheSale {
     dueDate?: string;
   };
   recordedBy?: string;
+}
+
+const STOCK_MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  loan: "Prêt",
+  loan_return: "Retour de prêt",
+  bonus_manual: "Bonus manuel",
+  adjustment_in: "Ajustement (+)",
+  adjustment_out: "Ajustement (-)",
+  car_arrival: "Arrivée de camion",
+};
+
+const STOCK_MOVEMENT_DECREASES = new Set(["loan", "bonus_manual", "adjustment_out"]);
+
+interface StockMovementRecord {
+  _id: string;
+  productId: string;
+  type: string;
+  quantity: number;
+  reference?: string;
+  notes?: string;
+  recordedBy?: string;
+  createdAt: string;
+}
+
+interface TransferReceptionRecord {
+  _id: string;
+  product: { productId: string; totalPieces: number };
+  transferId?: string | null;
+  transferReference?: string;
+  sourceLocation?: string;
+  receivedBy?: string;
+  notes?: string;
+  status: "active" | "voided";
+  createdAt: string;
+}
+
+interface StockHistoryEntry {
+  id: string;
+  date: string;
+  label: string;
+  quantity: number; // signed — positive increases stock, negative decreases it
+  reference?: string;
+  by?: string;
+  notes?: string;
+  voided?: boolean;
 }
 
 interface FormData {
@@ -155,8 +201,9 @@ export default function Products() {
   const [showFicheModal, setShowFicheModal] = useState(false);
   const [ficheProduct, setFicheProduct] = useState<Product | null>(null);
   const [ficheSales, setFicheSales] = useState<FicheSale[]>([]);
+  const [ficheHistory, setFicheHistory] = useState<StockHistoryEntry[]>([]);
   const [ficheLoading, setFicheLoading] = useState(false);
-  const [ficheTab, setFicheTab] = useState<"sales" | "bonus" | "credit">("sales");
+  const [ficheTab, setFicheTab] = useState<"sales" | "bonus" | "credit" | "history">("sales");
 
   // Get current user from localStorage
   useEffect(() => {
@@ -273,7 +320,6 @@ export default function Products() {
   };
 
   const fetchFicheSales = async (product: Product) => {
-    setFicheLoading(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const res = await fetch(
@@ -294,6 +340,64 @@ export default function Products() {
       }
     } catch {
       toast.error("Erreur réseau lors du chargement");
+    }
+  };
+
+  const fetchFicheHistory = async (product: Product) => {
+    try {
+      const authHeader = { Authorization: `Bearer ${localStorage.getItem("token") || ""}` };
+      const [movementsRes, receptionsRes] = await Promise.all([
+        fetch(`${serverUrl}/stock-movements?productId=${product._id}`, { headers: authHeader }),
+        fetch(`${serverUrl}/transfer-receptions`, { headers: authHeader }),
+      ]);
+
+      const entries: StockHistoryEntry[] = [];
+
+      if (movementsRes.ok) {
+        const json = await movementsRes.json();
+        const list: StockMovementRecord[] = Array.isArray(json?.data) ? json.data : [];
+        for (const m of list) {
+          entries.push({
+            id: m._id,
+            date: m.createdAt,
+            label: STOCK_MOVEMENT_TYPE_LABELS[m.type] || m.type,
+            quantity: STOCK_MOVEMENT_DECREASES.has(m.type) ? -m.quantity : m.quantity,
+            reference: m.reference,
+            by: m.recordedBy,
+            notes: m.notes,
+          });
+        }
+      }
+
+      if (receptionsRes.ok) {
+        const json = await receptionsRes.json();
+        const list: TransferReceptionRecord[] = Array.isArray(json?.data) ? json.data : [];
+        for (const r of list) {
+          if (r.product?.productId !== product._id) continue;
+          entries.push({
+            id: r._id,
+            date: r.createdAt,
+            label: r.transferId ? "Réception de transfert" : "Réception directe",
+            quantity: r.product.totalPieces,
+            reference: r.transferReference,
+            by: r.receivedBy,
+            notes: [r.sourceLocation, r.notes].filter(Boolean).join(" — "),
+            voided: r.status === "voided",
+          });
+        }
+      }
+
+      entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setFicheHistory(entries);
+    } catch {
+      toast.error("Impossible de charger l'historique du stock");
+    }
+  };
+
+  const loadFicheData = async (product: Product) => {
+    setFicheLoading(true);
+    try {
+      await Promise.all([fetchFicheSales(product), fetchFicheHistory(product)]);
     } finally {
       setFicheLoading(false);
     }
@@ -304,13 +408,15 @@ export default function Products() {
     setFicheTab("sales");
     setShowFicheModal(true);
     setFicheSales([]);
-    await fetchFicheSales(product);
+    setFicheHistory([]);
+    await loadFicheData(product);
   };
 
   const closeFicheModal = () => {
     setShowFicheModal(false);
     setFicheProduct(null);
     setFicheSales([]);
+    setFicheHistory([]);
     setFicheTab("sales");
   };
 
@@ -390,7 +496,7 @@ export default function Products() {
       if (i % 2 === 0) { doc.setFillColor(235, 242, 255); doc.rect(left, y - 4, pageW - 28, 6, "F"); }
       const row = [
         new Date(sale.createdAt).toLocaleDateString("fr-FR"),
-        (sale.customer?.name || "—").slice(0, 22),
+        getCustomerDisplayName(sale.customer?.name).slice(0, 22),
         `${soldCartons} carton${soldCartons > 1 ? "s" : ""}`.slice(0, 14),
         bonus > 0 ? formatCartonStock(bonus, ppc).slice(0, 10) : "—",
         (sale.paymentType === "credit" ? "Crédit" : (sale.paymentMethod || "Espèces")).slice(0, 12),
@@ -440,7 +546,7 @@ export default function Products() {
         const due = Number(sale.creditDetails?.amountDue || 0);
         const row = [
           new Date(sale.createdAt).toLocaleDateString("fr-FR"),
-          (sale.customer?.name || "—").slice(0, 22),
+          getCustomerDisplayName(sale.customer?.name).slice(0, 22),
           `$${Number(sale.total || 0).toFixed(2)}`,
           `$${paid.toFixed(2)}`,
           `$${due.toFixed(2)}`,
@@ -1292,10 +1398,14 @@ export default function Products() {
                         <span className="ml-3 text-blue-300/50">{ficheProduct.brand}</span>
                       )}
                     </p>
+                    <p className="text-xs text-blue-300/50 mt-1">
+                      Créé le {new Date(ficheProduct.createdAt).toLocaleString("fr-FR")} · Dernière modification le{" "}
+                      {new Date(ficheProduct.updatedAt).toLocaleString("fr-FR")}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={() => fetchFicheSales(ficheProduct)}
+                      onClick={() => loadFicheData(ficheProduct)}
                       className="text-purple-400 hover:text-purple-300 p-1 rounded transition-colors"
                       title="Actualiser"
                     >
@@ -1359,6 +1469,7 @@ export default function Products() {
                       { key: "sales" as const, label: "Toutes les ventes", icon: <Package className="w-3.5 h-3.5" /> },
                       { key: "bonus" as const, label: "Bonus donnés", icon: <TrendingDown className="w-3.5 h-3.5" /> },
                       { key: "credit" as const, label: "Crédit / Prêts", icon: <CreditCard className="w-3.5 h-3.5" /> },
+                      { key: "history" as const, label: "Historique du stock", icon: <History className="w-3.5 h-3.5" /> },
                     ]
                   ).map((tab) => (
                     <button
@@ -1419,7 +1530,7 @@ export default function Products() {
                                         {new Date(sale.createdAt).toLocaleDateString("fr-FR")}
                                       </td>
                                       <td className="py-2.5 pr-3 text-white font-medium">
-                                        {sale.customer?.name || "—"}
+                                        {getCustomerDisplayName(sale.customer?.name)}
                                       </td>
                                       <td className="py-2.5 pr-3 text-right text-white">
                                         {soldCartons} carton{soldCartons > 1 ? "s" : ""}
@@ -1485,7 +1596,7 @@ export default function Products() {
                               .map((i, idx) => (
                                 <div key={idx} className="rounded-lg border border-green-800/40 bg-green-900/10 p-4 flex items-center justify-between gap-4">
                                   <div>
-                                    <p className="text-white font-medium">{i.sale.customer?.name || "Client anonyme"}</p>
+                                    <p className="text-white font-medium">{getCustomerDisplayName(i.sale.customer?.name)}</p>
                                     <p className="text-sm text-blue-300/60">
                                       {new Date(i.sale.createdAt).toLocaleDateString("fr-FR")} · Vente #{i.sale.saleId || i.sale._id.slice(-6)}
                                     </p>
@@ -1539,7 +1650,7 @@ export default function Products() {
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-semibold text-white">
-                                          {sale.customer?.name || "Client anonyme"}
+                                          {getCustomerDisplayName(sale.customer?.name)}
                                         </span>
                                         {sale.customer?.phone && (
                                           <span className="text-xs text-blue-300/60">{sale.customer.phone}</span>
@@ -1598,6 +1709,56 @@ export default function Products() {
                                 </p>
                               </div>
                             )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Stock history tab */}
+                    {ficheTab === "history" && (
+                      <div>
+                        <p className="text-xs text-blue-300/50 mb-3 uppercase tracking-wider">
+                          Tous les mouvements de stock — arrivées de camions, réceptions, prêts et ajustements
+                        </p>
+                        {ficheHistory.length === 0 ? (
+                          <p className="text-blue-300/60 text-sm py-10 text-center">
+                            Aucun mouvement de stock enregistré pour cet article.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="border-b border-blue-800/40">
+                                <tr>
+                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
+                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Source</th>
+                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Quantité</th>
+                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Référence</th>
+                                  <th className="text-left py-2 text-blue-300/70 font-medium">Enregistré par</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-blue-900/30">
+                                {ficheHistory.map((entry) => (
+                                  <tr key={entry.id} className={`hover:bg-blue-900/10 ${entry.voided ? "opacity-50" : ""}`}>
+                                    <td className="py-2.5 pr-3 text-blue-200/80 whitespace-nowrap">
+                                      {new Date(entry.date).toLocaleString("fr-FR")}
+                                    </td>
+                                    <td className="py-2.5 pr-3 text-white font-medium">
+                                      {entry.label}
+                                      {entry.voided && <span className="ml-2 text-xs text-red-400">(Annulée)</span>}
+                                      {entry.notes && (
+                                        <p className="text-xs text-blue-300/50 font-normal mt-0.5">{entry.notes}</p>
+                                      )}
+                                    </td>
+                                    <td className={`py-2.5 pr-3 text-right font-semibold ${entry.quantity >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                      {entry.quantity >= 0 ? "+" : ""}
+                                      {entry.quantity} pièce{Math.abs(entry.quantity) > 1 ? "s" : ""}
+                                    </td>
+                                    <td className="py-2.5 pr-3 text-blue-200/70">{entry.reference || "—"}</td>
+                                    <td className="py-2.5 text-blue-200/70">{entry.by || "—"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </div>

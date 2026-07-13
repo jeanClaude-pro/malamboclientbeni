@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
+import { getCustomerDisplayName } from "../utils/constants";
 
 interface SaleItem {
   productId: string;
@@ -763,7 +764,7 @@ export default function SalesHistory() {
         
         return [
           `"${sale.saleId}"`,
-          `"${sale.customer.name}"`,
+          `"${getCustomerDisplayName(sale.customer.name)}"`,
           `"${sale.customer.phone}"`,
           `"${sale.customer.email || ''}"`,
           `"${sale.salesPerson || 'Not specified'}"`,
@@ -1097,7 +1098,7 @@ export default function SalesHistory() {
       </div>
       
       <div class="customer-info">
-        <div class="customer-field">CLIENT: <strong>${sale.customer.name.toUpperCase()}</strong></div>
+        <div class="customer-field">CLIENT: <strong>${getCustomerDisplayName(sale.customer.name).toUpperCase()}</strong></div>
         <div class="customer-field">TELEPHONE: <strong>${sale.customer.phone}</strong></div>
         ${
           sale.customer.email
@@ -1207,7 +1208,7 @@ export default function SalesHistory() {
     doc.setFontSize(12);
     doc.text("Information sur le client:", 20, 85);
     doc.setFontSize(10);
-    doc.text(`Nom: ${sale.customer.name}`, 20, 92);
+    doc.text(`Nom: ${getCustomerDisplayName(sale.customer.name)}`, 20, 92);
     doc.text(`Phone: ${sale.customer.phone}`, 20, 99);
     if (sale.customer.email) {
       doc.text(`Email: ${sale.customer.email}`, 20, 106);
@@ -2214,7 +2215,7 @@ export default function SalesHistory() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {sale.customer.name}
+                            {getCustomerDisplayName(sale.customer.name)}
                           </div>
                           <div className="text-sm text-gray-500">
                             {sale.customer.phone}
@@ -2480,7 +2481,7 @@ export default function SalesHistory() {
                         Nom
                       </label>
                       <p className="text-sm text-gray-900 bg-white p-2 rounded border border-blue-200">
-                        {selectedSale.customer.name}
+                        {getCustomerDisplayName(selectedSale.customer.name)}
                       </p>
                     </div>
                     <div>
@@ -2719,7 +2720,7 @@ export default function SalesHistory() {
                       Client
                     </label>
                     <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded border border-gray-200">
-                      {selectedEditedSale.customer.name} ({selectedEditedSale.customer.phone})
+                      {getCustomerDisplayName(selectedEditedSale.customer.name)} ({selectedEditedSale.customer.phone})
                     </p>
                   </div>
                   <div>
@@ -3207,7 +3208,7 @@ export default function SalesHistory() {
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 rounded-lg p-3 border border-amber-200 text-sm">
-                <p className="font-semibold text-amber-900">{paymentSale.customer.name} — {paymentSale.saleId}</p>
+                <p className="font-semibold text-amber-900">{getCustomerDisplayName(paymentSale.customer.name)} — {paymentSale.saleId}</p>
                 <div className="flex justify-between mt-1">
                   <span className="text-gray-600">Total: <strong>{formatCurrency(paymentSale.total)}</strong></span>
                   <span className="text-gray-600">Versé: <strong className="text-green-700">{formatCurrency(paymentSale.creditDetails?.amountPaid ?? 0)}</strong></span>

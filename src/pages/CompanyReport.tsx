@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
+import { getCustomerDisplayName } from "../utils/constants";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const COMPANY_NAME = "Entre Nous Renove";
@@ -600,7 +601,7 @@ export default function CompanyReport() {
         const dateStr = sale.createdAt
           ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(sale.createdAt))
           : "-";
-        const client = (sale.customer?.name || "Anonyme").slice(0, 22);
+        const client = getCustomerDisplayName(sale.customer?.name).slice(0, 22);
         const payment = sale.paymentType === "credit"
           ? `Crédit${sale.creditDetails?.fullyPaid ? " ✓" : ` -$${Number(sale.creditDetails?.amountDue || 0).toFixed(0)}`}`
           : (sale.paymentMethod || "Espèces");

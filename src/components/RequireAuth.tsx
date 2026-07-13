@@ -21,8 +21,12 @@ export const RequireAuth: React.FC<React.PropsWithChildren> = ({
     return <Navigate to="/login" replace state={{ from: location }} />;
 
   // Keep this at the route boundary so manually entered URLs cannot bypass
-  // the manager's report-only access.
-  if (user?.role === "manager" && location.pathname !== "/reports") {
+  // the manager's restricted access.
+  const managerAllowedPaths = ["/reports", "/products", "/sortiehistory"];
+  if (
+    user?.role === "manager" &&
+    !managerAllowedPaths.includes(location.pathname)
+  ) {
     return <Navigate to="/reports" replace />;
   }
 

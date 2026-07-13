@@ -1,5 +1,5 @@
 // components/Cars.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { apiFetch } from "../services/authService";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -14,6 +14,23 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+interface Product {
+  _id: string;
+  name: string;
+  stock?: number;
+  piecesPerCarton?: number;
+}
+
+function formatStockCartons(totalPieces: number, piecesPerCarton: number) {
+  const perCarton = Math.max(1, Math.floor(Number(piecesPerCarton || 1)));
+  const safeTotal = Math.max(0, Math.floor(Number(totalPieces || 0)));
+  const cartons = Math.floor(safeTotal / perCarton);
+  const pieces = safeTotal % perCarton;
+  return pieces > 0
+    ? `${cartons.toLocaleString()} carton${cartons !== 1 ? "s" : ""} et ${pieces.toLocaleString()} pièce${pieces !== 1 ? "s" : ""}`
+    : `${cartons.toLocaleString()} carton${cartons !== 1 ? "s" : ""}`;
+}
+
 function getTodayDate(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -27,7 +44,7 @@ interface CarTripForm {
   destination: string;
   driver: { name: string; phone: string; licenseNumber: string };
   vehicle: { plateNumber: string; model: string; capacity: number };
-  cargo: { productName: string; boxesCount: number; piecesPerBox: number; weight: number };
+  cargo: { productId: string; productName: string; boxesCount: number; piecesPerBox: number; weight: number };
   departureDate: string;
   notes: string;
 }
@@ -37,7 +54,7 @@ const EMPTY_FORM: CarTripForm = {
   destination: "",
   driver: { name: "", phone: "", licenseNumber: "" },
   vehicle: { plateNumber: "", model: "", capacity: 0 },
-  cargo: { productName: "", boxesCount: 1, piecesPerBox: 1, weight: 0 },
+  cargo: { productId: "", productName: "", boxesCount: 1, piecesPerBox: 1, weight: 0 },
   departureDate: new Date().toISOString().slice(0, 10),
   notes: "",
 };
@@ -50,8 +67,34 @@ export default function Cars() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<CarTripForm>(EMPTY_FORM);
+  const [products, setProducts] = useState<Product[]>([]);
 
+  useEffect(() => {
+    const loadProducts = () => {
+      apiFetch<Product[]>("/products")
+        .then((data) => setProducts(Array.isArray(data) ? data : []))
+        .catch(() => setProducts([]));
+    };
+    loadProducts();
+    window.addEventListener("appDataChanged", loadProducts);
+    return () => window.removeEventListener("appDataChanged", loadProducts);
+  }, []);
+
+  const selectedProduct = products.find((p) => p._id === form.cargo.productId);
   const totalPieces = form.cargo.boxesCount * form.cargo.piecesPerBox;
+
+  const handleProductSelect = (productId: string) => {
+    const product = products.find((p) => p._id === productId);
+    setForm((prev) => ({
+      ...prev,
+      cargo: {
+        ...prev.cargo,
+        productId,
+        productName: product?.name || "",
+        piecesPerBox: Math.max(1, Number(product?.piecesPerCarton || 1)),
+      },
+    }));
+  };
 
   const setStr = (path: string, value: string) => {
     const [parent, child] = path.split(".");
@@ -83,7 +126,7 @@ export default function Cars() {
     if (!form.driver.name.trim()) return "Veuillez saisir le nom du chauffeur";
     if (!form.driver.phone.trim()) return "Veuillez saisir le téléphone du chauffeur";
     if (!form.vehicle.plateNumber.trim()) return "Veuillez saisir le numéro de plaque";
-    if (!form.cargo.productName.trim()) return "Veuillez saisir le nom du produit";
+    if (!form.cargo.productId) return "Veuillez sélectionner un produit existant";
     if (form.cargo.boxesCount < 1) return "Le nombre de cartons doit être au moins 1";
     if (form.cargo.piecesPerBox < 1) return "Le nombre de pièces par carton doit être au moins 1";
     if (!form.departureDate) return "Veuillez saisir la date de départ";
@@ -116,6 +159,7 @@ export default function Cars() {
             capacity: form.vehicle.capacity,
           },
           cargo: {
+            productId: form.cargo.productId,
             productName: form.cargo.productName.trim(),
             boxesCount: form.cargo.boxesCount,
             piecesPerBox: form.cargo.piecesPerBox,
@@ -308,13 +352,23 @@ export default function Cars() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className={labelCls}>Désignation du produit *</label>
-                <input
-                  type="text"
-                  value={form.cargo.productName}
-                  onChange={(e) => setStr("cargo.productName", e.target.value)}
-                  placeholder="Ex: Ciment Portland, Farine de blé..."
+                <select
+                  value={form.cargo.productId}
+                  onChange={(e) => handleProductSelect(e.target.value)}
                   className={inputCls}
-                />
+                >
+                  <option value="" className="bg-gray-900">— Choisir un article de l'inventaire —</option>
+                  {products.map((p) => (
+                    <option key={p._id} value={p._id} className="bg-gray-900">
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedProduct && (
+                  <p className="mt-1 text-xs text-blue-300/50">
+                    Stock disponible: {formatStockCartons(Number(selectedProduct.stock || 0), form.cargo.piecesPerBox)}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelCls}>Nombre de cartons *</label>
