@@ -23,6 +23,7 @@ import {
   Download,
   FileText,
   History,
+  Search,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
@@ -99,6 +100,9 @@ export default function TransfertHistory() {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [deliveryReason, setDeliveryReason] = useState("");
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null);
   const [statusUpdate, setStatusUpdate] = useState<StatusUpdate>({ status: "", reason: "" });
   const [message, setMessage] = useState<string | null>(null);
@@ -233,6 +237,38 @@ export default function TransfertHistory() {
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors de la mise à jour du statut");
+    }
+  };
+
+  const openDeliveryModal = (transfer: Transfer) => {
+    setEditingTransfer(transfer);
+    setDeliveryReason("");
+    setError(null);
+    setShowDeliveryModal(true);
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!editingTransfer || confirmingDelivery) return;
+    try {
+      setConfirmingDelivery(true);
+      setError(null);
+      const result = await apiFetch<{ inventory: { deducted: number; remainingStock: number } }>(
+        `/transfers/${editingTransfer._id}/confirm-delivery`,
+        { method: "PATCH", body: JSON.stringify({ reason: deliveryReason }) }
+      );
+      setMessage(
+        `Livraison confirmée : ${result.inventory.deducted.toLocaleString()} pièce(s) déduite(s). Stock restant : ${result.inventory.remainingStock.toLocaleString()}.`
+      );
+      setShowDeliveryModal(false);
+      setShowModal(false);
+      setEditingTransfer(null);
+      await fetchTransfers();
+      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
+      setTimeout(() => setMessage(null), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de confirmer la livraison");
+    } finally {
+      setConfirmingDelivery(false);
     }
   };
 
@@ -397,10 +433,10 @@ export default function TransfertHistory() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 w-full sm:w-auto">
             <button
               onClick={exportToCSV}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
+              className="min-h-11 justify-center px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors flex items-center gap-2 shadow-sm font-semibold"
             >
               <Download className="w-4 h-4" />
               Export CSV
@@ -408,7 +444,7 @@ export default function TransfertHistory() {
 
             <button
               onClick={fetchTransfers}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+              className="min-h-11 justify-center px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors flex items-center gap-2 shadow-sm font-semibold"
             >
               <RefreshCw className="w-4 h-4" />
               Actualiser
@@ -517,9 +553,7 @@ export default function TransfertHistory() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-            🔍
-          </div>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
         </div>
 
         {/* Transfers Table */}
@@ -543,7 +577,7 @@ export default function TransfertHistory() {
                 <p>Aucun transfert trouvé</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-[1120px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Transfert</th>
@@ -553,7 +587,7 @@ export default function TransfertHistory() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réceptionnaire</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transport</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="sticky right-0 z-10 bg-gray-100 px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -592,33 +626,42 @@ export default function TransfertHistory() {
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {formatDate(transfer.createdAt)}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2 flex-wrap">
+                      <td className="sticky right-0 bg-white px-4 py-4 shadow-[-8px_0_12px_-12px_rgba(15,23,42,.7)]">
+                        <div className="flex gap-1.5 flex-wrap min-w-48">
                           <button
                             onClick={() => viewTransferDetails(transfer)}
-                            className="text-blue-600 hover:text-blue-900"
+                            className="min-h-9 min-w-9 rounded-lg bg-blue-50 text-blue-800 hover:bg-blue-100 inline-flex items-center justify-center"
                             title="Voir détails"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openEditModal(transfer)}
-                            className="text-yellow-600 hover:text-yellow-900"
+                            className="min-h-9 min-w-9 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 inline-flex items-center justify-center"
                             title="Modifier"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openStatusModal(transfer)}
-                            className="text-green-600 hover:text-green-900"
+                            className="min-h-9 min-w-9 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 inline-flex items-center justify-center"
                             title="Changer statut"
                           >
                             <Navigation className="w-4 h-4" />
                           </button>
+                          {transfer.status !== "delivered" && transfer.status !== "cancelled" && (
+                            <button
+                              onClick={() => openDeliveryModal(transfer)}
+                              className="min-h-9 rounded-lg bg-emerald-700 px-2.5 text-xs font-bold text-white hover:bg-emerald-800 inline-flex items-center gap-1"
+                              title="Confirmer la livraison et déduire le stock"
+                            >
+                              <CheckCircle className="w-4 h-4" /> Livré
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               onClick={() => handleDeleteTransfer(transfer)}
-                              className="text-red-600 hover:text-red-900"
+                              className="min-h-9 min-w-9 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 inline-flex items-center justify-center"
                               title="Supprimer"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -804,6 +847,74 @@ export default function TransfertHistory() {
                 >
                   <Navigation className="w-4 h-4" />
                   Changer statut
+                </button>
+                {selectedTransfer.status !== "delivered" && selectedTransfer.status !== "cancelled" && (
+                  <button
+                    onClick={() => openDeliveryModal(selectedTransfer)}
+                    className="min-h-11 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 flex items-center gap-2 font-semibold"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Confirmer livré
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery confirmation: the only action that deducts transfer stock. */}
+      {showDeliveryModal && editingTransfer && (
+        <div className="fixed inset-0 bg-slate-950/70 p-3 sm:p-6 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto">
+            <div className="p-5 sm:p-6 border-b border-slate-200">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-emerald-100 p-2.5 text-emerald-800">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-950">Confirmer la livraison</h3>
+                  <p className="mt-1 text-sm text-slate-600">Transfert {editingTransfer.transferId}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                Cette confirmation est définitive. Elle marquera le transfert comme livré et déduira
+                <strong> {editingTransfer.product.totalPieces.toLocaleString()} pièce(s)</strong> de l’article
+                <strong> {editingTransfer.product.name}</strong> dans l’inventaire.
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-800 mb-1.5" htmlFor="delivery-reason">
+                  Note de confirmation (facultative)
+                </label>
+                <textarea
+                  id="delivery-reason"
+                  value={deliveryReason}
+                  onChange={(e) => setDeliveryReason(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Ex. Marchandise remise au réceptionnaire"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-slate-950 placeholder:text-slate-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200 outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDeliveryModal(false)}
+                  disabled={confirmingDelivery}
+                  className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelivery}
+                  disabled={confirmingDelivery}
+                  className="min-h-12 rounded-xl bg-emerald-700 px-4 font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  {confirmingDelivery ? "Confirmation…" : "Oui, confirmer livré"}
                 </button>
               </div>
             </div>

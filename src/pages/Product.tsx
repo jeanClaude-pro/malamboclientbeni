@@ -78,9 +78,10 @@ const STOCK_MOVEMENT_TYPE_LABELS: Record<string, string> = {
   adjustment_in: "Ajustement (+)",
   adjustment_out: "Ajustement (-)",
   car_arrival: "Arrivée de camion",
+  transfer_out: "Transfert livré (-)",
 };
 
-const STOCK_MOVEMENT_DECREASES = new Set(["loan", "bonus_manual", "adjustment_out"]);
+const STOCK_MOVEMENT_DECREASES = new Set(["loan", "bonus_manual", "adjustment_out", "transfer_out"]);
 
 interface StockMovementRecord {
   _id: string;
