@@ -920,7 +920,7 @@ export default function NewSale() {
         </div>
         ${receiptData.isCredit ? `
         <div class="total-row" style="color:#d97706">
-          <div><strong>VERSE:</strong></div>
+          <div><strong>VERSEMENT A CONFIRMER:</strong></div>
           <div><strong>$${receiptData.creditAmountPaid.toFixed(2)}</strong></div>
         </div>
         <div class="total-row" style="color:#ef4444">
@@ -1255,7 +1255,7 @@ export default function NewSale() {
         </div>
         ${receiptData.isCredit ? `
         <div class="total-row" style="color:#d97706">
-          <div><strong>VERSE:</strong></div>
+          <div><strong>VERSEMENT A CONFIRMER:</strong></div>
           <div><strong>$${receiptData.creditAmountPaid.toFixed(2)}</strong></div>
         </div>
         <div class="total-row" style="color:#ef4444">
@@ -1464,8 +1464,10 @@ export default function NewSale() {
         stubNumber: saleId,
         // Credit info
         isCredit: isCreditSale,
+        // A declared advance is still pending until the seller acknowledges it
+        // from credit history, so the receipt keeps the full debt outstanding.
         creditAmountPaid: isCreditSale ? creditAmountPaidNum : cartTotal,
-        creditAmountDue: isCreditSale ? Math.max(0, cartTotal - creditAmountPaidNum) : 0,
+        creditAmountDue: isCreditSale ? cartTotal : 0,
         creditDueDate: form.creditDueDate || null,
       };
 
@@ -2101,9 +2103,14 @@ export default function NewSale() {
                   placeholder="0.00 (laisser vide si rien payé)"
                   className="w-full p-3 bg-black/50 border border-amber-700/50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white placeholder-amber-300/40"
                 />
+                {creditAmountPaidNum > 0 && (
+                  <p className="mt-1 text-xs font-medium text-amber-200">
+                    Ce versement restera en attente. La dette ne sera réduite qu'après avoir cliqué sur &quot;J'ai reçu cet argent&quot;.
+                  </p>
+                )}
                 {creditAmountPaidNum > 0 && cartTotal > 0 && (
                   <p className="text-xs text-amber-300 mt-1">
-                    Solde restant: <strong className="text-white">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
+                    Solde après confirmation: <strong className="text-white">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
                     {exchangeRate && (
                       <span className="ml-1 text-amber-200/60">
                         ≈ {formatFc(Math.max(0, cartTotal - creditAmountPaidNum) * exchangeRate.rate)}

@@ -48,6 +48,7 @@ interface Sale {
   customerId?: string;
   customerName?: string;
   type?: string;
+  paymentType?: "cash" | "credit";
   saleId?: string;
   saleNumber?: string;
   customer?: {
@@ -55,6 +56,12 @@ interface Sale {
     phone?: string;
     email?: string;
   };
+}
+
+interface RevenueEvent {
+  amount: number;
+  receivedAt: string;
+  kind: "cash_sale" | "credit_payment";
 }
 
 interface Customer {
@@ -481,7 +488,11 @@ export default function Analytics() {
     );
 
     const totalSales = completedSales.length;
-    const totalRevenue = completedSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0);
+    const totalRevenue = salesData.summary?.revenue != null
+      ? Number(salesData.summary.revenue)
+      : completedSales
+          .filter((sale: Sale) => sale.paymentType !== "credit")
+          .reduce((sum: number, sale: Sale) => sum + sale.total, 0);
     
     // Calculate entries (active entries only)
     const activeEntries = entries.filter((entry: Entry) => entry.status === "active");
@@ -552,7 +563,7 @@ export default function Analytics() {
             const existing = productStats.get(productName);
             productStats.set(productName, {
               quantity: existing.quantity + (item.quantity || 0),
-              revenue: existing.revenue + (item.total || 0),
+              revenue: existing.revenue + (sale.paymentType === "credit" ? 0 : (item.total || 0)),
               paidQuantity: existing.paidQuantity + paidQuantity,
               bonusQuantity: existing.bonusQuantity + bonusQuantity,
               piecesPerCarton: existing.piecesPerCarton || piecesPerCarton,
@@ -565,7 +576,7 @@ export default function Analytics() {
           } else {
             productStats.set(productName, {
               quantity: item.quantity || 0,
-              revenue: item.total || 0,
+              revenue: sale.paymentType === "credit" ? 0 : (item.total || 0),
               paidQuantity,
               bonusQuantity,
               piecesPerCarton,
@@ -658,7 +669,11 @@ export default function Analytics() {
     );
 
     const totalSales = completedSales.length;
-    const totalRevenue = completedSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0);
+    const totalRevenue = salesData.summary?.revenue != null
+      ? Number(salesData.summary.revenue)
+      : completedSales
+          .filter((sale: Sale) => sale.paymentType !== "credit")
+          .reduce((sum: number, sale: Sale) => sum + sale.total, 0);
     const totalEntries = entriesSummary.totalAmount || 0;
     const totalValidatedExpenses = expensesSummary.totalAmount || 0;
     const netRevenue = (totalRevenue + totalEntries) - totalValidatedExpenses;
@@ -688,7 +703,10 @@ export default function Analytics() {
     const totalCustomers = customerIds.size;
 
     // Generate chart data based on timeframe
-    const chartData = generateChartData(completedSales);
+    const chartData = generateChartData(
+      completedSales,
+      Array.isArray(salesData.revenueEvents) ? salesData.revenueEvents : []
+    );
 
     // Top products
     const productStats = new Map();
@@ -710,7 +728,7 @@ export default function Analytics() {
             const existing = productStats.get(productName);
             productStats.set(productName, {
               quantity: existing.quantity + (item.quantity || 0),
-              revenue: existing.revenue + (item.total || 0),
+              revenue: existing.revenue + (sale.paymentType === "credit" ? 0 : (item.total || 0)),
               paidQuantity: existing.paidQuantity + paidQuantity,
               bonusQuantity: existing.bonusQuantity + bonusQuantity,
               piecesPerCarton: existing.piecesPerCarton || piecesPerCarton,
@@ -723,7 +741,7 @@ export default function Analytics() {
           } else {
             productStats.set(productName, {
               quantity: item.quantity || 0,
-              revenue: item.total || 0,
+              revenue: sale.paymentType === "credit" ? 0 : (item.total || 0),
               paidQuantity,
               bonusQuantity,
               piecesPerCarton,
@@ -800,8 +818,8 @@ export default function Analytics() {
   };
 
   // Generate chart data based on timeframe
-  const generateChartData = (sales: Sale[]) => {
-    if (!sales.length) {
+  const generateChartData = (sales: Sale[], revenueEvents: RevenueEvent[]) => {
+    if (!sales.length && !revenueEvents.length) {
       return {
         salesByDay: [],
         salesByWeek: [],
@@ -822,11 +840,14 @@ export default function Analytics() {
           return false;
         }
       });
+      const dayRevenue = revenueEvents
+        .filter((event) => new Date(event.receivedAt).toDateString() === date.toDateString())
+        .reduce((sum, event) => sum + Number(event.amount || 0), 0);
       return {
         date: date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
         dayName: date.toLocaleDateString("fr-FR", { weekday: "long" }),
         sales: daySales.length,
-        revenue: daySales.reduce((sum: number, sale: Sale) => sum + sale.total, 0),
+        revenue: dayRevenue,
       };
     });
 
@@ -840,6 +861,12 @@ export default function Analytics() {
           return false;
         }
       });
+      const weekRevenue = revenueEvents
+        .filter((event) => {
+          const receivedAt = new Date(event.receivedAt);
+          return receivedAt >= week.start && receivedAt <= week.end;
+        })
+        .reduce((sum, event) => sum + Number(event.amount || 0), 0);
 
       const startDateStr = week.start.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
       const endDateStr = week.end.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
@@ -849,7 +876,7 @@ export default function Analytics() {
         startDate: startDateStr,
         endDate: endDateStr,
         sales: weekSales.length,
-        revenue: weekSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0),
+        revenue: weekRevenue,
       };
     });
 
@@ -863,11 +890,17 @@ export default function Analytics() {
           return false;
         }
       });
+      const monthRevenue = revenueEvents
+        .filter((event) => {
+          const receivedAt = new Date(event.receivedAt);
+          return receivedAt.getMonth() === month.month && receivedAt.getFullYear() === month.year;
+        })
+        .reduce((sum, event) => sum + Number(event.amount || 0), 0);
       return {
         month: month.shortName,
         monthName: month.fullName,
         sales: monthSales.length,
-        revenue: monthSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0),
+        revenue: monthRevenue,
       };
     });
 
@@ -891,15 +924,21 @@ export default function Analytics() {
           return false;
         }
       });
+      const monthRevenue = revenueEvents
+        .filter((event) => {
+          const receivedAt = new Date(event.receivedAt);
+          return receivedAt.getFullYear() === currentYear && receivedAt.getMonth() === i;
+        })
+        .reduce((sum, event) => sum + Number(event.amount || 0), 0);
       
       const monthDate = new Date(currentYear, i, 1);
       return {
         month: String(i),
         monthName: monthDate.toLocaleDateString("fr-FR", { month: "long" }),
         sales: monthSales.length,
-        revenue: monthSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0),
+        revenue: monthRevenue,
       };
-    }).filter(month => month.sales > 0);
+    }).filter(month => month.sales > 0 || month.revenue > 0);
 
     const salesByYear = [{
       year: currentYear.toString(),

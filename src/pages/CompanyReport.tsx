@@ -298,9 +298,11 @@ export default function CompanyReport() {
   }, []);
 
   const totals = useMemo(() => {
-    const salesRevenue =
-      Number(data.salesSummary?.revenue) ||
-      data.sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+    const salesRevenue = data.salesSummary?.revenue != null
+      ? Number(data.salesSummary.revenue)
+      : data.sales
+          .filter((sale: any) => sale.paymentType !== "credit")
+          .reduce((sum, sale) => sum + Number(sale.total || 0), 0);
     const validatedExpenses =
       Number(data.expensesSummary?.validated?.amount) ||
       data.expenses
@@ -437,13 +439,15 @@ export default function CompanyReport() {
           ? Number(item.bonusPieces || 0)
           : bonusQuantity % piecesPerCarton;
         current.remainingStock = Number(product?.stock ?? current.remainingStock);
-        current.revenue += Number(
-          item.total ||
-            (Number(item.price || 0) *
-              (Number(item.paidQuantity ?? item.quantity ?? 0) /
-                Math.max(1, Number(item.piecesPerCarton || 1)))) ||
-            0
-        );
+        current.revenue += sale.paymentType === "credit"
+          ? 0
+          : Number(
+              item.total ||
+                (Number(item.price || 0) *
+                  (Number(item.paidQuantity ?? item.quantity ?? 0) /
+                    Math.max(1, Number(item.piecesPerCarton || 1)))) ||
+                0
+            );
         byName.set(name, current);
       });
     });

@@ -50,16 +50,21 @@ interface EditHistoryEntry {
 
 interface CreditPaymentEntry {
   _id?: string;
+  paymentId?: string;
   amount: number;
   date: string;
   method: string;
   recordedBy: string;
   notes: string;
+  status?: "pending" | "confirmed";
+  confirmedAt?: string;
+  confirmedBy?: string;
 }
 
 interface CreditDetails {
   amountPaid: number;
   amountDue: number;
+  pendingAmount?: number;
   dueDate?: string;
   fullyPaid: boolean;
   payments: CreditPaymentEntry[];
@@ -149,6 +154,13 @@ const getTodayDate = (): string => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const createPaymentRequestId = (): string => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
 function getPiecesPerCarton(value?: number) {
@@ -254,6 +266,8 @@ export default function SalesHistory() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentRequestId, setPaymentRequestId] = useState("");
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [showUnpaidSales, setShowUnpaidSales] = useState(false);
 
   // Fetch current user on component mount
@@ -1623,6 +1637,7 @@ export default function SalesHistory() {
     setPaymentAmount("");
     setPaymentMethod("cash");
     setPaymentNotes("");
+    setPaymentRequestId(createPaymentRequestId());
     setShowPaymentModal(true);
   };
 
@@ -1631,6 +1646,7 @@ export default function SalesHistory() {
     setPaymentSale(null);
     setPaymentAmount("");
     setPaymentNotes("");
+    setPaymentRequestId("");
   };
 
   const handleRecordCreditPayment = async () => {
@@ -1641,8 +1657,9 @@ export default function SalesHistory() {
       return;
     }
     const due = paymentSale.creditDetails?.amountDue ?? 0;
-    if (amount > due + 0.001) {
-      setError(`Le montant ne peut pas dépasser le solde dû ($${due.toFixed(2)})`);
+    const available = Math.max(0, due - (paymentSale.creditDetails?.pendingAmount ?? 0));
+    if (amount > available + 0.001) {
+      setError(`Le montant ne peut pas dépasser le solde disponible ($${available.toFixed(2)})`);
       return;
     }
     setPaymentSubmitting(true);
@@ -1655,7 +1672,12 @@ export default function SalesHistory() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
           },
-          body: JSON.stringify({ amount, method: paymentMethod, notes: paymentNotes }),
+          body: JSON.stringify({
+            amount,
+            method: paymentMethod,
+            notes: paymentNotes,
+            paymentId: paymentRequestId,
+          }),
         }
       );
       const data = await res.json();
@@ -1674,6 +1696,40 @@ export default function SalesHistory() {
       setError("Erreur de connexion au serveur");
     } finally {
       setPaymentSubmitting(false);
+    }
+  };
+
+  const handleConfirmCreditPayment = async (sale: Sale, payment: CreditPaymentEntry) => {
+    if (!payment.paymentId || confirmingPaymentId) return;
+    setConfirmingPaymentId(payment.paymentId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/sales/${sale._id}/credit-payments/${encodeURIComponent(payment.paymentId)}/confirm`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          },
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec de la confirmation");
+      setMessage(data.message || "Argent reçu et dette mise à jour");
+      if (data.sale) {
+        setSelectedSale(data.sale);
+        setSales((current) =>
+          current.map((candidate) =>
+            candidate._id === data.sale._id ? data.sale : candidate
+          )
+        );
+      }
+      window.dispatchEvent(new Event("appDataChanged"));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Échec de la confirmation");
+    } finally {
+      setConfirmingPaymentId(null);
     }
   };
 
@@ -2562,6 +2618,11 @@ export default function SalesHistory() {
                       </p>
                     </div>
                   </div>
+                  {(selectedSale.creditDetails.pendingAmount ?? 0) > 0 && (
+                    <p className="mt-2 rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                      En attente de confirmation: {formatCurrency(selectedSale.creditDetails.pendingAmount ?? 0)}
+                    </p>
+                  )}
                   {selectedSale.creditDetails.dueDate && (
                     <p className="text-xs text-amber-700 mt-2">
                       Échéance: <strong>{new Date(selectedSale.creditDetails.dueDate).toLocaleDateString("fr-FR")}</strong>
@@ -2574,7 +2635,23 @@ export default function SalesHistory() {
                         {selectedSale.creditDetails.payments.map((p, i) => (
                           <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-amber-100">
                             <span>{new Date(p.date).toLocaleDateString("fr-FR")} — {p.method}</span>
-                            <strong className="text-green-700">{formatCurrency(p.amount)}</strong>
+                            <div className="flex items-center gap-2">
+                              <strong className={p.status === "pending" ? "text-amber-700" : "text-green-700"}>
+                                {formatCurrency(p.amount)}
+                              </strong>
+                              {p.status === "pending" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmCreditPayment(selectedSale, p)}
+                                  disabled={confirmingPaymentId === p.paymentId}
+                                  className="rounded bg-green-600 px-2 py-1 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {confirmingPaymentId === p.paymentId ? "Confirmation..." : "J'ai reçu cet argent"}
+                                </button>
+                              ) : (
+                                <span className="font-semibold text-green-700">Recu</span>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -3214,6 +3291,11 @@ export default function SalesHistory() {
                   <span className="text-gray-600">Versé: <strong className="text-green-700">{formatCurrency(paymentSale.creditDetails?.amountPaid ?? 0)}</strong></span>
                   <span className="text-gray-600">Dû: <strong className="text-red-700">{formatCurrency(paymentSale.creditDetails?.amountDue ?? 0)}</strong></span>
                 </div>
+                {(paymentSale.creditDetails?.pendingAmount ?? 0) > 0 && (
+                  <p className="mt-2 font-semibold text-amber-700">
+                    Déjà en attente: {formatCurrency(paymentSale.creditDetails?.pendingAmount ?? 0)}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -3223,23 +3305,23 @@ export default function SalesHistory() {
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max={paymentSale.creditDetails?.amountDue ?? 0}
+                  max={Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0))}
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={`Max: $${(paymentSale.creditDetails?.amountDue ?? 0).toFixed(2)}`}
+                  placeholder={`Max: $${Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)).toFixed(2)}`}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
                 <div className="flex gap-2 mt-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount(((paymentSale.creditDetails?.amountDue ?? 0) / 2).toFixed(2))}
+                    onClick={() => setPaymentAmount((Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)) / 2).toFixed(2))}
                     className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-600"
                   >
                     50%
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount((paymentSale.creditDetails?.amountDue ?? 0).toFixed(2))}
+                    onClick={() => setPaymentAmount(Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)).toFixed(2))}
                     className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 rounded border text-green-700 font-semibold"
                   >
                     Solde total
@@ -3269,6 +3351,9 @@ export default function SalesHistory() {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                 />
               </div>
+              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Ce paiement restera en attente et ne réduira pas la dette avant de cliquer sur &quot;J'ai reçu cet argent&quot;.
+              </p>
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleRecordCreditPayment}
@@ -3278,7 +3363,7 @@ export default function SalesHistory() {
                   {paymentSubmitting ? (
                     <><RefreshCw className="w-4 h-4 animate-spin" /> Enregistrement...</>
                   ) : (
-                    <>💰 Confirmer le paiement</>
+                    <>Enregistrer en attente</>
                   )}
                 </button>
                 <button onClick={closePaymentModal} className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
