@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import type { AuthState, User } from "../types/auth";
+import type { AuthState, BranchId, User } from "../types/auth";
 import { AuthContext } from "./auth-context";
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({
@@ -10,6 +10,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     token: null,
     user: null,
     loading: true,
+    activeBranchId: "butembo",
   });
 
   // Boot from localStorage
@@ -18,12 +19,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     const userRaw = localStorage.getItem("user");
 
     if (!token) {
-      setState({ token: null, user: null, loading: false });
+      setState({ token: null, user: null, loading: false, activeBranchId: "butembo" });
       return;
     }
 
     const user: User | null = userRaw ? JSON.parse(userRaw) : null;
-    setState({ token, user, loading: false });
+    const assignedBranch = user?.branchId || "butembo";
+    const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
+    const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+    const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
+      ? storedBranch
+      : assignedBranch;
+    localStorage.setItem("activeBranchId", activeBranchId);
+    setState({ token, user, loading: false, activeBranchId });
   }, []);
 
   const setAuth = React.useCallback(
@@ -34,7 +42,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
       if (user) localStorage.setItem("user", JSON.stringify(user));
       else localStorage.removeItem("user");
 
-      setState((s) => ({ ...s, token, user }));
+      const assignedBranch = user?.branchId || "butembo";
+      const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+      const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
+      const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
+        ? storedBranch
+        : assignedBranch;
+      localStorage.setItem("activeBranchId", activeBranchId);
+      setState((s) => ({ ...s, token, user, activeBranchId }));
     },
     []
   );
@@ -42,10 +57,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
   const clearAuth = React.useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    setState({ token: null, user: null, loading: false });
+    localStorage.removeItem("activeBranchId");
+    setState({ token: null, user: null, loading: false, activeBranchId: "butembo" });
   }, []);
 
-  const value = { ...state, setAuth, clearAuth };
+  const setActiveBranchId = React.useCallback((branchId: BranchId) => {
+    if (branchId !== "butembo" && branchId !== "beni") return;
+    setState((current) => {
+      const canSwitch = current.user?.role === "admin" || current.user?.role === "superadmin" || current.user?.isSuperAdmin;
+      const nextBranch = canSwitch ? branchId : current.user?.branchId || "butembo";
+      localStorage.setItem("activeBranchId", nextBranch);
+      window.dispatchEvent(new CustomEvent("branchChanged", { detail: { branchId: nextBranch } }));
+      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { branchId: nextBranch } }));
+      return { ...current, activeBranchId: nextBranch };
+    });
+  }, []);
+
+  const value = { ...state, setAuth, clearAuth, setActiveBranchId };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

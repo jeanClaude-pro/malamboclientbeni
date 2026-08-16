@@ -12,6 +12,7 @@ import {
   Plus,
   AlertCircle,
   CheckCircle,
+  Trash2,
 } from "lucide-react";
 
 interface Product {
@@ -19,6 +20,7 @@ interface Product {
   name: string;
   stock?: number;
   piecesPerCarton?: number;
+  status?: "active" | "inactive";
 }
 
 function formatStockCartons(totalPieces: number, piecesPerCarton: number) {
@@ -39,25 +41,43 @@ function getTodayDate(): string {
   return `${y}-${m}-${day}`;
 }
 
+interface CargoProductForm {
+  key: string;
+  productId: string;
+  productName: string;
+  boxesCount: number;
+  piecesPerBox: number;
+  weight: number;
+}
+
 interface CarTripForm {
   origin: string;
   destination: string;
   driver: { name: string; phone: string; licenseNumber: string };
   vehicle: { plateNumber: string; model: string; capacity: number };
-  cargo: { productId: string; productName: string; boxesCount: number; piecesPerBox: number; weight: number };
+  products: CargoProductForm[];
   departureDate: string;
   notes: string;
 }
 
-const EMPTY_FORM: CarTripForm = {
+const createCargoProduct = (): CargoProductForm => ({
+  key: `${Date.now()}-${Math.random()}`,
+  productId: "",
+  productName: "",
+  boxesCount: 1,
+  piecesPerBox: 1,
+  weight: 0,
+});
+
+const createEmptyForm = (): CarTripForm => ({
   origin: "",
   destination: "",
   driver: { name: "", phone: "", licenseNumber: "" },
   vehicle: { plateNumber: "", model: "", capacity: 0 },
-  cargo: { productId: "", productName: "", boxesCount: 1, piecesPerBox: 1, weight: 0 },
+  products: [createCargoProduct()],
   departureDate: new Date().toISOString().slice(0, 10),
   notes: "",
-};
+});
 
 export default function Cars() {
   const { user: currentUser } = useAuth();
@@ -66,13 +86,13 @@ export default function Cars() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<CarTripForm>(EMPTY_FORM);
+  const [form, setForm] = useState<CarTripForm>(createEmptyForm);
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     const loadProducts = () => {
       apiFetch<Product[]>("/products")
-        .then((data) => setProducts(Array.isArray(data) ? data : []))
+        .then((data) => setProducts(Array.isArray(data) ? data.filter((product) => product.status !== "inactive") : []))
         .catch(() => setProducts([]));
     };
     loadProducts();
@@ -80,21 +100,32 @@ export default function Cars() {
     return () => window.removeEventListener("appDataChanged", loadProducts);
   }, []);
 
-  const selectedProduct = products.find((p) => p._id === form.cargo.productId);
-  const totalPieces = form.cargo.boxesCount * form.cargo.piecesPerBox;
+  const totalPieces = form.products.reduce((sum, item) => sum + item.boxesCount * item.piecesPerBox, 0);
+  const totalCartons = form.products.reduce((sum, item) => sum + item.boxesCount, 0);
 
-  const handleProductSelect = (productId: string) => {
+  const handleProductSelect = (index: number, productId: string) => {
     const product = products.find((p) => p._id === productId);
-    setForm((prev) => ({
-      ...prev,
-      cargo: {
-        ...prev.cargo,
+    setForm((prev) => ({ ...prev, products: prev.products.map((item, itemIndex) =>
+      itemIndex === index ? {
+        ...item,
         productId,
         productName: product?.name || "",
         piecesPerBox: Math.max(1, Number(product?.piecesPerCarton || 1)),
-      },
-    }));
+      } : item
+    ) }));
   };
+
+  const updateCargoProduct = (index: number, field: "boxesCount" | "piecesPerBox" | "weight", value: number) => {
+    setForm((prev) => ({ ...prev, products: prev.products.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, [field]: value } : item
+    ) }));
+  };
+
+  const addCargoProduct = () => setForm((prev) => ({ ...prev, products: [...prev.products, createCargoProduct()] }));
+  const removeCargoProduct = (index: number) => setForm((prev) => ({
+    ...prev,
+    products: prev.products.length === 1 ? prev.products : prev.products.filter((_, itemIndex) => itemIndex !== index),
+  }));
 
   const setStr = (path: string, value: string) => {
     const [parent, child] = path.split(".");
@@ -126,9 +157,15 @@ export default function Cars() {
     if (!form.driver.name.trim()) return "Veuillez saisir le nom du chauffeur";
     if (!form.driver.phone.trim()) return "Veuillez saisir le téléphone du chauffeur";
     if (!form.vehicle.plateNumber.trim()) return "Veuillez saisir le numéro de plaque";
-    if (!form.cargo.productId) return "Veuillez sélectionner un produit existant";
-    if (form.cargo.boxesCount < 1) return "Le nombre de cartons doit être au moins 1";
-    if (form.cargo.piecesPerBox < 1) return "Le nombre de pièces par carton doit être au moins 1";
+    if (form.products.length < 1) return "Veuillez ajouter au moins un produit";
+    const selectedIds = new Set<string>();
+    for (const [index, item] of form.products.entries()) {
+      if (!item.productId) return `Veuillez sélectionner le produit à la ligne ${index + 1}`;
+      if (selectedIds.has(item.productId)) return "Un produit ne peut apparaître qu'une seule fois dans le trajet";
+      selectedIds.add(item.productId);
+      if (item.boxesCount < 1) return `La quantité à la ligne ${index + 1} doit être supérieure à 0`;
+      if (item.piecesPerBox < 1) return `Le nombre de pièces par carton à la ligne ${index + 1} doit être supérieur à 0`;
+    }
     if (!form.departureDate) return "Veuillez saisir la date de départ";
     return null;
   };
@@ -158,13 +195,13 @@ export default function Cars() {
             model: form.vehicle.model.trim(),
             capacity: form.vehicle.capacity,
           },
-          cargo: {
-            productId: form.cargo.productId,
-            productName: form.cargo.productName.trim(),
-            boxesCount: form.cargo.boxesCount,
-            piecesPerBox: form.cargo.piecesPerBox,
-            weight: form.cargo.weight,
-          },
+          products: form.products.map(({ productId, productName, boxesCount, piecesPerBox, weight }) => ({
+            productId,
+            productName: productName.trim(),
+            boxesCount,
+            piecesPerBox,
+            weight,
+          })),
           departureTime: `${form.departureDate}T06:00:00`,
           notes: form.notes.trim(),
           ...(isAdmin && operationDate && operationDate !== getTodayDate() && {
@@ -174,7 +211,7 @@ export default function Cars() {
       });
 
       setMessage("Trajet enregistré avec succès ! Le camion est en route.");
-      setForm({ ...EMPTY_FORM, departureDate: new Date().toISOString().slice(0, 10) });
+      setForm(createEmptyForm());
       window.dispatchEvent(new Event("tripCreated"));
       setTimeout(() => setMessage(null), 6000);
     } catch (err) {
@@ -349,68 +386,60 @@ export default function Cars() {
             <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
               <Package className="w-5 h-5" /> Chargement envoyé
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className={labelCls}>Désignation du produit *</label>
-                <select
-                  value={form.cargo.productId}
-                  onChange={(e) => handleProductSelect(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="" className="bg-gray-900">— Choisir un article de l'inventaire —</option>
-                  {products.map((p) => (
-                    <option key={p._id} value={p._id} className="bg-gray-900">
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                {selectedProduct && (
-                  <p className="mt-1 text-xs text-blue-300/50">
-                    Stock disponible: {formatStockCartons(Number(selectedProduct.stock || 0), form.cargo.piecesPerBox)}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className={labelCls}>Nombre de cartons *</label>
-                <input
-                  type="number"
-                  value={form.cargo.boxesCount}
-                  onChange={(e) => setNum("cargo.boxesCount", parseInt(e.target.value) || 1)}
-                  min="1"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Pièces par carton *</label>
-                <input
-                  type="number"
-                  value={form.cargo.piecesPerBox}
-                  onChange={(e) => setNum("cargo.piecesPerBox", parseInt(e.target.value) || 1)}
-                  min="1"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Poids total (kg)</label>
-                <input
-                  type="number"
-                  value={form.cargo.weight || ""}
-                  onChange={(e) => setNum("cargo.weight", parseFloat(e.target.value) || 0)}
-                  min="0"
-                  className={inputCls}
-                />
-              </div>
+            <div className="space-y-4">
+              {form.products.map((item, index) => {
+                const selectedProduct = products.find((product) => product._id === item.productId);
+                const selectedElsewhere = new Set(form.products.filter((_, itemIndex) => itemIndex !== index).map((row) => row.productId));
+                return (
+                  <div key={item.key} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-end bg-blue-950/30 border border-blue-800/30 rounded-lg p-4">
+                    <div>
+                      <label className={labelCls}>Produit *</label>
+                      <select value={item.productId} onChange={(e) => handleProductSelect(index, e.target.value)} className={inputCls}>
+                        <option value="" className="bg-gray-900">— Choisir un article —</option>
+                        {products.map((product) => (
+                          <option key={product._id} value={product._id} disabled={selectedElsewhere.has(product._id)} className="bg-gray-900">
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedProduct && (
+                        <p className="mt-1 text-xs text-blue-300/50">
+                          Stock: {formatStockCartons(Number(selectedProduct.stock || 0), item.piecesPerBox)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Quantité (cartons) *</label>
+                      <input type="number" value={item.boxesCount} onChange={(e) => updateCargoProduct(index, "boxesCount", parseInt(e.target.value) || 0)} min="1" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Pièces/carton *</label>
+                      <input type="number" value={item.piecesPerBox} onChange={(e) => updateCargoProduct(index, "piecesPerBox", parseInt(e.target.value) || 0)} min="1" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Poids (kg)</label>
+                      <input type="number" value={item.weight || ""} onChange={(e) => updateCargoProduct(index, "weight", parseFloat(e.target.value) || 0)} min="0" className={inputCls} />
+                    </div>
+                    <button type="button" onClick={() => removeCargoProduct(index)} disabled={form.products.length === 1} title="Retirer ce produit" className="p-3 text-red-300 border border-red-800/50 rounded-lg hover:bg-red-950/50 disabled:opacity-30">
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })}
+              <button type="button" onClick={addCargoProduct} disabled={form.products.length >= products.length && products.length > 0} className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600/60 text-blue-200 rounded-lg hover:bg-blue-900/40 disabled:opacity-40">
+                <Plus className="w-4 h-4" /> Ajouter un produit
+              </button>
             </div>
 
             {/* Summary */}
             <div className="mt-4 bg-blue-950/40 rounded-lg p-4 border border-blue-800/30 grid grid-cols-3 gap-4 text-sm text-center">
               <div>
                 <p className="text-blue-300">Cartons</p>
-                <p className="text-white font-bold text-lg">{form.cargo.boxesCount}</p>
+                <p className="text-white font-bold text-lg">{totalCartons}</p>
               </div>
               <div>
-                <p className="text-blue-300">Pcs/carton</p>
-                <p className="text-white font-bold text-lg">{form.cargo.piecesPerBox}</p>
+                <p className="text-blue-300">Produits</p>
+                <p className="text-white font-bold text-lg">{form.products.length}</p>
               </div>
               <div>
                 <p className="text-blue-300">Total pièces</p>

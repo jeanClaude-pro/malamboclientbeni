@@ -1449,7 +1449,7 @@ export default function NewSale() {
       // Enhanced receipt data with better formatting - use actual sale ID
       const newReceiptData = {
         shopName: "Entre Nous Renove",
-        shopAddress: "",
+        shopAddress: `Agence de ${localStorage.getItem("activeBranchId") === "beni" ? "Beni" : "Butembo"}`,
         shopNumber: "",
         shopRegistration: "",
         customerName: form.isWalkIn ? WALK_IN_CUSTOMER_NAME : form.customerName,

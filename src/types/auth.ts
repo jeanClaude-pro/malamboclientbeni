@@ -1,5 +1,6 @@
 export type Role =
   | "admin"
+  | "superadmin"
   | "manager"
   | "staff"
   | "cashier_supervisor"
@@ -10,6 +11,8 @@ export interface User {
   username: string;
   email: string;
   role: Role;
+  branchId: BranchId;
+  isSuperAdmin?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -18,6 +21,14 @@ export interface AuthState {
   token: string | null;
   user: User | null;
   loading: boolean;
+  activeBranchId: BranchId;
+}
+
+export type BranchId = "butembo" | "beni";
+
+export interface Branch {
+  id: BranchId;
+  name: string;
 }
 
 export interface LoginPayload {

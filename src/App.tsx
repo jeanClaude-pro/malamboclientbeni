@@ -30,6 +30,8 @@ import Transfert from "./pages/Transfert";
 import TransfertHistory from "./pages/TransfertHistory";
 import TransferReception from "./pages/TransferReception";
 import TransferReceptionHistory from "./pages/TransferReceptionHistory";
+import Analytics from "./pages/Analytics";
+import Users from "./pages/Users";
 
 export default function App() {
   const token = localStorage.getItem("token");
@@ -80,14 +82,6 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Products />
-                    </RequireAuth>
-                  }
-                />
-                <Route
-                  path="/new-sale"
-                  element={
-                    <RequireAuth>
-                      <NewSale />
                     </RequireAuth>
                   }
                 />
@@ -192,7 +186,7 @@ export default function App() {
                   path="/"
                   element={
                     <RequireAuth>
-                      <NewSale />
+                      <Analytics />
                     </RequireAuth>
                   }
                 />
@@ -218,6 +212,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Customers />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <RequireAuth>
+                      <Users />
                     </RequireAuth>
                   }
                 />

@@ -54,9 +54,15 @@ export function installDataSynchronization() {
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const response = await nativeFetch(input, init);
     const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const token = localStorage.getItem("token");
+    const branchId = localStorage.getItem("activeBranchId");
+    const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+    if (token && branchId && /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|company-report|loan|users)(?:\/|\?|$)/.test(url)) {
+      headers.set("X-Branch-Id", branchId);
+    }
+    const response = await nativeFetch(input, { ...init, headers });
 
     if (response.ok && MUTATING_METHODS.has(method) && DATA_ENDPOINT.test(url)) {
       notify({ method, url });

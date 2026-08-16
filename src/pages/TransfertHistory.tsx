@@ -30,6 +30,7 @@ import { formatDateTimeGmt2 } from "../utils/time";
 
 interface Transfer {
   _id: string;
+  branchId?: "butembo" | "beni";
   transferId: string;
   product: {
     productId: string | null;
@@ -321,8 +322,12 @@ export default function TransfertHistory() {
   const generateTransferPDF = (transfer: Transfer) => {
     const doc = new jsPDF();
 
+    doc.setFontSize(16);
+    doc.text("Entre Nous Renove", 105, 12, { align: "center" });
+    doc.setFontSize(9);
+    doc.text(`Agence de ${transfer.branchId === "beni" ? "Beni" : "Butembo"}`, 105, 18, { align: "center" });
     doc.setFontSize(20);
-    doc.text("Bon de Transfert", 105, 20, { align: "center" });
+    doc.text("Bon de Transfert", 105, 27, { align: "center" });
     doc.setFontSize(10);
     doc.text(`Transfert ID: ${transfer.transferId}`, 20, 35);
     doc.text(`Date: ${formatDate(transfer.createdAt)}`, 20, 42);

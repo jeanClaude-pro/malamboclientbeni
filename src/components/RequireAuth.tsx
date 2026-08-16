@@ -22,7 +22,7 @@ export const RequireAuth: React.FC<React.PropsWithChildren> = ({
 
   // Keep this at the route boundary so manually entered URLs cannot bypass
   // the manager's restricted access.
-  const managerAllowedPaths = ["/reports", "/products", "/sortiehistory"];
+  const managerAllowedPaths = ["/", "/reports", "/products", "/sortiehistory"];
   if (
     user?.role === "manager" &&
     !managerAllowedPaths.includes(location.pathname)

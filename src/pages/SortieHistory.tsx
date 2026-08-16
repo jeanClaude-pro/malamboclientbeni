@@ -25,6 +25,7 @@ import {
 
 interface ExpenseItem {
   _id: string;
+  branchId?: "butembo" | "beni";
   expenseId: string;
   reason: string;
   recipientName: string;
@@ -988,10 +989,8 @@ export default function SortieHistory() {
   <body>
     <div class="receipt-container">
       <div class="header">
-        <div class="shop-name"><strong>Lulu Fashion</strong></div>
-        <div class="shop-details"><strong>Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi</strong></div>
-        <div class="shop-details">TEL: <strong>+243 991 924 151 / +243 995 797 399</strong></div>
-        <div class="shop-details"><strong>LSH-RCCM-23-A-00842</strong></div>
+        <div class="shop-name"><strong>Entre Nous Renove</strong></div>
+        <div class="shop-details"><strong>Agence de ${expense.branchId === "beni" ? "Beni" : "Butembo"}</strong></div>
       </div>
       
       <div class="section-divider"></div>

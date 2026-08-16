@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   ArrowLeftRight,
+  MapPin,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -32,7 +33,7 @@ const clsx = (...classes: (string | undefined | null | false)[]): string => {
   return classes.filter(Boolean).join(" ");
 };
 
-interface SidebarItem {
+export interface SidebarItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -41,15 +42,23 @@ interface SidebarItem {
   roles?: string[]; // Add roles property to define access
 }
 
-interface SidebarSection {
+export interface SidebarSection {
   title: string;
   items: SidebarItem[];
 }
 
-const sidebarSections: SidebarSection[] = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const sidebarSections: SidebarSection[] = [
   {
     title: "Menu principal",
     items: [
+      {
+        id: "dashboard",
+        label: "Tableau de bord",
+        icon: LayoutDashboard,
+        path: "/",
+        roles: ["admin", "superadmin", "manager", "cashier_supervisor", "inventory_manager", "staff"],
+      },
       
       {
         id: "taux",
@@ -62,7 +71,7 @@ const sidebarSections: SidebarSection[] = [
         id: "pos", 
         label: "Point de Vente", 
         icon: ShoppingCart, 
-        path: "/",
+        path: "/new-sale",
         roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access POS
       },
       { 
@@ -181,6 +190,13 @@ const sidebarSections: SidebarSection[] = [
         path: "/customers",
         roles: ["admin", "manager", "cashier_supervisor"] // Admin, Manager, and Cashier Supervisor can access customers
       },
+      {
+        id: "users",
+        label: "Personnel & agences",
+        icon: User,
+        path: "/users",
+        roles: ["admin", "superadmin"],
+      },
     ],
   },
 ];
@@ -209,7 +225,7 @@ const isSunday = (): boolean => {
 
 // Admins and report-only managers can use the system at any time.
 const hasRestrictedAccess = (userRole: string | undefined): boolean => {
-  if (userRole === "admin" || userRole === "manager") return false;
+  if (userRole === "admin" || userRole === "superadmin" || userRole === "manager") return false;
   
   // Other users have restricted access outside 8 AM - 8 PM or on Sundays.
   return !isAllowedTime() || isSunday();
@@ -226,7 +242,7 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const location = useLocation();
-  const { token, user, clearAuth } = useAuth();
+  const { token, user, clearAuth, activeBranchId, setActiveBranchId } = useAuth();
   
   const sidebarRef = useRef<HTMLElement>(null);
   const touchStartX = useRef(0);
@@ -235,7 +251,8 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
   const touchEndY = useRef(0);
 
   const isAuthed = Boolean(token && user);
-  const isNonAdmin = user?.role !== "admin";
+  const isSuperAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+  const isNonAdmin = !isSuperAdmin;
   const isRestricted = isNonAdmin && hasRestrictedAccess(user?.role);
 
   // Check if mobile device and set appropriate initial state
@@ -274,24 +291,22 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
     if (isAuthed && isNonAdmin) {
       if (isRestricted) {
         // Show warning for 10 seconds before auto-logout
-        setShowTimeWarning(true);
+        const warningTimer = setTimeout(() => setShowTimeWarning(true), 0);
         const logoutTimer = setTimeout(() => {
-          handleAutoLogout();
+          clearAuth();
+          window.location.href = "/login?message=auto_logout";
         }, 10000); // 10 seconds warning
 
-        return () => clearTimeout(logoutTimer);
+        return () => {
+          clearTimeout(warningTimer);
+          clearTimeout(logoutTimer);
+        };
       } else {
-        setShowTimeWarning(false);
+        const warningTimer = setTimeout(() => setShowTimeWarning(false), 0);
+        return () => clearTimeout(warningTimer);
       }
     }
-  }, [isAuthed, isNonAdmin, isRestricted, currentTime]);
-
-  // Close mobile sidebar when route changes
-  useEffect(() => {
-    if (isMobile) {
-      setIsMobileOpen(false);
-    }
-  }, [location.pathname, isMobile]);
+  }, [clearAuth, isAuthed, isNonAdmin, isRestricted, currentTime]);
 
   // Touch event handlers for swipe gestures
   useEffect(() => {
@@ -340,8 +355,9 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
   // Check if user has access to a specific item
   const hasAccess = (item: SidebarItem): boolean => {
     // Managers are intentionally limited to reports, products, and sortie history.
+    if (isSuperAdmin) return true;
     if (user?.role === "manager") {
-      return ["/reports", "/products", "/sortiehistory"].includes(item.path);
+      return ["/", "/reports", "/products", "/sortiehistory"].includes(item.path);
     }
     if (!item.roles) return true; // If no roles specified, allow access
     if (!user?.role) return false; // If user has no role, deny access
@@ -360,11 +376,6 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
   const handleLogout = () => {
     clearAuth();
     window.location.href = "/login";
-  };
-
-  const handleAutoLogout = () => {
-    clearAuth();
-    window.location.href = "/login?message=auto_logout";
   };
 
   // Format time for display
@@ -402,17 +413,6 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
     onLayoutChange?.(width, isMobile);
   }, [isCollapsed, isMobile, onLayoutChange]);
 
-  // Mobile overlay to close sidebar when clicking outside
-  const MobileOverlay = () => (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-      onClick={() => setIsMobileOpen(false)}
-    />
-  );
-
   return (
     <>
       {/* Mobile Menu Button */}
@@ -427,7 +427,15 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
 
       {/* Mobile Overlay */}
       <AnimatePresence>
-        {isMobile && isMobileOpen && <MobileOverlay />}
+        {isMobile && isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setIsMobileOpen(false)}
+          />
+        )}
       </AnimatePresence>
 
       {/* Sidebar */}
@@ -497,7 +505,7 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
                     <h1 className="text-lg font-bold text-white">
                       Entre Nous Renove
                     </h1>
-                    <p className="text-xs text-gray-400"><strong>Butembo</strong></p>
+                    <p className="text-xs text-gray-400"><strong>{activeBranchId === "beni" ? "Beni" : "Butembo"}</strong></p>
                   </div>
                 </motion.div>
               ) : !isMobile ? (
@@ -575,6 +583,25 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
                       {isNonAdmin && isRestricted && " • Accès restreint"}
                     </p>
                   </div>
+                </div>
+                <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-2 backdrop-blur-md">
+                  <label className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    <MapPin className="h-3 w-3" /> Agence active
+                  </label>
+                  {isSuperAdmin ? (
+                    <select
+                      value={activeBranchId}
+                      onChange={(event) => setActiveBranchId(event.target.value as "butembo" | "beni")}
+                      className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-2 text-sm font-semibold text-white outline-none transition focus:border-blue-400"
+                    >
+                      <option value="butembo">Butembo</option>
+                      <option value="beni">Beni</option>
+                    </select>
+                  ) : (
+                    <div className="px-1 py-1 text-sm font-semibold text-white">
+                      {activeBranchId === "beni" ? "Agence de Beni" : "Agence de Butembo"}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -662,9 +689,9 @@ export default function Sidebar({ onLayoutChange }: SidebarProps) {
           <>
             {/* Navigation (only when authenticated) */}
             <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-              {sidebarSections.map((section) => {
+              {sidebarSections.slice(0, 1).map((section) => {
                 // Filter items based on user role
-                const accessibleItems = section.items.filter(hasAccess);
+                const accessibleItems = section.items.filter((item) => item.id === "dashboard" && hasAccess(item));
                 
                 // Don't render section if no items are accessible
                 if (accessibleItems.length === 0) return null;

@@ -31,6 +31,7 @@ interface EditHistoryEntry {
 
 interface Entry {
   _id: string;
+  branchId?: "butembo" | "beni";
   entryId: string;
   amount: number;
   source: string;
@@ -512,10 +513,8 @@ export default function EntryHistory() {
   <body>
     <div class="receipt-container">
       <div class="header">
-        <div class="shop-name"><strong></strong></div>
-        <div class="shop-details"><strong></strong></div>
-        <div class="shop-details"></strong></div>
-        <div class="shop-details"><strong></strong></div>
+        <div class="shop-name"><strong>Entre Nous Renove</strong></div>
+        <div class="shop-details"><strong>Agence de ${entry.branchId === "beni" ? "Beni" : "Butembo"}</strong></div>
       </div>
       
       <div class="section-divider"></div>
@@ -592,11 +591,11 @@ export default function EntryHistory() {
 
     // Header
     doc.setFontSize(20);
-    doc.text("", 105, 10, { align: "center" });
+    doc.text("Entre Nous Renove", 105, 10, { align: "center" });
     doc.setFontSize(10);
     
     doc.setFontSize(12);
-    doc.text("", 105, 20, { align: "center" });
+    doc.text(`Agence de ${entry.branchId === "beni" ? "Beni" : "Butembo"}`, 105, 20, { align: "center" });
     doc.text("", 105, 25, { align: "center" });
     doc.text("", 105, 30, { align: "center" });
 

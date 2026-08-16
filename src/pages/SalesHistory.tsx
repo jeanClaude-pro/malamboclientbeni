@@ -72,6 +72,7 @@ interface CreditDetails {
 
 interface Sale {
   _id: string;
+  branchId?: "butembo" | "beni";
   saleId: string;
   customer: {
     name: string;
@@ -1098,10 +1099,8 @@ export default function SalesHistory() {
   <body>
     <div class="receipt-container">
       <div class="header">
-        <div class="shop-name"><strong>Lulu Fashion</strong></div>
-        <div class="shop-details"><strong>Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi</strong></div>
-        <div class="shop-details">TEL: <strong>+243 991 924 151 / +243 995 797 399</strong></div>
-        <div class="shop-details"><strong>LSH-RCCM-23-A-00842</strong></div>
+        <div class="shop-name"><strong>Entre Nous Renove</strong></div>
+        <div class="shop-details"><strong>Agence de ${sale.branchId === "beni" ? "Beni" : "Butembo"}</strong></div>
       </div>
       
       <div class="section-divider"></div>
@@ -1193,20 +1192,13 @@ export default function SalesHistory() {
 
     // Header
     doc.setFontSize(20);
-    doc.text("Lulu Fashion", 105, 10, { align: "center" });
+    doc.text("Entre Nous Renove", 105, 10, { align: "center" });
     doc.setFontSize(10);
    
     doc.setFontSize(12);
-    doc.text("LSH-RCCM-23-A-00842", 105, 20, { align: "center" });
-    doc.text("Tél: +243 991 924 151 / +243 995 797 399", 105, 25, {
-      align: "center",
-    });
-    doc.text("Av Mitwaba Rue Musoshi N°51, C. Kenya, Lubumbashi", 105, 30, {
-      align: "center",
-    });
-
+    doc.text(`Agence de ${sale.branchId === "beni" ? "Beni" : "Butembo"}`, 105, 20, { align: "center" });
     doc.setFontSize(16);
-    doc.text("Reçu de vente", 105, 35, { align: "center" });
+    doc.text("Reçu de vente", 105, 30, { align: "center" });
 
     // Sale Info
     doc.setFontSize(10);

@@ -33,7 +33,7 @@ import CategoriesDropdown from "../components/CategoriesDropdown";
 
 interface User {
   _id: string;
-  name: string;
+  username: string;
   email: string;
   role: "admin" | "manager" | "staff" | "cashier_supervisor" | "inventory_manager";
 }
@@ -71,50 +71,44 @@ interface FicheSale {
   recordedBy?: string;
 }
 
-const STOCK_MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  loan: "Prêt",
-  loan_return: "Retour de prêt",
-  bonus_manual: "Bonus manuel",
-  adjustment_in: "Ajustement (+)",
-  adjustment_out: "Ajustement (-)",
-  car_arrival: "Arrivée de camion",
-  transfer_out: "Transfert livré (-)",
-};
+type FicheRange = "today" | "week" | "month" | "custom";
 
-const STOCK_MOVEMENT_DECREASES = new Set(["loan", "bonus_manual", "adjustment_out", "transfer_out"]);
-
-interface StockMovementRecord {
-  _id: string;
-  productId: string;
-  type: string;
-  quantity: number;
-  reference?: string;
-  notes?: string;
-  recordedBy?: string;
-  createdAt: string;
-}
-
-interface TransferReceptionRecord {
-  _id: string;
-  product: { productId: string; totalPieces: number };
-  transferId?: string | null;
-  transferReference?: string;
-  sourceLocation?: string;
-  receivedBy?: string;
-  notes?: string;
-  status: "active" | "voided";
-  createdAt: string;
-}
-
-interface StockHistoryEntry {
+interface LedgerAction {
   id: string;
   date: string;
+  type: string;
   label: string;
-  quantity: number; // signed — positive increases stock, negative decreases it
-  reference?: string;
-  by?: string;
-  notes?: string;
-  voided?: boolean;
+  source: string;
+  reference: string;
+  previousStock: number;
+  change: number; // signed — positive increases stock, negative decreases it
+  newStock: number;
+  performedBy: string;
+  performedByRole?: string;
+  branchId: "butembo" | "beni";
+  reason: string;
+}
+
+interface StockLedger {
+  branch: { id: "butembo" | "beni"; name: string };
+  product: {
+    _id: string;
+    name: string;
+    status: "active" | "inactive";
+    category: string;
+    piecesPerCarton: number;
+    currentStock: number;
+  };
+  period: { range: string; start: string; end: string };
+  summary: {
+    startingStock: number;
+    added: number;
+    removed: number;
+    endingStock: number;
+    currentStock: number;
+    actionsCount: number;
+  };
+  actions: LedgerAction[];
 }
 
 interface FormData {
@@ -202,9 +196,17 @@ export default function Products() {
   const [showFicheModal, setShowFicheModal] = useState(false);
   const [ficheProduct, setFicheProduct] = useState<Product | null>(null);
   const [ficheSales, setFicheSales] = useState<FicheSale[]>([]);
-  const [ficheHistory, setFicheHistory] = useState<StockHistoryEntry[]>([]);
+  const [ficheLedger, setFicheLedger] = useState<StockLedger | null>(null);
+  const [ficheLedgerLoading, setFicheLedgerLoading] = useState(false);
+  const [ficheRange, setFicheRange] = useState<FicheRange>("month");
+  const [ficheCustomFrom, setFicheCustomFrom] = useState("");
+  const [ficheCustomTo, setFicheCustomTo] = useState("");
   const [ficheLoading, setFicheLoading] = useState(false);
-  const [ficheTab, setFicheTab] = useState<"sales" | "bonus" | "credit" | "history">("sales");
+  const [ficheTab, setFicheTab] = useState<"summary" | "sales" | "bonus" | "credit">("summary");
+
+  // Manual stock adjustment reason — captured on edit, sent to the backend so the
+  // Fiche de Stock audit trail can show why the stock number changed.
+  const [editReason, setEditReason] = useState("");
 
   // Get current user from localStorage
   useEffect(() => {
@@ -269,7 +271,7 @@ export default function Products() {
     }
   };
 
-  const updateProduct = async (id: string, productData: FormData) => {
+  const updateProduct = async (id: string, productData: FormData & { reason?: string }) => {
     try {
       const response = await fetch(`${serverUrl}/products/${id}`, {
         method: "PUT",
@@ -298,8 +300,10 @@ export default function Products() {
     }
   };
 
-  const deleteProduct = async (id: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet article?")) return;
+  // Products are never hard-deleted — this deactivates the product (its stock,
+  // history, and ID all stay intact); it can be reactivated afterwards.
+  const deactivateProduct = async (id: string) => {
+    if (!confirm("Désactiver cet article ? Il restera dans l'historique et pourra être réactivé plus tard.")) return;
     try {
       const response = await fetch(`${serverUrl}/products/${id}`, {
         method: "DELETE",
@@ -308,15 +312,41 @@ export default function Products() {
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
       });
+      const data = await response.json();
       if (response.ok) {
-        setProducts((prev: Product[]) => prev.filter((p: Product) => p._id !== id));
-        toast.success("Article supprimé");
+        setProducts((prev: Product[]) =>
+          prev.map((p: Product) => (p._id === id ? data.product : p))
+        );
+        toast.success("Article désactivé");
       } else {
-        toast.error("Échec de la suppression de l'Article");
+        toast.error(data.error || "Échec de la désactivation de l'Article");
       }
     } catch (error) {
-      console.error("Erreur de suppression de l'Article:", error);
-      toast.error("Erreur lors de la suppression du produit");
+      console.error("Erreur de désactivation de l'Article:", error);
+      toast.error("Erreur lors de la désactivation du produit");
+    }
+  };
+
+  const reactivateProduct = async (id: string) => {
+    try {
+      const response = await fetch(`${serverUrl}/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({ status: "active" }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setProducts((prev: Product[]) => prev.map((p: Product) => (p._id === id ? data : p)));
+        toast.success("Article réactivé");
+      } else {
+        toast.error(data.error || "Échec de la réactivation de l'Article");
+      }
+    } catch (error) {
+      console.error("Erreur de réactivation de l'Article:", error);
+      toast.error("Erreur lors de la réactivation du produit");
     }
   };
 
@@ -344,61 +374,65 @@ export default function Products() {
     }
   };
 
-  const fetchFicheHistory = async (product: Product) => {
+  const fetchFicheLedger = async (
+    product: Product,
+    range: FicheRange,
+    from?: string,
+    to?: string
+  ) => {
+    if (range === "custom" && (!from || !to)) {
+      toast.error("Veuillez sélectionner une période personnalisée valide");
+      return;
+    }
     try {
-      const authHeader = { Authorization: `Bearer ${localStorage.getItem("token") || ""}` };
-      const [movementsRes, receptionsRes] = await Promise.all([
-        fetch(`${serverUrl}/stock-movements?productId=${product._id}`, { headers: authHeader }),
-        fetch(`${serverUrl}/transfer-receptions`, { headers: authHeader }),
-      ]);
-
-      const entries: StockHistoryEntry[] = [];
-
-      if (movementsRes.ok) {
-        const json = await movementsRes.json();
-        const list: StockMovementRecord[] = Array.isArray(json?.data) ? json.data : [];
-        for (const m of list) {
-          entries.push({
-            id: m._id,
-            date: m.createdAt,
-            label: STOCK_MOVEMENT_TYPE_LABELS[m.type] || m.type,
-            quantity: STOCK_MOVEMENT_DECREASES.has(m.type) ? -m.quantity : m.quantity,
-            reference: m.reference,
-            by: m.recordedBy,
-            notes: m.notes,
-          });
-        }
+      setFicheLedgerLoading(true);
+      const params = new URLSearchParams({ range });
+      if (range === "custom" && from && to) {
+        params.set("from", from);
+        params.set("to", to);
       }
-
-      if (receptionsRes.ok) {
-        const json = await receptionsRes.json();
-        const list: TransferReceptionRecord[] = Array.isArray(json?.data) ? json.data : [];
-        for (const r of list) {
-          if (r.product?.productId !== product._id) continue;
-          entries.push({
-            id: r._id,
-            date: r.createdAt,
-            label: r.transferId ? "Réception de transfert" : "Réception directe",
-            quantity: r.product.totalPieces,
-            reference: r.transferReference,
-            by: r.receivedBy,
-            notes: [r.sourceLocation, r.notes].filter(Boolean).join(" — "),
-            voided: r.status === "voided",
-          });
-        }
+      const res = await fetch(
+        `${serverUrl}/stock-movements/ledger/${product._id}?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setFicheLedger(json);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Impossible de charger la fiche de stock");
+        setFicheLedger(null);
       }
-
-      entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setFicheHistory(entries);
     } catch {
-      toast.error("Impossible de charger l'historique du stock");
+      toast.error("Erreur réseau lors du chargement de la fiche de stock");
+      setFicheLedger(null);
+    } finally {
+      setFicheLedgerLoading(false);
     }
   };
 
-  const loadFicheData = async (product: Product) => {
+  const applyFicheRange = async (product: Product, range: "today" | "week" | "month") => {
+    setFicheRange(range);
+    await fetchFicheLedger(product, range);
+  };
+
+  const applyFicheCustomRange = async (product: Product) => {
+    if (!ficheCustomFrom || !ficheCustomTo) {
+      toast.error("Veuillez sélectionner une date de début et une date de fin");
+      return;
+    }
+    if (ficheCustomFrom > ficheCustomTo) {
+      toast.error("La date de début doit précéder la date de fin");
+      return;
+    }
+    setFicheRange("custom");
+    await fetchFicheLedger(product, "custom", ficheCustomFrom, ficheCustomTo);
+  };
+
+  const loadFicheData = async (product: Product, range: FicheRange = ficheRange) => {
     setFicheLoading(true);
     try {
-      await Promise.all([fetchFicheSales(product), fetchFicheHistory(product)]);
+      await Promise.all([fetchFicheSales(product), fetchFicheLedger(product, range)]);
     } finally {
       setFicheLoading(false);
     }
@@ -406,22 +440,33 @@ export default function Products() {
 
   const openFicheModal = async (product: Product) => {
     setFicheProduct(product);
-    setFicheTab("sales");
+    setFicheTab("summary");
+    setFicheRange("month");
+    setFicheCustomFrom("");
+    setFicheCustomTo("");
     setShowFicheModal(true);
     setFicheSales([]);
-    setFicheHistory([]);
-    await loadFicheData(product);
+    setFicheLedger(null);
+    await loadFicheData(product, "month");
   };
 
   const closeFicheModal = () => {
     setShowFicheModal(false);
     setFicheProduct(null);
     setFicheSales([]);
-    setFicheHistory([]);
-    setFicheTab("sales");
+    setFicheLedger(null);
+    setFicheTab("summary");
   };
 
   const COMPANY_NAME = "Entre Nous Renove";
+  const activeBranchName = localStorage.getItem("activeBranchId") === "beni" ? "Beni" : "Butembo";
+
+  const FICHE_RANGE_LABELS: Record<FicheRange, string> = {
+    today: "Aujourd'hui",
+    week: "Cette semaine",
+    month: "Ce mois",
+    custom: "Période personnalisée",
+  };
 
   const buildFichePDF = (
     doc: jsPDF,
@@ -461,6 +506,8 @@ export default function Products() {
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    doc.text(`Agence: ${activeBranchName}`, left, y);
+    y += 5;
     doc.text(`Stock actuel: ${formatCartonStock(product.stock, ppc)}${product.brand ? `   Marque: ${product.brand}` : ""}`, left, y);
     y += 5;
     doc.text(
@@ -570,34 +617,208 @@ export default function Products() {
     return y + 8;
   };
 
+  // Renders the professional Fiche de Stock PDF straight from the ledger response
+  // already displayed in the "Résumé du stock" tab — same numbers, same source,
+  // so the PDF can never disagree with what's on screen.
   const downloadFichePDF = () => {
-    if (!ficheProduct) return;
+    if (!ficheProduct || !ficheLedger) {
+      toast.error("Les données de la fiche de stock ne sont pas encore chargées");
+      return;
+    }
+    const ledger = ficheLedger;
+    const ppc = getPiecesPerCarton({ piecesPerCarton: ledger.product.piecesPerCarton });
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const left = 14;
+    let y = 16;
 
-    // Page header
-    doc.setFontSize(18);
+    const checkPage = (needed = 10) => {
+      if (y + needed > pageH - 18) { doc.addPage(); y = 20; }
+    };
+
+    // Header
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(30, 60, 140);
-    doc.text(COMPANY_NAME, pageW / 2, 16, { align: "center" });
-    doc.setTextColor(0, 0, 0);
+    doc.text(COMPANY_NAME, pageW / 2, y, { align: "center" });
+    y += 7;
+    doc.setFontSize(12);
+    doc.text("FICHE DE STOCK", pageW / 2, y, { align: "center" });
+    y += 5;
     doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(90, 90, 90);
+    doc.text("Mouvement de Stock & Audit d'Inventaire", pageW / 2, y, { align: "center" });
+    doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
-    doc.text(`Généré le: ${new Date().toLocaleDateString("fr-FR")}`, pageW / 2, 22, { align: "center" });
+    y += 9;
 
-    buildFichePDF(doc, ficheProduct, ficheSales, 30);
+    // Product & period info
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Agence: ${ledger.branch?.name || "Butembo"}`, left, y);
+    y += 5;
+    doc.text(`Article: ${ledger.product.name}`, left, y);
+    doc.text(`Statut: ${getProductStatus(ledger.product.status)}`, pageW - left, y, { align: "right" });
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.text(`Catégorie: ${ledger.product.category || "—"}`, left, y);
+    y += 5;
+    doc.text(
+      `Période (${FICHE_RANGE_LABELS[ficheRange]}): ${new Date(ledger.period.start).toLocaleDateString("fr-FR")} — ${new Date(ledger.period.end).toLocaleDateString("fr-FR")}`,
+      left, y
+    );
+    y += 5;
+    doc.text(`Généré le: ${new Date().toLocaleString("fr-FR")}`, left, y);
+    y += 5;
+    doc.text(`Généré par: ${currentUser?.username || "Utilisateur inconnu"}`, left, y);
+    y += 8;
 
-    // Page numbers
-    const total = doc.getNumberOfPages();
-    for (let i = 1; i <= total; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
+    // Summary block
+    checkPage(20);
+    doc.setDrawColor(30, 60, 140);
+    doc.setLineWidth(0.3);
+    doc.line(left, y, pageW - left, y);
+    y += 6;
+    const summaryCols: { label: string; value: string; color: [number, number, number] }[] = [
+      { label: "STOCK DE DÉPART", value: `${ledger.summary.startingStock}`, color: [0, 0, 0] },
+      { label: "STOCK AJOUTÉ", value: `+${ledger.summary.added}`, color: [20, 130, 60] },
+      { label: "STOCK RÉDUIT", value: `-${ledger.summary.removed}`, color: [180, 40, 40] },
+      { label: "STOCK FINAL", value: `${ledger.summary.endingStock}`, color: [30, 60, 140] },
+    ];
+    const colW4 = (pageW - left * 2) / 4;
+    summaryCols.forEach((col, i) => {
+      const x = left + i * colW4;
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(100, 100, 100);
+      doc.text(col.label, x, y);
+      doc.setFontSize(13);
+      doc.setTextColor(col.color[0], col.color[1], col.color[2]);
+      doc.text(col.value, x, y + 7);
+    });
+    doc.setTextColor(0, 0, 0);
+    y += 14;
+    doc.line(left, y, pageW - left, y);
+    y += 8;
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Stock actuel: ${formatCartonStock(ledger.product.currentStock, ppc)}   |   ${ledger.summary.actionsCount} action(s) de stock sur la période`,
+      left, y
+    );
+    y += 8;
+
+    // Actions table
+    checkPage(14);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Journal des mouvements de stock", left, y);
+    y += 6;
+
+    const headers = ["Date", "Action", "Source", "Référence", "Préc.", "Var.", "Nouv.", "Par", "Raison"];
+    const colWidths = [22, 24, 22, 24, 14, 14, 14, 22, 26];
+
+    const drawTableHeader = () => {
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(40, 70, 130);
+      doc.rect(left, y - 4, pageW - left * 2, 6, "F");
+      doc.setTextColor(255, 255, 255);
+      let headerX = left;
+      headers.forEach((header, index) => {
+        doc.text(header, headerX + 1, y);
+        headerX += colWidths[index];
+      });
+      doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
-      doc.text(COMPANY_NAME, 14, doc.internal.pageSize.getHeight() - 8);
-      doc.text(`Page ${i}/${total}`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: "center" });
+      y += 4;
+    };
+
+    const drawContinuationHeader = () => {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 60, 140);
+      doc.text(COMPANY_NAME, pageW / 2, 14, { align: "center" });
+      doc.setFontSize(8);
+      doc.setTextColor(70, 70, 70);
+      doc.text(
+        `FICHE DE STOCK · Agence: ${ledger.branch?.name || "Butembo"} · Article: ${ledger.product.name}`,
+        pageW / 2,
+        20,
+        { align: "center", maxWidth: pageW - left * 2 }
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.text("Journal des mouvements de stock (suite)", left, 28);
+      y = 35;
+      drawTableHeader();
+    };
+
+    checkPage(8);
+    drawTableHeader();
+
+    doc.setFont("helvetica", "normal");
+    if (ledger.actions.length === 0) {
+      checkPage(8);
+      doc.setFontSize(8);
+      doc.text("Aucune action de stock enregistrée pour cette période.", left, y);
+      y += 6;
+    } else {
+      ledger.actions.forEach((action, i) => {
+        const values = [
+          new Date(action.date).toLocaleDateString("fr-FR"),
+          action.label,
+          action.source,
+          action.reference || "—",
+          `${action.previousStock}`,
+          `${action.change >= 0 ? "+" : ""}${action.change}`,
+          `${action.newStock}`,
+          action.performedBy || "—",
+          action.reason || "—",
+        ];
+        const wrappedValues = values.map((value, index) =>
+          doc.splitTextToSize(value, Math.max(5, colWidths[index] - 2)) as string[]
+        );
+        const lineCount = Math.max(...wrappedValues.map((lines) => lines.length), 1);
+        const rowHeight = Math.max(6, lineCount * 3.2 + 1.5);
+        if (y + rowHeight > pageH - 18) {
+          doc.addPage();
+          drawContinuationHeader();
+        }
+        if (i % 2 === 0) {
+          doc.setFillColor(235, 242, 255);
+          doc.rect(left, y - 4, pageW - left * 2, rowHeight, "F");
+        }
+        let x = left;
+        doc.setFontSize(7);
+        wrappedValues.forEach((lines, index) => {
+          if (index === 5) {
+            doc.setTextColor(action.change >= 0 ? 20 : 180, action.change >= 0 ? 130 : 40, action.change >= 0 ? 60 : 40);
+          } else {
+            doc.setTextColor(0, 0, 0);
+          }
+          doc.text(lines, x + 1, y);
+          x += colWidths[index];
+        });
+        y += rowHeight;
+      });
     }
 
-    doc.save(`fiche-${ficheProduct.name.replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`);
+    // Footer with page numbers on every page
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(90, 90, 90);
+      doc.text("Généré par le Système de Gestion d'Inventaire", left, pageH - 8);
+      doc.text(`Page ${i}/${totalPages}`, pageW - left, pageH - 8, { align: "right" });
+    }
+
+    doc.save(`fiche-de-stock-${ficheProduct.name.replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const downloadAllFichesPDF = async () => {
@@ -629,7 +850,8 @@ export default function Products() {
       doc.text("Fiches de Stocks — Tous les Articles", pageW / 2, pageH / 2, { align: "center" });
       doc.setFontSize(10);
       doc.text(`Généré le: ${new Date().toLocaleDateString("fr-FR")}`, pageW / 2, pageH / 2 + 10, { align: "center" });
-      doc.text(`Nombre d'articles: ${products.length}`, pageW / 2, pageH / 2 + 18, { align: "center" });
+      doc.text(`Agence: ${activeBranchName}`, pageW / 2, pageH / 2 + 15, { align: "center" });
+      doc.text(`Nombre d'articles: ${products.length}`, pageW / 2, pageH / 2 + 21, { align: "center" });
 
       for (const product of products) {
         doc.addPage();
@@ -693,11 +915,12 @@ export default function Products() {
       weight: 0,
       status: "active",
     });
+    setEditReason("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation for box-based product
     if (formData.loosePieces >= formData.piecesPerCarton) {
       toast.error("Les pièces restantes doivent être inférieures aux pièces par carton");
@@ -718,7 +941,7 @@ export default function Products() {
     };
 
     if (showEditModal && selectedProduct) {
-      updateProduct(selectedProduct._id, productData);
+      updateProduct(selectedProduct._id, { ...productData, reason: editReason.trim() });
     } else {
       createProduct(productData);
     }
@@ -746,6 +969,7 @@ export default function Products() {
       weight: product.weight || 0,
       status: product.status || "active",
     });
+    setEditReason("");
     setShowEditModal(true);
   };
 
@@ -1024,13 +1248,23 @@ export default function Products() {
                             >
                               <Edit className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => deleteProduct(product._id)}
-                              className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {product.status === "active" ? (
+                              <button
+                                onClick={() => deactivateProduct(product._id)}
+                                className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
+                                title="Désactiver"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => reactivateProduct(product._id)}
+                                className="text-green-400 hover:text-green-300 p-1 rounded transition-colors"
+                                title="Réactiver"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -1254,6 +1488,25 @@ export default function Products() {
                     </div>
                   </div>
 
+                  {/* Reason for a manual stock adjustment — only meaningful when editing */}
+                  {showEditModal && selectedProduct && (
+                    <div>
+                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                        Raison de l'ajustement du stock (optionnel)
+                      </label>
+                      <input
+                        type="text"
+                        value={editReason}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditReason(e.target.value)}
+                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                        placeholder="Ex: Correction après inventaire physique"
+                      />
+                      <p className="mt-1 text-xs text-blue-300/70">
+                        Enregistré dans la Fiche de Stock uniquement si le stock change réellement.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Minimum Stock Alert */}
                   <div className="border-t border-blue-800/50 pt-4 mt-2">
                     <h4 className="text-sm font-medium text-blue-300 mb-3">
@@ -1390,6 +1643,11 @@ export default function Products() {
                       <ClipboardList className="w-5 h-5 text-purple-400" />
                       Fiche de stocks — {ficheProduct.name}
                     </h2>
+                    {ficheLedger?.branch && (
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-blue-300">
+                        Agence de {ficheLedger.branch.name}
+                      </p>
+                    )}
                     <p className="text-sm text-purple-300/70 mt-1">
                       Stock actuel:{" "}
                       <span className="font-semibold text-white">
@@ -1467,10 +1725,10 @@ export default function Products() {
                 <div className="flex gap-1 mt-4 bg-black/30 rounded-lg p-1 flex-wrap">
                   {(
                     [
+                      { key: "summary" as const, label: "Résumé du stock", icon: <History className="w-3.5 h-3.5" /> },
                       { key: "sales" as const, label: "Toutes les ventes", icon: <Package className="w-3.5 h-3.5" /> },
                       { key: "bonus" as const, label: "Bonus donnés", icon: <TrendingDown className="w-3.5 h-3.5" /> },
                       { key: "credit" as const, label: "Crédit / Prêts", icon: <CreditCard className="w-3.5 h-3.5" /> },
-                      { key: "history" as const, label: "Historique du stock", icon: <History className="w-3.5 h-3.5" /> },
                     ]
                   ).map((tab) => (
                     <button
@@ -1715,52 +1973,151 @@ export default function Products() {
                       </div>
                     )}
 
-                    {/* Stock history tab */}
-                    {ficheTab === "history" && (
+                    {/* Stock summary tab — starting/ending inventory + audit trail for the selected period */}
+                    {ficheTab === "summary" && (
                       <div>
-                        <p className="text-xs text-blue-300/50 mb-3 uppercase tracking-wider">
-                          Tous les mouvements de stock — arrivées de camions, réceptions, prêts et ajustements
-                        </p>
-                        {ficheHistory.length === 0 ? (
+                        {/* Period selector */}
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
+                          {(["today", "week", "month"] as const).map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => ficheProduct && applyFicheRange(ficheProduct, r)}
+                              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                                ficheRange === r
+                                  ? "bg-purple-700 text-white"
+                                  : "bg-black/30 text-purple-300 hover:bg-purple-900/30"
+                              }`}
+                            >
+                              {FICHE_RANGE_LABELS[r]}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setFicheRange("custom")}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                              ficheRange === "custom"
+                                ? "bg-purple-700 text-white"
+                                : "bg-black/30 text-purple-300 hover:bg-purple-900/30"
+                            }`}
+                          >
+                            Personnalisé
+                          </button>
+                          {ficheRange === "custom" && (
+                            <div className="flex items-center gap-2 ml-1">
+                              <input
+                                type="date"
+                                value={ficheCustomFrom}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomFrom(e.target.value)}
+                                className="px-2 py-1.5 bg-black/50 border border-blue-800/50 rounded-lg text-sm text-white"
+                              />
+                              <span className="text-blue-300/50 text-sm">à</span>
+                              <input
+                                type="date"
+                                value={ficheCustomTo}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomTo(e.target.value)}
+                                className="px-2 py-1.5 bg-black/50 border border-blue-800/50 rounded-lg text-sm text-white"
+                              />
+                              <button
+                                onClick={() => ficheProduct && applyFicheCustomRange(ficheProduct)}
+                                className="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-sm font-medium"
+                              >
+                                Appliquer
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {ficheLedgerLoading ? (
+                          <div className="text-center py-10">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400 mx-auto" />
+                          </div>
+                        ) : !ficheLedger ? (
                           <p className="text-blue-300/60 text-sm py-10 text-center">
-                            Aucun mouvement de stock enregistré pour cet article.
+                            Impossible de charger la fiche de stock pour cette période.
                           </p>
                         ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead className="border-b border-blue-800/40">
-                                <tr>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Source</th>
-                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Quantité</th>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Référence</th>
-                                  <th className="text-left py-2 text-blue-300/70 font-medium">Enregistré par</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-blue-900/30">
-                                {ficheHistory.map((entry) => (
-                                  <tr key={entry.id} className={`hover:bg-blue-900/10 ${entry.voided ? "opacity-50" : ""}`}>
-                                    <td className="py-2.5 pr-3 text-blue-200/80 whitespace-nowrap">
-                                      {new Date(entry.date).toLocaleString("fr-FR")}
-                                    </td>
-                                    <td className="py-2.5 pr-3 text-white font-medium">
-                                      {entry.label}
-                                      {entry.voided && <span className="ml-2 text-xs text-red-400">(Annulée)</span>}
-                                      {entry.notes && (
-                                        <p className="text-xs text-blue-300/50 font-normal mt-0.5">{entry.notes}</p>
-                                      )}
-                                    </td>
-                                    <td className={`py-2.5 pr-3 text-right font-semibold ${entry.quantity >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                      {entry.quantity >= 0 ? "+" : ""}
-                                      {entry.quantity} pièce{Math.abs(entry.quantity) > 1 ? "s" : ""}
-                                    </td>
-                                    <td className="py-2.5 pr-3 text-blue-200/70">{entry.reference || "—"}</td>
-                                    <td className="py-2.5 text-blue-200/70">{entry.by || "—"}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <>
+                            {/* Summary cards */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+                              <div className="rounded-lg p-3 border border-blue-700/40 bg-black/30">
+                                <div className="text-xs text-blue-400 mb-1">Stock de départ</div>
+                                <div className="text-xl font-bold text-white">{ficheLedger.summary.startingStock}</div>
+                              </div>
+                              <div className="rounded-lg p-3 border border-green-700/40 bg-black/30">
+                                <div className="text-xs text-green-400 mb-1">Stock ajouté</div>
+                                <div className="text-xl font-bold text-white">+{ficheLedger.summary.added}</div>
+                              </div>
+                              <div className="rounded-lg p-3 border border-red-700/40 bg-black/30">
+                                <div className="text-xs text-red-400 mb-1">Stock réduit</div>
+                                <div className="text-xl font-bold text-white">-{ficheLedger.summary.removed}</div>
+                              </div>
+                              <div className="rounded-lg p-3 border border-purple-700/40 bg-black/30">
+                                <div className="text-xs text-purple-400 mb-1">Stock final</div>
+                                <div className="text-xl font-bold text-white">{ficheLedger.summary.endingStock}</div>
+                              </div>
+                            </div>
+                            <p className="text-xs text-blue-300/50 mb-4">
+                              Stock actuel:{" "}
+                              <span className="text-white font-medium">
+                                {formatCartonStock(ficheLedger.product.currentStock, ppc)}
+                              </span>
+                              {" · "}Agence: {ficheLedger.branch?.name || "Butembo"}
+                              {" · "}Statut:{" "}
+                              <span className="text-white font-medium">
+                                {getProductStatus(ficheLedger.product.status)}
+                              </span>
+                              {" · "}
+                              {ficheLedger.summary.actionsCount} action{ficheLedger.summary.actionsCount > 1 ? "s" : ""} de stock sur la période
+                            </p>
+
+                            {/* Audit trail */}
+                            {ficheLedger.actions.length === 0 ? (
+                              <p className="text-blue-300/60 text-sm py-10 text-center">
+                                Aucune action de stock enregistrée pour cette période.
+                              </p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="border-b border-blue-800/40">
+                                    <tr>
+                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
+                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Action</th>
+                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Source</th>
+                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Référence</th>
+                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Précédent</th>
+                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Variation</th>
+                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Nouveau stock</th>
+                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Effectué par</th>
+                                      <th className="text-left py-2 text-blue-300/70 font-medium">Raison</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-blue-900/30">
+                                    {ficheLedger.actions.map((action) => (
+                                      <tr key={action.id} className="hover:bg-blue-900/10">
+                                        <td className="py-2.5 pr-3 text-blue-200/80 whitespace-nowrap">
+                                          {new Date(action.date).toLocaleString("fr-FR")}
+                                        </td>
+                                        <td className="py-2.5 pr-3 text-white font-medium">{action.label}</td>
+                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.source}</td>
+                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.reference || "—"}</td>
+                                        <td className="py-2.5 pr-3 text-right text-blue-200/70">{action.previousStock}</td>
+                                        <td
+                                          className={`py-2.5 pr-3 text-right font-semibold ${
+                                            action.change >= 0 ? "text-green-400" : "text-red-400"
+                                          }`}
+                                        >
+                                          {action.change >= 0 ? "+" : ""}
+                                          {action.change}
+                                        </td>
+                                        <td className="py-2.5 pr-3 text-right text-white font-medium">{action.newStock}</td>
+                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.performedBy || "—"}</td>
+                                        <td className="py-2.5 text-blue-200/70">{action.reason || "—"}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

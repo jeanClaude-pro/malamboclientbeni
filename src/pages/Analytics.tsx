@@ -18,8 +18,12 @@ import {
   Shield,
   FileText,
   RefreshCw,
+  ArrowUpRight,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { WALK_IN_CUSTOMER_NAME } from "../utils/constants";
+import { sidebarSections } from "../components/Navbar";
+import { useAuth } from "../hooks/useAuth";
 
 // Define interfaces for the data structures
 interface SaleItem {
@@ -260,30 +264,34 @@ const getTimeframeParams = (
       params.set("date", selectedDate || getTodayDate());
       break;
       
-    case "week":
+    case "week": {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       params.set("from", weekAgo.toISOString().split('T')[0]);
       params.set("to", today.toISOString().split('T')[0]);
       break;
+    }
       
-    case "month":
+    case "month": {
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       params.set("from", firstDayOfMonth.toISOString().split('T')[0]);
       params.set("to", lastDayOfMonth.toISOString().split('T')[0]);
       break;
+    }
       
-    case "year":
+    case "year": {
       const year = selectedYear || today.getFullYear();
       params.set("year", year.toString());
       break;
+    }
   }
   
   return params.toString();
 };
 
 export default function Analytics() {
+  const { user, activeBranchId } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<"day" | "week" | "month" | "year">(
@@ -296,6 +304,34 @@ export default function Analytics() {
   const [timeframeData, setTimeframeData] = useState<TimeframeData | null>(null);
   const [initialLoad, setInitialLoad] = useState(true);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const isSuperAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+  const accessibleModules = sidebarSections
+    .flatMap((section) => section.items)
+    .filter((item) => item.path !== "/")
+    .filter((item) => {
+      if (isSuperAdmin) return true;
+      if (user?.role === "manager") return ["/reports", "/products", "/sortiehistory"].includes(item.path);
+      return !item.roles || (!!user?.role && item.roles.includes(user.role));
+    });
+  const moduleDescriptions: Record<string, string> = {
+    taux: "Mettre à jour le taux de change utilisé par l'entreprise",
+    pos: "Enregistrer une vente ou une réservation",
+    cars: "Planifier les camions et leurs chargements",
+    entry: "Enregistrer les entrées de caisse",
+    sortie: "Soumettre et suivre les sorties de caisse",
+    transfert: "Préparer les transferts de marchandises",
+    "transfer-reception": "Réceptionner les marchandises dans le stock",
+    products: "Gérer les articles, le stock et les fiches d'audit",
+    sales: "Consulter les ventes et les paiements",
+    carshistory: "Contrôler les trajets, arrivées et corrections",
+    entryhistory: "Consulter l'historique des entrées",
+    historicsortie: "Consulter et valider les sorties",
+    historictransfert: "Suivre les transferts enregistrés",
+    historicreception: "Contrôler les réceptions de stock",
+    reports: "Analyser les résultats et générer les rapports PDF",
+    customers: "Retrouver les clients et leur historique",
+    users: "Affecter le personnel aux agences de Butembo et de Beni",
+  };
 
   // Effect to automatically set to today's date when timeframe changes to "day"
   useEffect(() => {
@@ -836,7 +872,7 @@ export default function Analytics() {
         try {
           const saleDate = new Date(sale.createdAt || sale.date || sale.saleDate || "");
           return saleDate.toDateString() === date.toDateString();
-        } catch (error) {
+        } catch {
           return false;
         }
       });
@@ -857,7 +893,7 @@ export default function Analytics() {
         try {
           const saleDate = new Date(sale.createdAt || sale.date || sale.saleDate || "");
           return saleDate >= week.start && saleDate <= week.end;
-        } catch (error) {
+        } catch {
           return false;
         }
       });
@@ -886,7 +922,7 @@ export default function Analytics() {
         try {
           const saleDate = new Date(sale.createdAt || sale.date || sale.saleDate || "");
           return saleDate.getMonth() === month.month && saleDate.getFullYear() === month.year;
-        } catch (error) {
+        } catch {
           return false;
         }
       });
@@ -910,7 +946,7 @@ export default function Analytics() {
       try {
         const saleDate = new Date(sale.createdAt || sale.date || sale.saleDate || "");
         return saleDate.getFullYear() === currentYear;
-      } catch (error) {
+      } catch {
         return false;
       }
     });
@@ -920,7 +956,7 @@ export default function Analytics() {
         try {
           const saleDate = new Date(sale.createdAt || sale.date || sale.saleDate || "");
           return saleDate.getMonth() === i;
-        } catch (error) {
+        } catch {
           return false;
         }
       });
@@ -1161,11 +1197,12 @@ export default function Analytics() {
         return analytics.salesByWeek;
       case "month":
         return analytics.salesByMonth;
-      case "year":
+      case "year": {
         const yearData = analytics.salesByYear.find(
           (y) => y.year === selectedYear.toString()
         );
         return yearData ? yearData.months : [];
+      }
       default:
         return analytics.salesByWeek;
     }
@@ -1175,14 +1212,16 @@ export default function Analytics() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center sm:text-left">
+        <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-5 shadow-lg shadow-slate-200/60 backdrop-blur-xl sm:p-7">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-blue-200/40 blur-3xl" />
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Analytiques
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Entre Nous Renove</p>
+              <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900">
+                Bonjour, {user?.username || "Utilisateur"}
               </h1>
               <p className="text-sm sm:text-base text-gray-600 mt-2">
-                Analyse approfondie de la performance de votre entreprise
+                Vue opérationnelle de l'agence de <strong>{activeBranchId === "beni" ? "Beni" : "Butembo"}</strong>
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -1205,6 +1244,48 @@ export default function Analytics() {
             </div>
           </div>
         </div>
+
+        <section aria-labelledby="modules-title">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <h2 id="modules-title" className="text-xl font-bold text-slate-900">Modules</h2>
+              <p className="mt-1 text-sm text-slate-600">Accédez rapidement aux outils autorisés pour votre rôle.</p>
+            </div>
+            <span className="hidden rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 sm:inline-flex">
+              {activeBranchId === "beni" ? "Beni" : "Butembo"}
+            </span>
+          </div>
+          <div className="grid auto-rows-[minmax(150px,auto)] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {accessibleModules.map((item, index) => {
+              const Icon = item.icon;
+              const featured = item.id === "pos" || item.id === "products" || item.id === "reports";
+              return (
+                <Link
+                  key={item.id}
+                  to={item.path}
+                  className={`group relative overflow-hidden rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    featured
+                      ? "border-blue-200/80 bg-gradient-to-br from-white via-blue-50/80 to-indigo-100/70 sm:col-span-2"
+                      : "border-slate-200/80 bg-white/90"
+                  } ${index === 0 ? "xl:row-span-2" : ""}`}
+                >
+                  <div className="flex h-full min-h-[110px] flex-col justify-between">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="rounded-2xl bg-slate-950 p-3 text-white shadow-md transition-transform duration-200 group-hover:scale-105">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <ArrowUpRight className="h-5 w-5 text-slate-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-blue-700" />
+                    </div>
+                    <div className="mt-6">
+                      <h3 className="text-base font-bold uppercase tracking-wide text-slate-950">{item.label}</h3>
+                      <p className="mt-1.5 max-w-md text-sm leading-5 text-slate-600">{moduleDescriptions[item.id] || "Ouvrir ce module"}</p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
 
         {/* Timeframe Selection */}
         <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">

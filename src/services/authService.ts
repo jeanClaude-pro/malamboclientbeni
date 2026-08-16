@@ -8,6 +8,7 @@ const API_BASE =
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const activeBranchId = typeof window !== "undefined" ? localStorage.getItem("activeBranchId") : null;
 
   if (!token && !path.startsWith("/auth/")) {
     localStorage.removeItem("token");
@@ -22,6 +23,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}) {
       "Content-Type": "application/json",
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token && activeBranchId ? { "X-Branch-Id": activeBranchId } : {}),
     },
   });
 

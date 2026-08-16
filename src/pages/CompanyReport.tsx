@@ -140,7 +140,7 @@ function getErrorMessage(error: unknown) {
 
 export default function CompanyReport() {
   const reportRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { user, activeBranchId } = useAuth();
 
   const [range, setRange] = useState<ReportRange>("today");
   const [selectedDate, setSelectedDate] = useState(todayIso());
@@ -506,6 +506,8 @@ export default function CompanyReport() {
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
+    doc.text(`Agence: ${activeBranchId === "beni" ? "Beni" : "Butembo"}`, margin, y);
+    y += 6;
     doc.text(`Période: ${formatDate(reportPeriod.from)} au ${formatDate(reportPeriod.to)}`, margin, y);
     y += 6;
     doc.text(`Généré le: ${formatDateTime(new Date())}`, margin, y);
@@ -579,7 +581,8 @@ export default function CompanyReport() {
     }
 
     // Detailed transactions are intentionally omitted from the executive report.
-    if (false && data.sales.length > 0) {
+    const includeDetailedTransactions = false;
+    if (includeDetailedTransactions && data.sales.length > 0) {
       sectionTitle(`Détail des ventes (${data.sales.length})`);
       addPageIfNeeded(8);
       // Table header
@@ -706,6 +709,9 @@ export default function CompanyReport() {
               </h1>
               <p className="mt-1 text-sm text-slate-600">
                 Consultez, imprimez ou téléchargez un rapport professionnel prêt à signer.
+              </p>
+              <p className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                Agence de {activeBranchId === "beni" ? "Beni" : "Butembo"}
               </p>
             </div>
 
