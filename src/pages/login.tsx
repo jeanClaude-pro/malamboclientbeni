@@ -43,7 +43,7 @@ const LoginPage = () => {
         }
         
         await registerApi({ username, email, password });
-        toast.success("Inscription réussie ! Veuillez vous connecter.");
+        toast.success("Compte créé. Un Super Admin doit maintenant attribuer votre rôle et votre agence.");
         setMode("login");
         // Clear form
         setUsername("");
@@ -56,7 +56,7 @@ const LoginPage = () => {
         const { user, token } = await loginApi({ email, password });
         setAuth({ token, user });
         toast.success("Connexion réussie !");
-        navigate(user.role === "manager" ? "/reports" : "/");
+        navigate("/");
       }
     } catch (err: any) {
       const msg = err?.message || "Une erreur est survenue";

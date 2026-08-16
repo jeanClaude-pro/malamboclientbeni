@@ -212,7 +212,7 @@ export default function EntryHistory() {
       if (storedUser) {
         const userData = JSON.parse(storedUser);
         setCurrentUser(userData);
-        setIsAdmin(userData.role === "admin" || userData.role === "administrator");
+        setIsAdmin(userData.role === "admin" || userData.role === "superadmin" || userData.role === "administrator");
       } else {
         // Fallback to API call
         const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
@@ -225,7 +225,7 @@ export default function EntryHistory() {
         if (res.ok) {
           const userData = await res.json();
           setCurrentUser(userData);
-          setIsAdmin(userData.role === "admin" || userData.role === "administrator");
+          setIsAdmin(userData.role === "admin" || userData.role === "superadmin" || userData.role === "administrator");
           localStorage.setItem("user", JSON.stringify(userData));
         }
       }

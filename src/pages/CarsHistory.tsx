@@ -234,8 +234,8 @@ export default function CarsHistory() {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const userData = JSON.parse(storedUser) as { role?: string };
-        setIsAdmin(userData.role === "admin");
-        setCanValidateArrivals(userData.role === "admin" || userData.role === "manager");
+        setIsAdmin(userData.role === "admin" || userData.role === "superadmin");
+        setCanValidateArrivals(userData.role === "admin" || userData.role === "superadmin" || userData.role === "manager");
       }
     } catch (error) {
       console.error("Error fetching user:", error);

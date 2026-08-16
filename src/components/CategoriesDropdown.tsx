@@ -17,7 +17,11 @@ const CategoriesDropdown = ({
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(`${serverUrl}/categories`);
+        const response = await fetch(`${serverUrl}/categories`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          },
+        });
         if (!response.ok) {
           console.error("Failed to fetch categories:", await response.text());
           return;

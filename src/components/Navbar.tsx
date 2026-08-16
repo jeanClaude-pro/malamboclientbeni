@@ -1,893 +1,138 @@
-"use client";
-
-import type React from "react";
-
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  BarChart3,
-  Users,
-  ChevronLeft,
-  ChevronRight,
-  Store,
-  TrendingUp,
-  LogOut,
-  LogIn,
-  User,
-  Clock,
-  Calendar,
-   Wallet,
-  Menu,
-  X,
-  ArrowLeftRight,
-  MapPin,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Building2, Clock3, Home, LogOut, ShieldCheck, Store } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { MODULES, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
 
-const clsx = (...classes: (string | undefined | null | false)[]): string => {
-  return classes.filter(Boolean).join(" ");
-};
-
-export interface SidebarItem {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  path: string;
-  badge?: number;
-  roles?: string[]; // Add roles property to define access
-}
-
-export interface SidebarSection {
-  title: string;
-  items: SidebarItem[];
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export const sidebarSections: SidebarSection[] = [
-  {
-    title: "Menu principal",
-    items: [
-      {
-        id: "dashboard",
-        label: "Tableau de bord",
-        icon: LayoutDashboard,
-        path: "/",
-        roles: ["admin", "superadmin", "manager", "cashier_supervisor", "inventory_manager", "staff"],
-      },
-      
-      {
-        id: "taux",
-        label: "Taux d'echange",
-        icon: LayoutDashboard,
-        path: "/rate",
-        roles: ["admin"] // Admin
-      },
-      { 
-        id: "pos", 
-        label: "Point de Vente", 
-        icon: ShoppingCart, 
-        path: "/new-sale",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access POS
-      },
-      { 
-        id: "cars", 
-        label: "Camion", 
-        icon: Calendar, 
-        path: "/cars",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access reservation
-      },
-      { 
-        id: "entry", 
-        label: "Entrée de caisse", 
-        icon: Wallet, 
-        path: "/entry",
-        roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor
-      },
-      {
-        id: "sortie",
-        label: "Sortie",
-        icon: Wallet,
-        path: "/sortie",
-        roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor
-      },
-      {
-        id: "transfert",
-        label: "Transfert",
-        icon: ArrowLeftRight,
-        path: "/transfert",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can record transfers
-      },
-      {
-        id: "transfer-reception",
-        label: "Réception",
-        icon: ArrowLeftRight,
-        path: "/transfer-reception",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"]
-      },
-    ],
-  },
-  {
-    title: "Stock",
-    items: [
-      { 
-        id: "products", 
-        label: "Articles", 
-        icon: Package, 
-        path: "/products",
-        roles: ["admin", "manager", "inventory_manager"] // All roles except cashier_supervisor can access products
-      },
-    ],
-  },
-  {
-    title: "Ventes & Rapports",
-    items: [
-      { 
-        id: "sales", 
-        label: "Historique de Vente", 
-        icon: TrendingUp, 
-        path: "/sales",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access sales history
-      },
-
-      { 
-        id: "carshistory", 
-        label: "Historique de Camions", 
-        icon: TrendingUp, 
-        path: "/CarsHistory",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access sales history
-      },
-      
-      
-      { 
-        id: "entryhistory", 
-        label: "Historique d'Entrée", 
-        icon: Wallet, 
-        path: "/EntryHistory",
-        roles: ["admin", "cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier_supervisor and manager
-      },
-      {
-        id: "historicsortie",
-        label: "Historique de Sortie",
-        icon: Wallet,
-        path: "/sortiehistory",
-        roles: ["admin","cashier_supervisor", "inventory_manager", "manager"] // Admin and cashier
-      },
-      {
-        id: "historictransfert",
-        label: "Historique de Transferts",
-        icon: ArrowLeftRight,
-        path: "/transferthistory",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"] // All roles can access transfer history
-      },
-      {
-        id: "historicreception",
-        label: "Historique Réceptions",
-        icon: ArrowLeftRight,
-        path: "/transfer-reception-history",
-        roles: ["admin", "manager", "cashier_supervisor", "inventory_manager"]
-      },
-      { 
-        id: "reports", 
-        label: "Rapports", 
-        icon: BarChart3, 
-        path: "/reports",
-        roles: ["admin", "manager"] // Admin and manager can access reports
-      },
-    ],
-  },
-  {
-    title: "Gestion",
-    items: [
-      { 
-        id: "customers", 
-        label: "Clients", 
-        icon: Users, 
-        path: "/customers",
-        roles: ["admin", "manager", "cashier_supervisor"] // Admin, Manager, and Cashier Supervisor can access customers
-      },
-      {
-        id: "users",
-        label: "Personnel & agences",
-        icon: User,
-        path: "/users",
-        roles: ["admin", "superadmin"],
-      },
-    ],
-  },
-];
-
-// Function to check if current time is within allowed hours (8 AM to 8 PM)
-const isAllowedTime = (): boolean => {
-  const currentHour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: GMT_PLUS_2_TIME_ZONE,
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date())
-  );
-  // Allowed from 8 AM (8) to 8 PM (20)
-  return currentHour >= 7 && currentHour < 20;
-};
-
-// Function to check if today is Sunday
-const isSunday = (): boolean => {
+function isRestrictedTime(): boolean {
+  const now = new Date();
+  const hour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: GMT_PLUS_2_TIME_ZONE,
+    hour: "2-digit",
+    hour12: false,
+  }).format(now));
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: GMT_PLUS_2_TIME_ZONE,
     weekday: "short",
-  }).format(new Date());
-  return weekday === "Sun";
-};
-
-// Admins and report-only managers can use the system at any time.
-const hasRestrictedAccess = (userRole: string | undefined): boolean => {
-  if (userRole === "admin" || userRole === "superadmin" || userRole === "manager") return false;
-  
-  // Other users have restricted access outside 8 AM - 8 PM or on Sundays.
-  return !isAllowedTime() || isSunday();
-};
-
-interface SidebarProps {
-  onLayoutChange?: (width: number, isMobile: boolean) => void;
+  }).format(now);
+  return weekday === "Sun" || hour < 7 || hour >= 20;
 }
 
-export default function Sidebar({ onLayoutChange }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [showTimeWarning, setShowTimeWarning] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const location = useLocation();
+export default function Navbar() {
   const { token, user, clearAuth, activeBranchId, setActiveBranchId } = useAuth();
-  
-  const sidebarRef = useRef<HTMLElement>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const touchEndX = useRef(0);
-  const touchEndY = useRef(0);
+  const location = useLocation();
+  const [clock, setClock] = useState(() => new Date());
+  const superAdmin = isSuperAdmin(user);
+  const unrestrictedSchedule = superAdmin || user?.role === "manager";
+  const restricted = Boolean(user && !unrestrictedSchedule && isRestrictedTime());
 
-  const isAuthed = Boolean(token && user);
-  const isSuperAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
-  const isNonAdmin = !isSuperAdmin;
-  const isRestricted = isNonAdmin && hasRestrictedAccess(user?.role);
-
-  // Check if mobile device and set appropriate initial state
   useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 1024; // Consider tablets as mobile too
-      setIsMobile(mobile);
-      
-      // On mobile, start with sidebar collapsed and hidden
-      if (mobile) {
-        setIsCollapsed(true);
-        setIsMobileOpen(false);
-      } else {
-        // On desktop, use the normal collapsed state
-        setIsMobileOpen(false);
-      }
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
+    const timer = window.setInterval(() => setClock(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  // Update current time every minute
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    if (!restricted) return;
+    const timer = window.setTimeout(() => {
+      clearAuth();
+      window.location.href = "/login?message=auto_logout";
+    }, 10_000);
+    return () => window.clearTimeout(timer);
+  }, [clearAuth, restricted]);
 
-    return () => clearInterval(timer);
-  }, []);
+  const currentModule = useMemo(
+    () => MODULES.find((module) => module.path.toLowerCase() === location.pathname.toLowerCase()),
+    [location.pathname]
+  );
 
-  // Check for restricted time and auto-logout non-admin users
-  useEffect(() => {
-    if (isAuthed && isNonAdmin) {
-      if (isRestricted) {
-        // Show warning for 10 seconds before auto-logout
-        const warningTimer = setTimeout(() => setShowTimeWarning(true), 0);
-        const logoutTimer = setTimeout(() => {
-          clearAuth();
-          window.location.href = "/login?message=auto_logout";
-        }, 10000); // 10 seconds warning
+  if (!token || !user || location.pathname === "/login") return null;
 
-        return () => {
-          clearTimeout(warningTimer);
-          clearTimeout(logoutTimer);
-        };
-      } else {
-        const warningTimer = setTimeout(() => setShowTimeWarning(false), 0);
-        return () => clearTimeout(warningTimer);
-      }
-    }
-  }, [clearAuth, isAuthed, isNonAdmin, isRestricted, currentTime]);
-
-  // Touch event handlers for swipe gestures
-  useEffect(() => {
-    const sidebarElement = sidebarRef.current;
-    if (!sidebarElement || !isMobile) return;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-      touchEndX.current = e.touches[0].clientX;
-      touchEndY.current = e.touches[0].clientY;
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      touchEndX.current = e.touches[0].clientX;
-      touchEndY.current = e.touches[0].clientY;
-    };
-
-    const handleTouchEnd = () => {
-      const touchDiffX = touchEndX.current - touchStartX.current;
-      const touchDiffY = Math.abs(touchEndY.current - touchStartY.current);
-      
-      // Only trigger swipe if horizontal movement is significant and vertical movement is minimal
-      if (Math.abs(touchDiffX) > 50 && touchDiffY < 100) {
-        if (touchDiffX > 0) {
-          // Swipe right - open sidebar
-          setIsMobileOpen(true);
-        } else {
-          // Swipe left - close sidebar
-          setIsMobileOpen(false);
-        }
-      }
-    };
-
-    sidebarElement.addEventListener('touchstart', handleTouchStart);
-    sidebarElement.addEventListener('touchmove', handleTouchMove);
-    sidebarElement.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      sidebarElement.removeEventListener('touchstart', handleTouchStart);
-      sidebarElement.removeEventListener('touchmove', handleTouchMove);
-      sidebarElement.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [isMobile]);
-
-  // Check if user has access to a specific item
-  const hasAccess = (item: SidebarItem): boolean => {
-    // Managers are intentionally limited to reports, products, and sortie history.
-    if (isSuperAdmin) return true;
-    if (user?.role === "manager") {
-      return ["/", "/reports", "/products", "/sortiehistory"].includes(item.path);
-    }
-    if (!item.roles) return true; // If no roles specified, allow access
-    if (!user?.role) return false; // If user has no role, deny access
-    
-    return item.roles.includes(user.role);
-  };
-
-  const toggleSidebar = () => {
-    if (isMobile) {
-      setIsMobileOpen(!isMobileOpen);
-    } else {
-      setIsCollapsed(!isCollapsed);
-    }
-  };
-
-  const handleLogout = () => {
-    clearAuth();
-    window.location.href = "/login";
-  };
-
-  // Format time for display
-  const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString('fr-FR', { 
-      timeZone: GMT_PLUS_2_TIME_ZONE,
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  };
-
-  // Format day for display
-  const formatDay = (date: Date): string => {
-    return date.toLocaleDateString('fr-FR', { 
-      timeZone: GMT_PLUS_2_TIME_ZONE,
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    });
-  };
-
-  // Get restriction message based on the restriction type
-  const getRestrictionMessage = (): string => {
-    if (isSunday()) {
-      return "L'accès est restreint le dimanche.";
-    } else if (!isAllowedTime()) {
-      return `L'accès est restreint pour les utilisateurs non-admin de ${formatTime(new Date(new Date().setHours(20, 0, 0)))} à ${formatTime(new Date(new Date().setHours(8, 0, 0)))}.`;
-    }
-    return "Accès restreint.";
-  };
-
-  useEffect(() => {
-    const width = isMobile ? 0 : isCollapsed ? 70 : 280;
-    onLayoutChange?.(width, isMobile);
-  }, [isCollapsed, isMobile, onLayoutChange]);
+  const branchName = activeBranchId === "beni" ? "Beni" : "Butembo";
+  const formattedTime = clock.toLocaleTimeString("fr-FR", {
+    timeZone: GMT_PLUS_2_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      {isMobile && isAuthed && (
-        <button
-          onClick={toggleSidebar}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-900 rounded-md text-white shadow-lg"
-        >
-          {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      )}
+      <header className="no-print sticky top-0 z-40 border-b border-white/70 bg-white/80 shadow-sm shadow-slate-200/50 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-6">
+          <Link to="/" className="flex min-w-0 items-center gap-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-300">
+              <Store className="h-5 w-5" />
+            </span>
+            <span className="hidden min-w-0 sm:block">
+              <span className="block truncate text-sm font-black uppercase tracking-wide text-slate-950">Entre Nous Renove</span>
+              <span className="block truncate text-[11px] font-semibold text-slate-500">{currentModule?.label || "Accueil des modules"}</span>
+            </span>
+          </Link>
 
-      {/* Mobile Overlay */}
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            {location.pathname !== "/" && (
+              <Link to="/" className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700">
+                <Home className="h-4 w-4" /> <span className="hidden md:inline">Modules</span>
+              </Link>
+            )}
+
+            <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 lg:flex">
+              <Clock3 className="h-4 w-4 text-blue-600" /> {formattedTime}
+            </div>
+
+            <label className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
+              <Building2 className="h-4 w-4 shrink-0" />
+              {superAdmin ? (
+                <select
+                  aria-label="Agence active"
+                  value={activeBranchId}
+                  onChange={(event) => setActiveBranchId(event.target.value as "butembo" | "beni")}
+                  className="max-w-24 bg-transparent text-sm font-bold outline-none sm:max-w-none"
+                >
+                  <option value="butembo">Butembo</option>
+                  <option value="beni">Beni</option>
+                </select>
+              ) : (
+                <span className="hidden sm:inline">{branchName}</span>
+              )}
+            </label>
+
+            <div className="hidden min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 md:flex">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600" />
+              <span className="min-w-0">
+                <span className="block max-w-28 truncate text-xs font-bold text-slate-900">{user.username}</span>
+                <span className="block max-w-28 truncate text-[10px] font-semibold text-slate-500">{ROLE_DEFINITIONS[user.role].label}</span>
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                clearAuth();
+                window.location.href = "/login";
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white shadow-md transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Se déconnecter"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       <AnimatePresence>
-        {isMobile && isMobileOpen && (
+        {restricted && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setIsMobileOpen(false)}
-          />
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="no-print fixed inset-x-3 top-20 z-50 mx-auto max-w-xl rounded-2xl border border-amber-300 bg-amber-50 p-4 text-center text-sm font-semibold text-amber-900 shadow-xl"
+          >
+            Accès hors horaire autorisé. Déconnexion automatique dans quelques secondes.
+          </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Sidebar */}
-      <motion.aside
-        ref={sidebarRef}
-        initial={false}
-        animate={{ 
-          width: isMobile ? (isMobileOpen ? 280 : 0) : (isCollapsed ? 70 : 280),
-          x: isMobile ? (isMobileOpen ? 0 : -280) : 0
-        }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="bg-gray-900 border-r border-gray-800 flex flex-col h-dvh fixed top-0 left-0 z-50 overflow-hidden"
-        style={{ 
-          touchAction: "pan-y",
-        }}
-      >
-        {/* Auto-logout Warning Modal */}
-        <AnimatePresence>
-          {showTimeWarning && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-            >
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                className="bg-red-600 text-white p-6 rounded-lg max-w-sm mx-4 text-center"
-              >
-                <Clock className="w-12 h-12 mx-auto mb-4" />
-                <h3 className="text-lg font-bold mb-2">Accès Restreint</h3>
-                <p className="mb-4">
-                  {getRestrictionMessage()}
-                </p>
-                <p className="mb-4 font-semibold">
-                  Déconnexion automatique dans 10 secondes...
-                </p>
-                <button
-                  onClick={handleLogout}
-                  className="bg-white text-red-600 px-4 py-2 rounded font-semibold hover:bg-gray-100 transition-colors"
-                >
-                  Se déconnecter maintenant
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Header */}
-        <div className="p-4 border-b border-gray-800 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <AnimatePresence mode="wait">
-              {(!isCollapsed && !isMobile) || (isMobile && isMobileOpen) ? (
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <Store className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold text-white">
-                      Entre Nous Renove
-                    </h1>
-                    <p className="text-xs text-gray-400"><strong>{activeBranchId === "beni" ? "Beni" : "Butembo"}</strong></p>
-                  </div>
-                </motion.div>
-              ) : !isMobile ? (
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mx-auto">
-                  <Store className="w-5 h-5 text-white" />
-                </div>
-              ) : null}
-            </AnimatePresence>
-
-            {/* Desktop toggle button - hidden on mobile */}
-            {!isMobile && (
-              <button
-                onClick={toggleSidebar}
-                className="p-1.5 rounded-md hover:bg-gray-800 transition-colors"
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
-                ) : (
-                  <ChevronLeft className="w-4 h-4 text-gray-300" />
-                )}
-              </button>
-            )}
-          </div>
-
-          {/* Time and Date Display - Only show when expanded */}
-          <AnimatePresence mode="wait">
-            {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="mt-2 text-center"
-              >
-                <div className="text-xs text-gray-400 flex items-center justify-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatTime(currentTime)}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {formatDay(currentTime)}
-                </div>
-                {isNonAdmin && isRestricted && (
-                  <div className="text-xs text-red-400 mt-1">
-                    {isSunday() ? "Dimanche - Accès restreint" : "Accès restreint • Ouverture à 07:00"}
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* User Info Section - Only show when authenticated and sidebar is expanded */}
-          <AnimatePresence mode="wait">
-            {isAuthed && ((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="mt-4 pt-4 border-t border-gray-800"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isNonAdmin && isRestricted ? 'bg-red-500' : 'bg-blue-500'
-                  }`}>
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
-                      {user?.username || "Utilisateur"}
-                    </p>
-                    <p className={`text-xs capitalize ${
-                      isNonAdmin && isRestricted ? 'text-red-400' : 'text-blue-400'
-                    }`}>
-                      {user?.role || "Non défini"}
-                      {isNonAdmin && isRestricted && " • Accès restreint"}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-2 backdrop-blur-md">
-                  <label className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                    <MapPin className="h-3 w-3" /> Agence active
-                  </label>
-                  {isSuperAdmin ? (
-                    <select
-                      value={activeBranchId}
-                      onChange={(event) => setActiveBranchId(event.target.value as "butembo" | "beni")}
-                      className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-2 text-sm font-semibold text-white outline-none transition focus:border-blue-400"
-                    >
-                      <option value="butembo">Butembo</option>
-                      <option value="beni">Beni</option>
-                    </select>
-                  ) : (
-                    <div className="px-1 py-1 text-sm font-semibold text-white">
-                      {activeBranchId === "beni" ? "Agence de Beni" : "Agence de Butembo"}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Collapsed User Info - Show only icon when collapsed on desktop */}
-          <AnimatePresence mode="wait">
-            {isAuthed && isCollapsed && !isMobile && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="mt-4 pt-4 border-t border-gray-800 flex justify-center"
-              >
-                <div className="relative group">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isNonAdmin && isRestricted ? 'bg-red-500' : 'bg-blue-500'
-                  }`}>
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                  
-                  {/* Tooltip showing user info when hovered */}
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                    <div className="text-center">
-                      <div className="font-medium">
-                        {user?.username || "Utilisateur"}
-                      </div>
-                      <div className={`capitalize text-xs ${
-                        isNonAdmin && isRestricted ? 'text-red-400' : 'text-blue-400'
-                      }`}>
-                        {user?.role || "Non défini"}
-                        {isNonAdmin && isRestricted && (
-                          <div className="text-red-300">Accès restreint</div>
-                        )}
-                      </div>
-                      <div className="text-gray-300 text-xs mt-1">
-                        {formatTime(currentTime)}
-                      </div>
-                      <div className="text-gray-400 text-xs">
-                        {formatDay(currentTime)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* If NOT authenticated → show only Login */}
-        {!isAuthed ? (
-          <div className="flex-1 p-4">
-            <Link
-              to="/login"
-              className={clsx(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-                "bg-blue-600 text-white hover:bg-blue-700"
-              )}
-            >
-              <LogIn className="w-5 h-5 flex-shrink-0" />
-              <AnimatePresence mode="wait">
-                {(!isCollapsed && !isMobile) || (isMobile && isMobileOpen) ? (
-                  <motion.span
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="font-medium text-sm"
-                  >
-                    Se connecter
-                  </motion.span>
-                ) : null}
-              </AnimatePresence>
-
-              {/* Tooltip for collapsed state */}
-              {(isCollapsed && !isMobile) && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                  Se connecter
-                </div>
-              )}
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* Navigation (only when authenticated) */}
-            <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-              {sidebarSections.slice(0, 1).map((section) => {
-                // Filter items based on user role
-                const accessibleItems = section.items.filter((item) => item.id === "dashboard" && hasAccess(item));
-                
-                // Don't render section if no items are accessible
-                if (accessibleItems.length === 0) return null;
-
-                return (
-                  <div key={section.title}>
-                    <AnimatePresence mode="wait">
-                      {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                        <motion.h3
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3"
-                        >
-                          {section.title}
-                        </motion.h3>
-                      )}
-                    </AnimatePresence>
-
-                    <ul className="space-y-1">
-                      {accessibleItems.map((item) => {
-                        const isActive = location.pathname === item.path;
-                        const Icon = item.icon;
-                        const isItemDisabled = isNonAdmin && isRestricted;
-
-                        return (
-                          <li key={item.id}>
-                            <Link
-                              to={isItemDisabled ? "#" : item.path}
-                              onClick={(e) => {
-                                if (isItemDisabled) {
-                                  e.preventDefault();
-                                  setShowTimeWarning(true);
-                                }
-                                if (isMobile) {
-                                  setIsMobileOpen(false);
-                                }
-                              }}
-                              className={clsx(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-                                isActive && !isItemDisabled
-                                  ? "bg-blue-600 text-white shadow-sm"
-                                  : isItemDisabled
-                                  ? "text-gray-500 cursor-not-allowed bg-gray-800 bg-opacity-50"
-                                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                              )}
-                            >
-                              <Icon
-                                className={clsx(
-                                  "w-5 h-5 flex-shrink-0",
-                                  isActive && !isItemDisabled
-                                    ? "text-white"
-                                    : isItemDisabled
-                                    ? "text-gray-500"
-                                    : "text-gray-400 group-hover:text-white"
-                                )}
-                              />
-
-                              <AnimatePresence mode="wait">
-                                {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                                  <motion.span
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="font-medium text-sm"
-                                  >
-                                    {item.label}
-                                    {isItemDisabled && " 🔒"}
-                                  </motion.span>
-                                )}
-                              </AnimatePresence>
-
-                              {item.badge && (
-                                <AnimatePresence mode="wait">
-                                  {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                                    <motion.span
-                                      initial={{ opacity: 0, scale: 0.8 }}
-                                      animate={{ opacity: 1, scale: 1 }}
-                                      exit={{ opacity: 0, scale: 0.8 }}
-                                      className="ml-auto bg-red-600 text-white text-xs px-2 py-0.5 rounded-full"
-                                    >
-                                      {item.badge}
-                                    </motion.span>
-                                  )}
-                                </AnimatePresence>
-                              )}
-
-                              {/* Tooltip for collapsed state on desktop */}
-                              {(isCollapsed && !isMobile) && (
-                                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                                  {item.label}
-                                  {isItemDisabled && " (Accès restreint)"}
-                                </div>
-                              )}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </nav>
-            
-            {/* Footer (only when authenticated) */}
-            <div className="p-4 border-t border-gray-800 space-y-2 flex-shrink-0">
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors group"
-              >
-                <LogOut className="w-5 h-5 text-gray-400 group-hover:text-white" />
-                <AnimatePresence mode="wait">
-                  {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                    <motion.span
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="font-medium text-sm"
-                    >
-                      Se déconnecter
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {(isCollapsed && !isMobile) && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                    Se déconnecter
-                  </div>
-                )}
-              </button>
-              {/* Notifications - For admin, manager, and cashier_supervisor */}
-              {["admin", "manager", "cashier_supervisor"].includes(user?.role || "") && (
-                <Link
-                  to="/notifications"
-                  onClick={() => isMobile && setIsMobileOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors group"
-                >
-                  
-                  <AnimatePresence mode="wait">
-                    {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="font-medium text-sm"
-                      >
-                        
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {(isCollapsed && !isMobile) && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                      
-                    </div>
-                  )}
-                </Link>
-              )}
-
-              {/* Settings - For admin and manager */}
-              {["admin", "manager"].includes(user?.role || "") && (
-                <Link
-                  to="/settings"
-                  onClick={() => isMobile && setIsMobileOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors group"
-                >
-                  <AnimatePresence mode="wait">
-                    {((!isCollapsed && !isMobile) || (isMobile && isMobileOpen)) && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="font-medium text-sm"
-                      >
-                        
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {(isCollapsed && !isMobile) && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                      
-                    </div>
-                  )}
-                </Link>
-              )}
-
-              
-            </div>
-          </>
-        )}
-      </motion.aside>
     </>
   );
 }
-

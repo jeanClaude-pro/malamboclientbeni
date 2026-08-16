@@ -140,8 +140,8 @@ export default function TransferReceptionHistory() {
     const user = (() => {
       try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
     })();
-    setIsAdmin(user.role === "admin");
-    setIsManager(user.role === "admin" || user.role === "manager");
+    setIsAdmin(user.role === "admin" || user.role === "superadmin");
+    setIsManager(user.role === "admin" || user.role === "superadmin" || user.role === "manager");
 
     fetchReceptions();
 

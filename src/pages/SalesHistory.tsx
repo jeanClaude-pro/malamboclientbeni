@@ -304,7 +304,7 @@ export default function SalesHistory() {
       if (storedUser) {
         const userData = JSON.parse(storedUser);
         setCurrentUser(userData);
-        setIsAdmin(userData.role === "admin");
+        setIsAdmin(userData.role === "admin" || userData.role === "superadmin");
       } else {
         // Fallback to API call
         const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
@@ -317,7 +317,7 @@ export default function SalesHistory() {
         if (res.ok) {
           const userData = await res.json();
           setCurrentUser(userData);
-          setIsAdmin(userData.role === "admin");
+          setIsAdmin(userData.role === "admin" || userData.role === "superadmin");
           localStorage.setItem("user", JSON.stringify(userData));
         }
       }

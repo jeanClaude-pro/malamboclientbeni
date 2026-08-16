@@ -239,7 +239,7 @@ export default function NewSale() {
   const [error, setError] = useState<string | null>(null);
 
   // Check if user is admin
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   // Close search results when clicking outside
   useEffect(() => {

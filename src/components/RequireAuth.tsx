@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { toast } from "react-toastify";
+import { canAccessPath } from "../config/access";
 
 export const RequireAuth: React.FC<React.PropsWithChildren> = ({
   children,
@@ -20,15 +21,8 @@ export const RequireAuth: React.FC<React.PropsWithChildren> = ({
   if (!token)
     return <Navigate to="/login" replace state={{ from: location }} />;
 
-  // Keep this at the route boundary so manually entered URLs cannot bypass
-  // the manager's restricted access.
-  const managerAllowedPaths = ["/", "/reports", "/products", "/sortiehistory"];
-  if (
-    user?.role === "manager" &&
-    !managerAllowedPaths.includes(location.pathname)
-  ) {
-    return <Navigate to="/reports" replace />;
-  }
+  // The same matrix drives the landing cards and direct-URL protection.
+  if (!canAccessPath(user, location.pathname)) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 };

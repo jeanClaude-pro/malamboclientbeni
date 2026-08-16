@@ -66,7 +66,7 @@ export default function Entry() {
   });
 
   const [operationDate, setOperationDate] = useState(getTodayDate());
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

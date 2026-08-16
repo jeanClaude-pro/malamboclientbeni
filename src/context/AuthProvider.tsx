@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     }
 
     const user: User | null = userRaw ? JSON.parse(userRaw) : null;
-    const assignedBranch = user?.branchId || "butembo";
+    const assignedBranch: BranchId = user?.branchId || "butembo";
     const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
     const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
     const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
       if (user) localStorage.setItem("user", JSON.stringify(user));
       else localStorage.removeItem("user");
 
-      const assignedBranch = user?.branchId || "butembo";
+      const assignedBranch: BranchId = user?.branchId || "butembo";
       const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
       const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
       const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
@@ -65,7 +65,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     if (branchId !== "butembo" && branchId !== "beni") return;
     setState((current) => {
       const canSwitch = current.user?.role === "admin" || current.user?.role === "superadmin" || current.user?.isSuperAdmin;
-      const nextBranch = canSwitch ? branchId : current.user?.branchId || "butembo";
+      const nextBranch: BranchId = canSwitch ? branchId : current.user?.branchId || "butembo";
       localStorage.setItem("activeBranchId", nextBranch);
       window.dispatchEvent(new CustomEvent("branchChanged", { detail: { branchId: nextBranch } }));
       window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { branchId: nextBranch } }));

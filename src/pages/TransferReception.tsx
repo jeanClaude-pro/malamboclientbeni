@@ -69,7 +69,7 @@ export default function TransferReception() {
   const currentUser = (() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
   })();
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const [operationDate, setOperationDate] = useState(getTodayDate());
 
   useEffect(() => {

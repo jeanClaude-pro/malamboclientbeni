@@ -136,7 +136,7 @@ export default function TransfertHistory() {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const userData = JSON.parse(storedUser) as { role?: string };
-        setIsAdmin(userData.role === "admin");
+        setIsAdmin(userData.role === "admin" || userData.role === "superadmin");
       }
     } catch (err) {
       console.error("Error fetching user:", err);

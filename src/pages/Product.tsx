@@ -35,7 +35,7 @@ interface User {
   _id: string;
   username: string;
   email: string;
-  role: "admin" | "manager" | "staff" | "cashier_supervisor" | "inventory_manager";
+  role: "admin" | "superadmin" | "manager" | "staff" | "cashier_supervisor" | "inventory_manager";
 }
 
 interface SaleItem {
@@ -202,7 +202,7 @@ export default function Products() {
   const [ficheCustomFrom, setFicheCustomFrom] = useState("");
   const [ficheCustomTo, setFicheCustomTo] = useState("");
   const [ficheLoading, setFicheLoading] = useState(false);
-  const [ficheTab, setFicheTab] = useState<"summary" | "sales" | "bonus" | "credit">("summary");
+  const [ficheTab, setFicheTab] = useState<"summary" | "bonus" | "credit">("summary");
 
   // Manual stock adjustment reason — captured on edit, sent to the backend so the
   // Fiche de Stock audit trail can show why the stock number changed.
@@ -220,7 +220,7 @@ export default function Products() {
     }
   }, []);
 
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
 
   // API Functions
   const fetchProducts = async () => {
@@ -1726,7 +1726,6 @@ export default function Products() {
                   {(
                     [
                       { key: "summary" as const, label: "Résumé du stock", icon: <History className="w-3.5 h-3.5" /> },
-                      { key: "sales" as const, label: "Toutes les ventes", icon: <Package className="w-3.5 h-3.5" /> },
                       { key: "bonus" as const, label: "Bonus donnés", icon: <TrendingDown className="w-3.5 h-3.5" /> },
                       { key: "credit" as const, label: "Crédit / Prêts", icon: <CreditCard className="w-3.5 h-3.5" /> },
                     ]
@@ -1755,89 +1754,6 @@ export default function Products() {
                   </div>
                 ) : (
                   <>
-                    {/* All sales tab */}
-                    {ficheTab === "sales" && (
-                      <div>
-                        {ficheSales.length === 0 ? (
-                          <p className="text-blue-300/60 text-sm py-10 text-center">
-                            Aucune vente enregistrée pour cet article.
-                          </p>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead className="border-b border-blue-800/40">
-                                <tr>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Client</th>
-                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Cartons vendus</th>
-                                  <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Bonus</th>
-                                  <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Paiement</th>
-                                  <th className="text-right py-2 text-blue-300/70 font-medium">Total vente</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-blue-900/30">
-                                {ficheSales.map((sale) => {
-                                  const myItems = (sale.items || []).filter(
-                                    (item) => item.productId === ficheProduct._id || item.name === ficheProduct.name
-                                  );
-                                  const soldCartons = myItems.reduce((s, item) => s + getSoldCartons(item, ppc), 0);
-                                  const bonus = myItems.reduce((s, i) => s + Number(i.bonusQuantity || 0), 0);
-                                  const productTotal = myItems.reduce((s, item) => s + Number(item.total || 0), 0);
-                                  return (
-                                    <tr key={sale._id} className="hover:bg-blue-900/10">
-                                      <td className="py-2.5 pr-3 text-blue-200/80">
-                                        {new Date(sale.createdAt).toLocaleDateString("fr-FR")}
-                                      </td>
-                                      <td className="py-2.5 pr-3 text-white font-medium">
-                                        {getCustomerDisplayName(sale.customer?.name)}
-                                      </td>
-                                      <td className="py-2.5 pr-3 text-right text-white">
-                                        {soldCartons} carton{soldCartons > 1 ? "s" : ""}
-                                      </td>
-                                      <td className="py-2.5 pr-3 text-right">
-                                        {bonus > 0 ? (
-                                          <span className="text-green-400">{formatCartonStock(bonus, ppc)}</span>
-                                        ) : (
-                                          <span className="text-blue-300/40">—</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2.5 pr-3">
-                                        {sale.paymentType === "credit" ? (
-                                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-400 border border-amber-600/30">
-                                            Crédit
-                                          </span>
-                                        ) : (
-                                          <span className="text-xs text-blue-300/60">{sale.paymentMethod || "Espèces"}</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2.5 text-right font-semibold text-white">
-                                        ${productTotal.toFixed(2)}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              <tfoot className="border-t border-blue-700/40 bg-blue-900/10">
-                                <tr>
-                                  <td colSpan={2} className="py-2 text-blue-300/70 font-semibold text-sm">TOTAL</td>
-                                  <td className="py-2 text-right font-bold text-white">
-                                    {totalSoldCartons} carton{totalSoldCartons > 1 ? "s" : ""}
-                                  </td>
-                                  <td className="py-2 text-right font-bold text-green-400">
-                                    {totalBonus > 0 ? formatCartonStock(totalBonus, ppc) : "—"}
-                                  </td>
-                                  <td />
-                                  <td className="py-2 text-right font-bold text-white">
-                                    ${productItems.reduce((s, item) => s + Number(item.total || 0), 0).toFixed(2)}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {/* Bonus tab */}
                     {ficheTab === "bonus" && (
                       <div>

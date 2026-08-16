@@ -81,7 +81,7 @@ const createEmptyForm = (): CarTripForm => ({
 
 export default function Cars() {
   const { user: currentUser } = useAuth();
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const [operationDate, setOperationDate] = useState(getTodayDate());
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);

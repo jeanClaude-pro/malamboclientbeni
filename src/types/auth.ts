@@ -11,8 +11,9 @@ export interface User {
   username: string;
   email: string;
   role: Role;
-  branchId: BranchId;
+  branchId?: BranchId | null;
   isSuperAdmin?: boolean;
+  requiresAssignment?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -56,7 +56,7 @@ export default function Sortie() {
   // Get the current user from your auth context
   const { user: currentUser } = useAuth();
 
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const [operationDate, setOperationDate] = useState(getTodayDate());
 
   const [form, setForm] = useState<SortieForm>({

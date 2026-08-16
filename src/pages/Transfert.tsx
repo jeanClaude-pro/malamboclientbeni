@@ -69,7 +69,7 @@ const EMPTY_FORM: TransferForm = {
 
 export default function Transfert() {
   const { user: currentUser } = useAuth();
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const [operationDate, setOperationDate] = useState(getTodayDate());
   const [products, setProducts] = useState<Product[]>([]);
   const [submitting, setSubmitting] = useState(false);

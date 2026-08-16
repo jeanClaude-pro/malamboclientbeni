@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -35,47 +34,19 @@ import Users from "./pages/Users";
 
 export default function App() {
   const token = localStorage.getItem("token");
-  const storedUser = localStorage.getItem("user");
   const isAuthenticated = !!token;
-  const isManager = (() => {
-    try {
-      return storedUser ? JSON.parse(storedUser).role === "manager" : false;
-    } catch {
-      return false;
-    }
-  })();
-  const [sidebarWidth, setSidebarWidth] = useState(() =>
-    window.innerWidth < 1024 ? 0 : 280
-  );
-  const [isMobileLayout, setIsMobileLayout] = useState(
-    () => window.innerWidth < 1024
-  );
-
-  const handleNavbarLayoutChange = useCallback(
-    (width: number, isMobile: boolean) => {
-      setSidebarWidth(width);
-      setIsMobileLayout(isMobile);
-    },
-    []
-  );
 
   return (
     <AuthProvider>
       <ToastContainer position="top-right" autoClose={3000} newestOnTop />
 
       <Router>
-        <div className="min-h-dvh bg-slate-950">
-          <Navbar onLayoutChange={handleNavbarLayoutChange} />
+        <div className="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900">
+          <Navbar />
 
           {/* Main content */}
-          <main
-            className="min-h-dvh min-w-0 overflow-x-hidden transition-[margin,width] duration-300 ease-in-out"
-            style={{
-              marginLeft: isMobileLayout ? 0 : sidebarWidth,
-              width: isMobileLayout ? "100%" : `calc(100% - ${sidebarWidth}px)`,
-            }}
-          >
-            <div className="app-page-shell min-h-dvh w-full min-w-0">
+          <main className="min-h-dvh min-w-0 overflow-x-hidden">
+            <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900 [&_.from-black]:!from-slate-50 [&_.via-blue-950]:!via-blue-50 [&_.to-black]:!to-indigo-50 [&_.from-gray-900]:!from-white [&_.from-blue-900]:!from-white [&_.to-blue-950]:!to-blue-50 [&_.bg-gray-900]:!bg-white [&_.bg-blue-950]:!bg-white [&_.from-amber-950]:!from-amber-50 [&_.to-orange-950]:!to-amber-100 [&_h1]:!text-slate-950 [&_h2]:!text-slate-950 [&_h3]:!text-slate-950 [&_h4]:!text-slate-950 [&_label]:!text-slate-700 [&_.text-blue-200]:!text-slate-600 [&_.text-blue-300]:!text-slate-600 [&_.text-gray-300]:!text-slate-700 [&_.text-gray-400]:!text-slate-500 [&_input]:!border-slate-300 [&_input]:!bg-white [&_input]:!text-slate-900 [&_select]:!border-slate-300 [&_select]:!bg-white [&_select]:!text-slate-900 [&_textarea]:!border-slate-300 [&_textarea]:!bg-white [&_textarea]:!text-slate-900 [&_table]:min-w-[720px] [&_table]:bg-white [&_table]:text-slate-700 [&_thead]:bg-slate-950 [&_thead]:text-white [&_.overflow-x-auto]:max-w-full [&_.overflow-auto]:max-w-full max-sm:[&_.p-6]:p-4">
               <Routes>
                 <Route
                   path="/products"
@@ -227,7 +198,7 @@ export default function App() {
                   path="/login"
                   element={
                     isAuthenticated ? (
-                      <Navigate to={isManager ? "/reports" : "/"} replace />
+                      <Navigate to="/" replace />
                     ) : (
                       <LoginPage />
                     )
