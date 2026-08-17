@@ -358,10 +358,10 @@ export default function TransferReception() {
 
           {/* Date de l'opération — Admin uniquement */}
           {isAdmin && (
-            <div className="bg-gradient-to-br from-amber-950 to-orange-950 rounded-xl p-5 border border-amber-700/50 shadow-xl">
+            <div className="bg-amber-50 rounded-xl p-5 border border-amber-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+                <Calendar className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-700">Date de l'opération (Admin)</h3>
               </div>
               <input
                 type="date"
@@ -370,7 +370,7 @@ export default function TransferReception() {
                 onChange={(e) => setOperationDate(e.target.value)}
                 className={inputClass}
               />
-              <p className="mt-2 text-xs text-amber-300/80">
+              <p className="mt-2 text-xs text-amber-700/80">
                 Cette réception sera enregistrée et comptabilisée à cette date dans l'historique et les rapports.
               </p>
             </div>

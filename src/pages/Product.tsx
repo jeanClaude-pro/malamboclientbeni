@@ -996,8 +996,8 @@ export default function Products() {
         <span
           className={`text-sm font-medium ${
             product.stock <= product.minStock
-              ? "text-red-400"
-              : "text-blue-400"
+              ? "text-rose-600"
+              : "text-slate-900"
           }`}
         >
           {formatCartonStock(product.stock, piecesPerCarton)}
@@ -1007,21 +1007,21 @@ export default function Products() {
       // Staff sees stock status instead of exact numbers
       if (product.stock === 0) {
         return (
-          <span className="text-sm text-red-400 font-medium flex items-center gap-1">
+          <span className="text-sm text-rose-600 font-medium flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
             En rupture
           </span>
         );
       } else if (product.stock <= product.minStock) {
         return (
-          <span className="text-sm text-orange-400 font-medium flex items-center gap-1">
+          <span className="text-sm text-orange-600 font-medium flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
             Stock faible
           </span>
         );
       } else {
         return (
-          <span className="text-sm text-green-400 font-medium flex items-center gap-1">
+          <span className="text-sm text-emerald-600 font-medium flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
             En stock
           </span>
@@ -1037,27 +1037,27 @@ export default function Products() {
       // Admin sees all stock details
       return (
         <>
-          <div className="flex justify-between py-2 border-b border-blue-900/20">
-            <span className="text-gray-400">Stock Actuel:</span>
+          <div className="flex justify-between py-2 border-b border-slate-200">
+            <span className="text-slate-500">Stock Actuel:</span>
             <span
               className={`font-medium ${
                 product.stock <= product.minStock
-                  ? "text-red-400"
-                  : "text-blue-400"
+                  ? "text-rose-600"
+                  : "text-slate-900"
               }`}
             >
               {formatCartonStock(product.stock, piecesPerCarton)}
             </span>
           </div>
-          <div className="flex justify-between py-2 border-b border-blue-900/20">
-            <span className="text-gray-400">Pièces par carton:</span>
-            <span className="font-medium text-blue-400">
+          <div className="flex justify-between py-2 border-b border-slate-200">
+            <span className="text-slate-500">Pièces par carton:</span>
+            <span className="font-medium text-slate-900">
               {piecesPerCarton} pièce{piecesPerCarton > 1 ? "s" : ""}
             </span>
           </div>
-          <div className="flex justify-between py-2 border-b border-blue-900/20">
-            <span className="text-gray-400">Stock minimal:</span>
-            <span className="font-medium text-blue-400">
+          <div className="flex justify-between py-2 border-b border-slate-200">
+            <span className="text-slate-500">Stock minimal:</span>
+            <span className="font-medium text-slate-900">
               {formatCartonStock(product.minStock, piecesPerCarton)}
             </span>
           </div>
@@ -1066,20 +1066,20 @@ export default function Products() {
     } else {
       // Staff sees only stock status
       return (
-        <div className="flex justify-between py-2 border-b border-blue-900/20">
-          <span className="text-gray-400">Statut du stock:</span>
+        <div className="flex justify-between py-2 border-b border-slate-200">
+          <span className="text-slate-500">Statut du stock:</span>
           {product.stock === 0 ? (
-            <span className="font-medium text-red-400 flex items-center gap-1">
+            <span className="font-medium text-rose-600 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
               En rupture
             </span>
           ) : product.stock <= product.minStock ? (
-            <span className="font-medium text-orange-400 flex items-center gap-1">
+            <span className="font-medium text-orange-600 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
               Stock faible
             </span>
           ) : (
-            <span className="font-medium text-green-400 flex items-center gap-1">
+            <span className="font-medium text-emerald-600 flex items-center gap-1">
               <CheckCircle className="w-3 h-3" />
               En stock
             </span>
@@ -1090,18 +1090,18 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-black via-blue-950 to-black min-h-screen">
+    <div className="space-y-6 p-6 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-            <Package className="w-8 h-8 text-blue-400" />
+          <h1 className="text-3xl font-bold text-slate-950 flex items-center gap-2">
+            <Package className="w-8 h-8 text-blue-600" />
             Articles
           </h1>
-          <p className="text-blue-200/70">Gérez votre catalogue des Articles</p>
+          <p className="text-slate-600">Gérez votre catalogue des Articles</p>
           {!isAdmin && (
-            <p className="text-sm text-blue-400 mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+            <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
               Staff - Vue limitée
             </p>
           )}
@@ -1128,17 +1128,17 @@ export default function Products() {
       </div>
 
       {/* Filters */}
-      <div className="bg-gradient-to-br from-gray-900 to-blue-950 p-4 rounded-lg shadow-xl border border-blue-800/50">
+      <div className="bg-white border border-slate-200 shadow-sm p-4 rounded-lg">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400" />
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" />
               <input
                 type="text"
                 placeholder="Recherchez des Articles par nom..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900 placeholder-slate-400"
               />
             </div>
           </div>
@@ -1152,61 +1152,61 @@ export default function Products() {
       </div>
 
       {/* Products Grid */}
-      <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-lg shadow-xl border border-blue-800/50">
+      <div className="bg-white border border-slate-200 shadow-sm rounded-lg">
         {loading ? (
           <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
-            <p className="mt-2 text-blue-200/70">Chargement des Articles......</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-slate-600">Chargement des Articles......</p>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="p-8 text-center">
-            <Package className="w-12 h-12 mx-auto mb-4 text-blue-400/50" />
-            <p className="text-blue-200/70">Aucun article trouvé</p>
+            <Package className="w-12 h-12 mx-auto mb-4 text-blue-600/50" />
+            <p className="text-slate-600">Aucun article trouvé</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-black/50 border-b border-blue-800/50">
+              <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     #
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Article
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Catégorie
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Stock
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Statut
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-800/30">
+              <tbody className="divide-y divide-slate-100">
                 {filteredProducts.map((product: Product, idx: number) => (
-                  <tr key={product._id || idx} className="hover:bg-blue-900/20 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300/70">
+                  <tr key={product._id || idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                       {idx + 1}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-slate-950">
                             {product.name}
                           </div>
-                          <div className="text-sm text-blue-300/70">
+                          <div className="text-sm text-slate-500">
                             {product.brand || "Sans marque"}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                       {product.category}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1216,8 +1216,8 @@ export default function Products() {
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           product.status === "active"
-                            ? "bg-green-900/50 text-green-400 border border-green-500/30"
-                            : "bg-red-900/50 text-red-400 border border-red-500/30"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border border-rose-200"
                         }`}
                       >
                         {getProductStatus(product.status)}
@@ -1227,14 +1227,14 @@ export default function Products() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => openViewModal(product)}
-                          className="text-blue-400 hover:text-blue-300 p-1 rounded transition-colors"
+                          className="text-blue-600 hover:text-blue-700 p-1 rounded transition-colors"
                           title="Voir détails"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => openFicheModal(product)}
-                          className="text-purple-400 hover:text-purple-300 p-1 rounded transition-colors"
+                          className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
                           title="Fiche de stocks"
                         >
                           <ClipboardList className="w-4 h-4" />
@@ -1243,7 +1243,7 @@ export default function Products() {
                           <>
                             <button
                               onClick={() => openEditModal(product)}
-                              className="text-green-400 hover:text-green-300 p-1 rounded transition-colors"
+                              className="text-emerald-600 hover:text-emerald-700 p-1 rounded transition-colors"
                               title="Modifier"
                             >
                               <Edit className="w-4 h-4" />
@@ -1251,7 +1251,7 @@ export default function Products() {
                             {product.status === "active" ? (
                               <button
                                 onClick={() => deactivateProduct(product._id)}
-                                className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
+                                className="text-rose-600 hover:text-rose-700 p-1 rounded transition-colors"
                                 title="Désactiver"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1259,7 +1259,7 @@ export default function Products() {
                             ) : (
                               <button
                                 onClick={() => reactivateProduct(product._id)}
-                                className="text-green-400 hover:text-green-300 p-1 rounded transition-colors"
+                                className="text-emerald-600 hover:text-emerald-700 p-1 rounded transition-colors"
                                 title="Réactiver"
                               >
                                 <CheckCircle className="w-4 h-4" />
@@ -1280,18 +1280,18 @@ export default function Products() {
       {/* Add/Edit Product Modal - Only for Admin */}
       {(showAddModal || showEditModal) && isAdmin && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-blue-800/50 shadow-2xl">
-            <div className="p-6 border-b border-blue-800/50">
+          <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6 border-b border-slate-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-slate-950 flex items-center gap-2">
                   {showEditModal ? (
                     <>
-                      <Edit className="w-5 h-5 text-blue-400" />
+                      <Edit className="w-5 h-5 text-blue-600" />
                       Modifier l'Article
                     </>
                   ) : (
                     <>
-                      <Plus className="w-5 h-5 text-blue-400" />
+                      <Plus className="w-5 h-5 text-blue-600" />
                       Ajouter un Article
                     </>
                   )}
@@ -1302,7 +1302,7 @@ export default function Products() {
                     setShowEditModal(false);
                     resetForm();
                   }}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -1313,13 +1313,13 @@ export default function Products() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Basic Information */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-2">
+                  <h3 className="text-lg font-medium text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-2">
                     <Tag className="w-4 h-4" />
                     Information Basique
                   </h3>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Nom de l'Article *
                     </label>
                     <input
@@ -1332,13 +1332,13 @@ export default function Products() {
                           name: e.target.value,
                         }))
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900 placeholder-slate-400"
                       placeholder="Ex: Widget Pro X200"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Description
                     </label>
                     <textarea
@@ -1350,13 +1350,13 @@ export default function Products() {
                           description: e.target.value,
                         }))
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900 placeholder-slate-400"
                       placeholder="Description du produit..."
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Catégorie *
                     </label>
                     <CategoriesDropdown
@@ -1371,7 +1371,7 @@ export default function Products() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Marque
                     </label>
                     <input
@@ -1383,13 +1383,13 @@ export default function Products() {
                           brand: e.target.value,
                         }))
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900 placeholder-slate-400"
                       placeholder="Ex: Apple, Samsung, Nike"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Statut
                     </label>
                     <select
@@ -1400,28 +1400,28 @@ export default function Products() {
                           status: e.target.value as "active" | "inactive",
                         }))
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                     >
-                      <option value="active" className="bg-gray-900">Actif</option>
-                      <option value="inactive" className="bg-gray-900">Inactif</option>
+                      <option value="active" className="bg-white">Actif</option>
+                      <option value="inactive" className="bg-white">Inactif</option>
                     </select>
                   </div>
                 </div>
 
                 {/* Box Management - Simplified */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-2">
+                  <h3 className="text-lg font-medium text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-2">
                     <Box className="w-4 h-4" />
                     Gestion par Boîtes
                   </h3>
 
                   {/* Number of Boxes */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Nombre de boîtes *
                     </label>
                     <div className="relative">
-                      <Package className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400" />
+                      <Package className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" />
                       <input
                         type="number"
                         min="0"
@@ -1433,22 +1433,22 @@ export default function Products() {
                             cartonStock: parseInt(e.target.value) || 0,
                           }))
                         }
-                        className="w-full pl-10 pr-4 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                         placeholder="Ex: 5"
                       />
                     </div>
-                    <p className="mt-1 text-xs text-blue-300/70">
+                    <p className="mt-1 text-xs text-slate-500">
                       Nombre total de boîtes en stock
                     </p>
                   </div>
 
                   {/* Pieces Per Box */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Pièces par boîte *
                     </label>
                     <div className="relative">
-                      <Layers className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400" />
+                      <Layers className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" />
                       <input
                         type="number"
                         min="1"
@@ -1463,27 +1463,27 @@ export default function Products() {
                             minStockPieces: Math.min(prev.minStockPieces, piecesPerCarton - 1),
                           }));
                         }}
-                        className="w-full pl-10 pr-4 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                         placeholder="Ex: 12"
                       />
                     </div>
-                    <p className="mt-1 text-xs text-blue-300/70">
+                    <p className="mt-1 text-xs text-slate-500">
                       Exemple: Si chaque boîte contient 12 pièces, entrez 12
                     </p>
                   </div>
 
                   {/* Stock Summary */}
-                  <div className="rounded-lg border border-blue-800/30 bg-black/30 p-3 text-sm text-blue-200">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                     <div className="flex justify-between items-center">
                       <span>Stock total:</span>
-                      <strong className="text-white text-lg">
+                      <strong className="text-slate-950 text-lg">
                         {formatCartonStock(
                           formData.cartonStock * formData.piecesPerCarton + formData.loosePieces,
                           formData.piecesPerCarton
                         )}
                       </strong>
                     </div>
-                    <div className="text-xs text-blue-300/70 mt-1">
+                    <div className="text-xs text-slate-500 mt-1">
                       ({formData.cartonStock} boîte{formData.cartonStock > 1 ? "s" : ""} × {formData.piecesPerCarton} pièces/boîte)
                     </div>
                   </div>
@@ -1491,30 +1491,30 @@ export default function Products() {
                   {/* Reason for a manual stock adjustment — only meaningful when editing */}
                   {showEditModal && selectedProduct && (
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-600 mb-1">
                         Raison de l'ajustement du stock (optionnel)
                       </label>
                       <input
                         type="text"
                         value={editReason}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditReason(e.target.value)}
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white placeholder-blue-300/50"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900 placeholder-slate-400"
                         placeholder="Ex: Correction après inventaire physique"
                       />
-                      <p className="mt-1 text-xs text-blue-300/70">
+                      <p className="mt-1 text-xs text-slate-500">
                         Enregistré dans la Fiche de Stock uniquement si le stock change réellement.
                       </p>
                     </div>
                   )}
 
                   {/* Minimum Stock Alert */}
-                  <div className="border-t border-blue-800/50 pt-4 mt-2">
-                    <h4 className="text-sm font-medium text-blue-300 mb-3">
+                  <div className="border-t border-slate-200 pt-4 mt-2">
+                    <h4 className="text-sm font-medium text-slate-600 mb-3">
                       Seuil d'alerte (Stock minimum)
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-600 mb-1">
                           Boîtes minimum
                         </label>
                         <input
@@ -1527,12 +1527,12 @@ export default function Products() {
                               minStockCartons: parseInt(e.target.value) || 0,
                             }))
                           }
-                          className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                           placeholder="0"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-600 mb-1">
                           Pièces supplémentaires
                         </label>
                         <input
@@ -1546,12 +1546,12 @@ export default function Products() {
                               minStockPieces: parseInt(e.target.value) || 0,
                             }))
                           }
-                          className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                           placeholder="0"
                         />
                       </div>
                     </div>
-                    <div className="mt-2 text-xs text-blue-300/70">
+                    <div className="mt-2 text-xs text-slate-500">
                       Alerte quand stock {'<'} {formatCartonStock(
                         formData.minStockCartons * formData.piecesPerCarton + formData.minStockPieces,
                         formData.piecesPerCarton
@@ -1561,11 +1561,11 @@ export default function Products() {
 
                   {/* Weight */}
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-600 mb-1">
                       Poids (kg)
                     </label>
                     <div className="relative">
-                      <Scale className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400" />
+                      <Scale className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600" />
                       <input
                         type="number"
                         min="0"
@@ -1577,7 +1577,7 @@ export default function Products() {
                             weight: parseFloat(e.target.value) || 0,
                           }))
                         }
-                        className="w-full pl-10 pr-4 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-white"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none focus:border-transparent text-slate-900"
                         placeholder="0.00"
                       />
                     </div>
@@ -1592,7 +1592,7 @@ export default function Products() {
               </div>
 
               {/* Form Actions */}
-              <div className="flex justify-end gap-4 pt-6 border-t border-blue-800/50">
+              <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => {
@@ -1600,7 +1600,7 @@ export default function Products() {
                     setShowEditModal(false);
                     resetForm();
                   }}
-                  className="px-4 py-2 text-blue-300 bg-black/50 hover:bg-black/70 rounded-lg transition-colors border border-blue-800/50"
+                  className="px-4 py-2 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
                 >
                   Annuler
                 </button>
@@ -1634,30 +1634,30 @@ export default function Products() {
 
         return (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-4xl w-full max-h-[92vh] overflow-y-auto border border-purple-800/50 shadow-2xl">
+            <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
               {/* Sticky header */}
-              <div className="p-6 border-b border-purple-800/50 sticky top-0 bg-gray-900/95 backdrop-blur z-10">
+              <div className="p-6 border-b border-slate-200 sticky top-0 bg-white/95 backdrop-blur z-10">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                      <ClipboardList className="w-5 h-5 text-purple-400" />
+                    <h2 className="text-xl font-semibold text-slate-950 flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-purple-600" />
                       Fiche de stocks — {ficheProduct.name}
                     </h2>
                     {ficheLedger?.branch && (
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-blue-300">
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Agence de {ficheLedger.branch.name}
                       </p>
                     )}
-                    <p className="text-sm text-purple-300/70 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       Stock actuel:{" "}
-                      <span className="font-semibold text-white">
+                      <span className="font-semibold text-slate-950">
                         {formatCartonStock(ficheProduct.stock, ppc)}
                       </span>
                       {ficheProduct.brand && (
-                        <span className="ml-3 text-blue-300/50">{ficheProduct.brand}</span>
+                        <span className="ml-3 text-slate-500">{ficheProduct.brand}</span>
                       )}
                     </p>
-                    <p className="text-xs text-blue-300/50 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Créé le {new Date(ficheProduct.createdAt).toLocaleString("fr-FR")} · Dernière modification le{" "}
                       {new Date(ficheProduct.updatedAt).toLocaleString("fr-FR")}
                     </p>
@@ -1665,7 +1665,7 @@ export default function Products() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => loadFicheData(ficheProduct)}
-                      className="text-purple-400 hover:text-purple-300 p-1 rounded transition-colors"
+                      className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
                       title="Actualiser"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -1678,7 +1678,7 @@ export default function Products() {
                       <Download className="w-4 h-4" />
                       PDF
                     </button>
-                    <button onClick={closeFicheModal} className="text-purple-400 hover:text-purple-300 transition-colors">
+                    <button onClick={closeFicheModal} className="text-purple-600 hover:text-purple-700 transition-colors">
                       <X className="w-6 h-6" />
                     </button>
                   </div>
@@ -1699,30 +1699,30 @@ export default function Products() {
                   ].map((card) => (
                     <div
                       key={card.label}
-                      className={`rounded-lg p-3 border bg-black/30 ${
-                        card.color === "amber" ? "border-amber-700/40"
-                        : card.color === "green" ? "border-green-700/40"
-                        : card.color === "red" ? "border-red-700/40"
-                        : card.color === "blue" ? "border-blue-700/40"
-                        : "border-purple-700/40"
+                      className={`rounded-lg p-3 border bg-slate-50 ${
+                        card.color === "amber" ? "border-amber-200"
+                        : card.color === "green" ? "border-emerald-200"
+                        : card.color === "red" ? "border-rose-200"
+                        : card.color === "blue" ? "border-blue-200"
+                        : "border-purple-200"
                       }`}
                     >
                       <div className={`flex items-center gap-1 text-xs mb-1 ${
-                        card.color === "amber" ? "text-amber-400"
-                        : card.color === "green" ? "text-green-400"
-                        : card.color === "red" ? "text-red-400"
-                        : card.color === "blue" ? "text-blue-400"
-                        : "text-purple-400"
+                        card.color === "amber" ? "text-amber-600"
+                        : card.color === "green" ? "text-emerald-600"
+                        : card.color === "red" ? "text-rose-600"
+                        : card.color === "blue" ? "text-blue-600"
+                        : "text-purple-600"
                       }`}>
                         {card.icon} {card.label}
                       </div>
-                      <div className="text-xl font-bold text-white">{card.value}</div>
+                      <div className="text-xl font-bold text-slate-950">{card.value}</div>
                     </div>
                   ))}
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 mt-4 bg-black/30 rounded-lg p-1 flex-wrap">
+                <div className="flex gap-1 mt-4 bg-slate-50 rounded-lg p-1 flex-wrap">
                   {(
                     [
                       { key: "summary" as const, label: "Résumé du stock", icon: <History className="w-3.5 h-3.5" /> },
@@ -1736,7 +1736,7 @@ export default function Products() {
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                         ficheTab === tab.key
                           ? "bg-blue-700 text-white"
-                          : "text-blue-300 hover:bg-blue-900/40"
+                          : "text-slate-600 hover:bg-slate-100"
                       }`}
                     >
                       {tab.icon} {tab.label}
@@ -1749,19 +1749,19 @@ export default function Products() {
               <div className="p-6">
                 {ficheLoading ? (
                   <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto" />
-                    <p className="mt-3 text-purple-200/70">Chargement de l'historique...</p>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto" />
+                    <p className="mt-3 text-slate-600">Chargement de l'historique...</p>
                   </div>
                 ) : (
                   <>
                     {/* Bonus tab */}
                     {ficheTab === "bonus" && (
                       <div>
-                        <p className="text-xs text-blue-300/50 mb-3 uppercase tracking-wider">
+                        <p className="text-xs text-slate-500 mb-3 uppercase tracking-wider">
                           Ventes avec bonus pour cet article
                         </p>
                         {productItems.filter((i) => (i.bonusQuantity || 0) > 0).length === 0 ? (
-                          <p className="text-blue-300/60 text-sm py-10 text-center">
+                          <p className="text-slate-500 text-sm py-10 text-center">
                             Aucun bonus enregistré pour cet article dans les ventes.
                           </p>
                         ) : (
@@ -1769,25 +1769,25 @@ export default function Products() {
                             {productItems
                               .filter((i) => (i.bonusQuantity || 0) > 0)
                               .map((i, idx) => (
-                                <div key={idx} className="rounded-lg border border-green-800/40 bg-green-900/10 p-4 flex items-center justify-between gap-4">
+                                <div key={idx} className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 flex items-center justify-between gap-4">
                                   <div>
-                                    <p className="text-white font-medium">{getCustomerDisplayName(i.sale.customer?.name)}</p>
-                                    <p className="text-sm text-blue-300/60">
+                                    <p className="text-slate-950 font-medium">{getCustomerDisplayName(i.sale.customer?.name)}</p>
+                                    <p className="text-sm text-slate-500">
                                       {new Date(i.sale.createdAt).toLocaleDateString("fr-FR")} · Vente #{i.sale.saleId || i.sale._id.slice(-6)}
                                     </p>
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-green-400 font-bold">
+                                    <p className="text-emerald-600 font-bold">
                                       +{formatCartonStock(Number(i.bonusQuantity || 0), ppc)} bonus
                                     </p>
-                                    <p className="text-xs text-blue-300/50">
+                                    <p className="text-xs text-slate-500">
                                       Vendu: {getSoldCartons(i, ppc)} carton{getSoldCartons(i, ppc) > 1 ? "s" : ""}
                                     </p>
                                   </div>
                                 </div>
                               ))}
-                            <div className="rounded-lg bg-green-900/20 border border-green-700/30 p-3 text-right mt-2">
-                              <span className="text-green-400 font-bold">
+                            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-right mt-2">
+                              <span className="text-emerald-600 font-bold">
                                 Total bonus: {formatCartonStock(totalBonus, ppc)}
                               </span>
                             </div>
@@ -1799,11 +1799,11 @@ export default function Products() {
                     {/* Credit/Loans tab */}
                     {ficheTab === "credit" && (
                       <div>
-                        <p className="text-xs text-blue-300/50 mb-3 uppercase tracking-wider">
+                        <p className="text-xs text-slate-500 mb-3 uppercase tracking-wider">
                           Ventes à crédit — données depuis NewSale
                         </p>
                         {creditSales.length === 0 ? (
-                          <p className="text-blue-300/60 text-sm py-10 text-center">
+                          <p className="text-slate-500 text-sm py-10 text-center">
                             Aucune vente à crédit enregistrée pour cet article.
                           </p>
                         ) : (
@@ -1817,26 +1817,26 @@ export default function Products() {
                                   key={sale._id}
                                   className={`rounded-lg border p-4 ${
                                     fullyPaid
-                                      ? "border-green-800/40 bg-green-900/10"
-                                      : "border-amber-800/40 bg-amber-900/10"
+                                      ? "border-emerald-200 bg-emerald-50"
+                                      : "border-amber-200 bg-amber-50"
                                   }`}
                                 >
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-semibold text-white">
+                                        <span className="font-semibold text-slate-950">
                                           {getCustomerDisplayName(sale.customer?.name)}
                                         </span>
                                         {sale.customer?.phone && (
-                                          <span className="text-xs text-blue-300/60">{sale.customer.phone}</span>
+                                          <span className="text-xs text-slate-500">{sale.customer.phone}</span>
                                         )}
                                         <span
                                           className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
                                             fullyPaid
-                                              ? "bg-green-900/50 text-green-400 border-green-600/30"
+                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                               : due > 0
-                                              ? "bg-amber-900/50 text-amber-400 border-amber-600/30"
-                                              : "bg-blue-900/50 text-blue-400 border-blue-600/30"
+                                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                                              : "bg-blue-50 text-blue-700 border-blue-200"
                                           }`}
                                         >
                                           {fullyPaid ? "Soldé" : "En cours"}
@@ -1844,29 +1844,29 @@ export default function Products() {
                                       </div>
                                       <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                                         <div>
-                                          <p className="text-blue-300/50 mb-0.5">Total vente</p>
-                                          <p className="text-white font-semibold">${Number(sale.total || 0).toFixed(2)}</p>
+                                          <p className="text-slate-500 mb-0.5">Total vente</p>
+                                          <p className="text-slate-950 font-semibold">${Number(sale.total || 0).toFixed(2)}</p>
                                         </div>
                                         <div>
-                                          <p className="text-blue-300/50 mb-0.5">Payé</p>
-                                          <p className="text-green-400 font-semibold">${paid.toFixed(2)}</p>
+                                          <p className="text-slate-500 mb-0.5">Payé</p>
+                                          <p className="text-emerald-600 font-semibold">${paid.toFixed(2)}</p>
                                         </div>
                                         <div>
-                                          <p className="text-blue-300/50 mb-0.5">Solde dû</p>
-                                          <p className={`font-semibold ${due > 0 ? "text-red-400" : "text-blue-300/50"}`}>
+                                          <p className="text-slate-500 mb-0.5">Solde dû</p>
+                                          <p className={`font-semibold ${due > 0 ? "text-rose-600" : "text-slate-500"}`}>
                                             ${due.toFixed(2)}
                                           </p>
                                         </div>
                                         {sale.creditDetails?.dueDate && (
                                           <div>
-                                            <p className="text-blue-300/50 mb-0.5">Échéance</p>
-                                            <p className="text-white">
+                                            <p className="text-slate-500 mb-0.5">Échéance</p>
+                                            <p className="text-slate-950">
                                               {new Date(sale.creditDetails.dueDate).toLocaleDateString("fr-FR")}
                                             </p>
                                           </div>
                                         )}
                                       </div>
-                                      <p className="text-xs text-blue-300/50 mt-2">
+                                      <p className="text-xs text-slate-500 mt-2">
                                         Vente du {new Date(sale.createdAt).toLocaleDateString("fr-FR")} · #{sale.saleId || sale._id.slice(-6)}
                                       </p>
                                     </div>
@@ -1875,11 +1875,11 @@ export default function Products() {
                               );
                             })}
                             {creditOutstanding > 0 && (
-                              <div className="rounded-lg bg-amber-900/20 border border-amber-700/30 p-3 text-right">
-                                <span className="text-amber-400 font-bold text-sm">
+                              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-right">
+                                <span className="text-amber-700 font-bold text-sm">
                                   Total créances impayées : ${creditOutstanding.toFixed(2)}
                                 </span>
-                                <p className="text-xs text-amber-300/60 mt-0.5">
+                                <p className="text-xs text-amber-600 mt-0.5">
                                   Gérez les paiements depuis l'onglet Historique des ventes
                                 </p>
                               </div>
@@ -1901,7 +1901,7 @@ export default function Products() {
                               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                                 ficheRange === r
                                   ? "bg-purple-700 text-white"
-                                  : "bg-black/30 text-purple-300 hover:bg-purple-900/30"
+                                  : "bg-slate-50 text-purple-600 hover:bg-purple-50"
                               }`}
                             >
                               {FICHE_RANGE_LABELS[r]}
@@ -1912,7 +1912,7 @@ export default function Products() {
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                               ficheRange === "custom"
                                 ? "bg-purple-700 text-white"
-                                : "bg-black/30 text-purple-300 hover:bg-purple-900/30"
+                                : "bg-slate-50 text-purple-600 hover:bg-purple-50"
                             }`}
                           >
                             Personnalisé
@@ -1923,14 +1923,14 @@ export default function Products() {
                                 type="date"
                                 value={ficheCustomFrom}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomFrom(e.target.value)}
-                                className="px-2 py-1.5 bg-black/50 border border-blue-800/50 rounded-lg text-sm text-white"
+                                className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
                               />
-                              <span className="text-blue-300/50 text-sm">à</span>
+                              <span className="text-slate-500 text-sm">à</span>
                               <input
                                 type="date"
                                 value={ficheCustomTo}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomTo(e.target.value)}
-                                className="px-2 py-1.5 bg-black/50 border border-blue-800/50 rounded-lg text-sm text-white"
+                                className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
                               />
                               <button
                                 onClick={() => ficheProduct && applyFicheCustomRange(ficheProduct)}
@@ -1944,41 +1944,41 @@ export default function Products() {
 
                         {ficheLedgerLoading ? (
                           <div className="text-center py-10">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400 mx-auto" />
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto" />
                           </div>
                         ) : !ficheLedger ? (
-                          <p className="text-blue-300/60 text-sm py-10 text-center">
+                          <p className="text-slate-500 text-sm py-10 text-center">
                             Impossible de charger la fiche de stock pour cette période.
                           </p>
                         ) : (
                           <>
                             {/* Summary cards */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-                              <div className="rounded-lg p-3 border border-blue-700/40 bg-black/30">
-                                <div className="text-xs text-blue-400 mb-1">Stock de départ</div>
-                                <div className="text-xl font-bold text-white">{ficheLedger.summary.startingStock}</div>
+                              <div className="rounded-lg p-3 border border-blue-200 bg-slate-50">
+                                <div className="text-xs text-blue-600 mb-1">Stock de départ</div>
+                                <div className="text-xl font-bold text-slate-950">{ficheLedger.summary.startingStock}</div>
                               </div>
-                              <div className="rounded-lg p-3 border border-green-700/40 bg-black/30">
-                                <div className="text-xs text-green-400 mb-1">Stock ajouté</div>
-                                <div className="text-xl font-bold text-white">+{ficheLedger.summary.added}</div>
+                              <div className="rounded-lg p-3 border border-emerald-200 bg-slate-50">
+                                <div className="text-xs text-emerald-600 mb-1">Stock ajouté</div>
+                                <div className="text-xl font-bold text-slate-950">+{ficheLedger.summary.added}</div>
                               </div>
-                              <div className="rounded-lg p-3 border border-red-700/40 bg-black/30">
-                                <div className="text-xs text-red-400 mb-1">Stock réduit</div>
-                                <div className="text-xl font-bold text-white">-{ficheLedger.summary.removed}</div>
+                              <div className="rounded-lg p-3 border border-rose-200 bg-slate-50">
+                                <div className="text-xs text-rose-600 mb-1">Stock réduit</div>
+                                <div className="text-xl font-bold text-slate-950">-{ficheLedger.summary.removed}</div>
                               </div>
-                              <div className="rounded-lg p-3 border border-purple-700/40 bg-black/30">
-                                <div className="text-xs text-purple-400 mb-1">Stock final</div>
-                                <div className="text-xl font-bold text-white">{ficheLedger.summary.endingStock}</div>
+                              <div className="rounded-lg p-3 border border-purple-200 bg-slate-50">
+                                <div className="text-xs text-purple-600 mb-1">Stock final</div>
+                                <div className="text-xl font-bold text-slate-950">{ficheLedger.summary.endingStock}</div>
                               </div>
                             </div>
-                            <p className="text-xs text-blue-300/50 mb-4">
+                            <p className="text-xs text-slate-500 mb-4">
                               Stock actuel:{" "}
-                              <span className="text-white font-medium">
+                              <span className="text-slate-950 font-medium">
                                 {formatCartonStock(ficheLedger.product.currentStock, ppc)}
                               </span>
                               {" · "}Agence: {ficheLedger.branch?.name || "Butembo"}
                               {" · "}Statut:{" "}
-                              <span className="text-white font-medium">
+                              <span className="text-slate-950 font-medium">
                                 {getProductStatus(ficheLedger.product.status)}
                               </span>
                               {" · "}
@@ -1987,46 +1987,46 @@ export default function Products() {
 
                             {/* Audit trail */}
                             {ficheLedger.actions.length === 0 ? (
-                              <p className="text-blue-300/60 text-sm py-10 text-center">
+                              <p className="text-slate-500 text-sm py-10 text-center">
                                 Aucune action de stock enregistrée pour cette période.
                               </p>
                             ) : (
                               <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
-                                  <thead className="border-b border-blue-800/40">
+                                  <thead className="border-b border-slate-200">
                                     <tr>
-                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Date</th>
-                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Action</th>
-                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Source</th>
-                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Référence</th>
-                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Précédent</th>
-                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Variation</th>
-                                      <th className="text-right py-2 pr-3 text-blue-300/70 font-medium">Nouveau stock</th>
-                                      <th className="text-left py-2 pr-3 text-blue-300/70 font-medium">Effectué par</th>
-                                      <th className="text-left py-2 text-blue-300/70 font-medium">Raison</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Date</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Action</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Source</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Référence</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Précédent</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Variation</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Nouveau stock</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Effectué par</th>
+                                      <th className="text-left py-2 text-slate-500 font-medium">Raison</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-blue-900/30">
+                                  <tbody className="divide-y divide-slate-100">
                                     {ficheLedger.actions.map((action) => (
-                                      <tr key={action.id} className="hover:bg-blue-900/10">
-                                        <td className="py-2.5 pr-3 text-blue-200/80 whitespace-nowrap">
+                                      <tr key={action.id} className="hover:bg-slate-50">
+                                        <td className="py-2.5 pr-3 text-slate-600 whitespace-nowrap">
                                           {new Date(action.date).toLocaleString("fr-FR")}
                                         </td>
-                                        <td className="py-2.5 pr-3 text-white font-medium">{action.label}</td>
-                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.source}</td>
-                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.reference || "—"}</td>
-                                        <td className="py-2.5 pr-3 text-right text-blue-200/70">{action.previousStock}</td>
+                                        <td className="py-2.5 pr-3 text-slate-950 font-medium">{action.label}</td>
+                                        <td className="py-2.5 pr-3 text-slate-600">{action.source}</td>
+                                        <td className="py-2.5 pr-3 text-slate-600">{action.reference || "—"}</td>
+                                        <td className="py-2.5 pr-3 text-right text-slate-600">{action.previousStock}</td>
                                         <td
                                           className={`py-2.5 pr-3 text-right font-semibold ${
-                                            action.change >= 0 ? "text-green-400" : "text-red-400"
+                                            action.change >= 0 ? "text-emerald-600" : "text-rose-600"
                                           }`}
                                         >
                                           {action.change >= 0 ? "+" : ""}
                                           {action.change}
                                         </td>
-                                        <td className="py-2.5 pr-3 text-right text-white font-medium">{action.newStock}</td>
-                                        <td className="py-2.5 pr-3 text-blue-200/70">{action.performedBy || "—"}</td>
-                                        <td className="py-2.5 text-blue-200/70">{action.reason || "—"}</td>
+                                        <td className="py-2.5 pr-3 text-right text-slate-950 font-medium">{action.newStock}</td>
+                                        <td className="py-2.5 pr-3 text-slate-600">{action.performedBy || "—"}</td>
+                                        <td className="py-2.5 text-slate-600">{action.reason || "—"}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -2048,16 +2048,16 @@ export default function Products() {
       {/* Quick View Modal */}
       {showViewModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-blue-800/50 shadow-2xl">
-            <div className="p-6 border-b border-blue-800/50">
+          <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6 border-b border-slate-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <Package className="w-5 h-5 text-blue-400" />
+                <h2 className="text-xl font-semibold text-slate-950 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-blue-600" />
                   Détails de l'Article
                 </h2>
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -2067,19 +2067,19 @@ export default function Products() {
             <div className="p-6 space-y-6">
               <div className="flex items-start gap-6">
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-2xl font-bold text-slate-950">
                     {selectedProduct.name}
                   </h3>
-                  <p className="text-blue-300/70 mt-1">{selectedProduct.brand || "Sans marque"}</p>
-                  <p className="text-gray-300 mt-2">
+                  <p className="text-slate-500 mt-1">{selectedProduct.brand || "Sans marque"}</p>
+                  <p className="text-slate-500 mt-2">
                     {selectedProduct.description || "Aucune description"}
                   </p>
                   <div className="mt-4 flex items-center gap-4">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         selectedProduct.status === "active"
-                          ? "bg-green-900/50 text-green-400 border border-green-500/30"
-                          : "bg-red-900/50 text-red-400 border border-red-500/30"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-rose-50 text-rose-700 border border-rose-200"
                       }`}
                     >
                       {getProductStatus(selectedProduct.status)}
@@ -2090,20 +2090,20 @@ export default function Products() {
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-blue-400 flex items-center gap-2">
+                  <h4 className="font-semibold text-blue-600 flex items-center gap-2">
                     <Tag className="w-4 h-4" />
                     Informations
                   </h4>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between py-2 border-b border-blue-900/20">
-                      <span className="text-gray-400">Catégorie:</span>
-                      <span className="font-medium text-blue-300">
+                    <div className="flex justify-between py-2 border-b border-slate-200">
+                      <span className="text-slate-500">Catégorie:</span>
+                      <span className="font-medium text-slate-900">
                         {selectedProduct.category}
                       </span>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-blue-900/20">
-                      <span className="text-gray-400">Unité:</span>
-                      <span className="font-medium text-blue-300">
+                    <div className="flex justify-between py-2 border-b border-slate-200">
+                      <span className="text-slate-500">Unité:</span>
+                      <span className="font-medium text-slate-900">
                         {selectedProduct.unit}
                       </span>
                     </div>
@@ -2111,7 +2111,7 @@ export default function Products() {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-blue-400 flex items-center gap-2">
+                  <h4 className="font-semibold text-blue-600 flex items-center gap-2">
                     <Box className="w-4 h-4" />
                     Stock
                   </h4>
@@ -2123,14 +2123,14 @@ export default function Products() {
 
               {selectedProduct.weight && selectedProduct.weight > 0 && (
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-blue-400 flex items-center gap-2">
+                  <h4 className="font-semibold text-blue-600 flex items-center gap-2">
                     <Layers className="w-4 h-4" />
                     Propriétés physiques
                   </h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex justify-between py-2 border-b border-blue-900/20">
-                      <span className="text-gray-400">Poids:</span>
-                      <span className="font-medium text-blue-300">
+                    <div className="flex justify-between py-2 border-b border-slate-200">
+                      <span className="text-slate-500">Poids:</span>
+                      <span className="font-medium text-slate-900">
                         {selectedProduct.weight} kg
                       </span>
                     </div>
@@ -2139,7 +2139,7 @@ export default function Products() {
               )}
 
               {isAdmin && (
-                <div className="flex justify-end gap-4 pt-6 border-t border-blue-800/50">
+                <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
                   <button
                     onClick={() => {
                       setShowViewModal(false);

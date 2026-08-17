@@ -508,18 +508,18 @@ export default function NewSale() {
       const availableStock = product.stock - currentCartQuantity;
       
       return (
-        <p className="text-sm text-blue-300 mb-4 bg-black/30 p-3 rounded-lg border border-blue-800/30">
+        <p className="text-sm text-slate-500 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
           Stock disponible:{" "}
-          <strong className="text-white">
+          <strong className="text-slate-950">
             {formatCartonStock(product.stock, piecesPerCarton)}
           </strong>
           {currentCartQuantity > 0 && (
-            <span className="ml-2 text-blue-400">
+            <span className="ml-2 text-blue-600">
               (Déjà dans panier: {formatCartonStock(currentCartQuantity, piecesPerCarton)})
             </span>
           )}
           {quantity > 0 && (
-            <span className={`ml-4 ${canAddToCart ? 'text-green-400' : 'text-red-400'}`}>
+            <span className={`ml-4 ${canAddToCart ? 'text-emerald-600' : 'text-rose-600'}`}>
               Stock restant après vente:{" "}
               {availableStock - quantity >= 0
                 ? formatCartonStock(availableStock - quantity, piecesPerCarton)
@@ -532,31 +532,31 @@ export default function NewSale() {
       // Staff sees status messages
       if (product.stock === 0) {
         return (
-          <p className="text-sm text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg border border-red-800/30">
+          <p className="text-sm text-rose-600 mb-4 bg-rose-50 p-3 rounded-lg border border-rose-200">
             <strong>❌ En rupture de stock</strong>
           </p>
         );
       } else if (product.stock <= 5) {
         return (
-          <p className="text-sm text-orange-400 mb-4 bg-orange-900/30 p-3 rounded-lg border border-orange-800/30">
+          <p className="text-sm text-orange-600 mb-4 bg-orange-50 p-3 rounded-lg border border-orange-200">
             <strong>⚠️ Stock faible</strong>
           </p>
         );
       } else if (quantity > 0 && !canAddToCart) {
         return (
-          <p className="text-sm text-red-400 mb-4 bg-red-900/30 p-3 rounded-lg border border-red-800/30">
+          <p className="text-sm text-rose-600 mb-4 bg-rose-50 p-3 rounded-lg border border-rose-200">
             <strong>❌ Quantité demandée non disponible</strong>
           </p>
         );
       } else if (quantity > 0) {
         return (
-          <p className="text-sm text-green-400 mb-4 bg-green-900/30 p-3 rounded-lg border border-green-800/30">
+          <p className="text-sm text-emerald-600 mb-4 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
             <strong>✅ Stock suffisant</strong>
           </p>
         );
       } else {
         return (
-          <p className="text-sm text-green-400 mb-4 bg-green-900/30 p-3 rounded-lg border border-green-800/30">
+          <p className="text-sm text-emerald-600 mb-4 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
             <strong>✅ En stock</strong>
           </p>
         );
@@ -1540,41 +1540,41 @@ export default function NewSale() {
     checkStockAfterAdd(product._id, quantity);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-blue-950 to-black p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header with Exchange Rate */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <ShoppingCart className="w-7 h-7 text-blue-400" />
+              <h2 className="text-2xl font-bold text-slate-950 flex items-center gap-2">
+                <ShoppingCart className="w-7 h-7 text-blue-600" />
                 Nouvelle Vente
               </h2>
-              <p className="text-blue-200/70 mt-1">
+              <p className="text-slate-600 mt-1">
                 Créez une nouvelle vente avec gestion multi-devises
               </p>
             </div>
             
             {/* Exchange Rate Display */}
-            <div className="bg-gradient-to-br from-blue-900 to-blue-950 border border-blue-700/50 rounded-xl p-4 min-w-[280px] shadow-lg">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-w-[280px] shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-blue-400" />
-                  <span className="font-semibold text-blue-200">Taux du jour:</span>
+                  <DollarSign className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-slate-600">Taux du jour:</span>
                 </div>
                 {loadingRate ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
                 ) : exchangeRate ? (
                   <div className="text-right">
-                    <div className="font-bold text-white text-lg">
+                    <div className="font-bold text-slate-950 text-lg">
                       1 USD = {new Intl.NumberFormat('fr-FR').format(exchangeRate.rate)} FC
                     </div>
-                    <div className="text-xs text-blue-300/70">
+                    <div className="text-xs text-slate-500">
                       Effectif depuis {formatGmt2Date(exchangeRate.effectiveFrom)}
                     </div>
                   </div>
                 ) : (
-                  <span className="text-red-400 text-sm">Taux non disponible</span>
+                  <span className="text-rose-600 text-sm">Taux non disponible</span>
                 )}
               </div>
             </div>
@@ -1582,10 +1582,10 @@ export default function NewSale() {
 
           {/* Admin-only: choose which calendar day this sale belongs to */}
           {isAdmin && (
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-gradient-to-br from-amber-900/30 to-amber-950/30 border border-amber-700/40 rounded-xl p-4">
-              <Calendar className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0" />
               <div className="flex-1">
-                <label className="block text-sm font-medium text-amber-200 mb-1">
+                <label className="block text-sm font-medium text-amber-700 mb-1">
                   Date de la vente (Admin)
                 </label>
                 <input
@@ -1595,10 +1595,10 @@ export default function NewSale() {
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, saleDate: e.target.value || getTodayDate() }))
                   }
-                  className="w-full max-w-xs p-2 bg-black/50 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  className="w-full max-w-xs p-2 bg-white border border-amber-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />
               </div>
-              <p className="text-xs text-amber-300/70 sm:max-w-xs">
+              <p className="text-xs text-amber-700 sm:max-w-xs">
                 Cette vente sera enregistrée et comptabilisée à cette date dans l'historique et les
                 rapports.
               </p>
@@ -1607,57 +1607,57 @@ export default function NewSale() {
         </div>
 
         {message && (
-          <div className="mb-4 p-3 bg-green-900/50 border border-green-700/50 text-green-300 rounded-xl">
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
             {message}
           </div>
         )}
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-700/50 text-red-300 rounded-xl">
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl">
             {error}
           </div>
         )}
 
         {/* Add Items Section */}
-        <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-          <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+        <div className="bg-white shadow-xl rounded-xl p-6 border border-slate-200">
+          <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
             <Package className="w-5 h-5" />
             Ajouter les articles
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="relative" ref={searchRef}>
-              <label className="block mb-2 font-medium text-blue-200">Articles</label>
+              <label className="block mb-2 font-medium text-slate-600">Articles</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600 w-4 h-4" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={handleSearchChange}
                   onFocus={() => setShowSearchResults(true)}
                   placeholder="Rechercher un article..."
-                  className="w-full p-3 pl-10 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 pl-10 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   disabled={loadingProducts || products.length === 0}
                 />
               </div>
               
               {/* Search Results Dropdown */}
               {showSearchResults && filteredProducts.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-gradient-to-br from-gray-900 to-blue-950 border border-blue-800/50 rounded-lg shadow-xl max-h-60 overflow-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-auto">
                   {filteredProducts.map((product) => (
                     <div
                       key={product._id}
-                      className="px-4 py-3 cursor-pointer hover:bg-blue-900/30 border-b border-blue-800/30 last:border-b-0"
+                      className="px-4 py-3 cursor-pointer hover:bg-slate-50 border-b border-slate-200 last:border-b-0"
                       onClick={() => handleProductSelect(product)}
                     >
-                      <div className="font-medium text-white">{product.name}</div>
-                      <div className="text-sm text-blue-300 flex justify-between">
+                      <div className="font-medium text-slate-900">{product.name}</div>
+                      <div className="text-sm text-slate-500 flex justify-between">
                         <span>{product.sku && `SKU: ${product.sku}`}</span>
                         <span className={
                           product.stock === 0 
-                            ? "text-red-400" 
+                            ? "text-rose-600" 
                             : product.stock <= 5 
-                            ? "text-orange-400" 
-                            : "text-green-400"
+                            ? "text-orange-600"
+                            : "text-emerald-600"
                         }>
                           {renderStockInfo(product)}
                         </span>
@@ -1669,14 +1669,14 @@ export default function NewSale() {
               
               {/* No Results Message */}
               {showSearchResults && searchTerm && filteredProducts.length === 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-gradient-to-br from-gray-900 to-blue-950 border border-blue-800/50 rounded-lg shadow-xl p-4 text-center text-blue-300">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-center text-slate-500">
                   Aucun article trouvé
                 </div>
               )}
             </div>
 
             <div>
-              <label className="block mb-2 font-medium text-blue-200">
+              <label className="block mb-2 font-medium text-slate-600">
                 Boites vendues
               </label>
               <input
@@ -1685,10 +1685,10 @@ export default function NewSale() {
                 value={form.cartonQuantity}
                 onChange={handleChange}
                 placeholder="0"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                 min={0}
               />
-              <p className="mt-1 text-xs text-blue-300/70">
+              <p className="mt-1 text-xs text-slate-500">
                 {product
                   ? `1 boite = ${piecesPerCarton} piece${piecesPerCarton > 1 ? "s" : ""}`
                   : "Selectionnez un article."}
@@ -1696,19 +1696,19 @@ export default function NewSale() {
             </div>
 
             <div>
-              <label className="block mb-2 font-medium text-blue-200">Pieces hors boite</label>
+              <label className="block mb-2 font-medium text-slate-600">Pieces hors boite</label>
               <input
                 type="number"
                 name="quantity"
                 value={form.quantity}
                 onChange={handleChange}
                 placeholder="0"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                 min={0}
                 max={Math.max(0, piecesPerCarton - 1)}
               />
               {product && quantity > 0 && (
-                <p className="mt-1 text-xs text-green-400">
+                <p className="mt-1 text-xs text-emerald-600">
                   Total: {formatCartonStock(quantity, piecesPerCarton)}
                 </p>
               )}
@@ -1716,11 +1716,11 @@ export default function NewSale() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block font-medium text-blue-200">Prix par boite</label>
+                <label className="block font-medium text-slate-600">Prix par boite</label>
                 <button
                   type="button"
                   onClick={toggleCurrencyMode}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-900/30 hover:bg-blue-800/50 text-blue-300 rounded-md transition-colors border border-blue-800/30"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors border border-slate-200"
                 >
                   <Calculator className="w-3 h-3" />
                   {form.currencyMode === 'usd' ? 'USD → FC' : 'FC → USD'}
@@ -1735,7 +1735,7 @@ export default function NewSale() {
                   value={form.unitPrice}
                   onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
                   placeholder={product?.price ? `ex: ${product.price}` : "Entrer le prix en USD"}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   min={0.01}
                 />
               ) : (
@@ -1745,19 +1745,19 @@ export default function NewSale() {
                   value={form.priceInFC}
                   onChange={(e) => setForm({ ...form, priceInFC: e.target.value })}
                   placeholder="Entrer le prix en FC"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   min={1}
                 />
               )}
               
               {/* Conversion Display */}
               {form.unitPrice && form.currencyMode === 'usd' && exchangeRate && (
-                <p className="text-xs text-green-400 mt-1">
+                <p className="text-xs text-emerald-600 mt-1">
                   ≈ {formatFc(parseFloat(form.unitPrice) * exchangeRate.rate)}
                 </p>
               )}
               {form.priceInFC && form.currencyMode === 'fc' && exchangeRate && (
-                <p className="text-xs text-green-400 mt-1">
+                <p className="text-xs text-emerald-600 mt-1">
                   ≈ {formatCurrency(parseFloat(form.priceInFC) / exchangeRate.rate)}
                 </p>
               )}
@@ -1765,13 +1765,13 @@ export default function NewSale() {
           </div>
 
           {product && (
-            <div className="mb-6 rounded-lg border border-blue-800/40 bg-black/25 p-4">
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-300">
+            <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Bonus offert
               </h4>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
-                  <label className="block mb-2 font-medium text-blue-200">
+                  <label className="block mb-2 font-medium text-slate-600">
                     Boites bonus
                   </label>
                   <input
@@ -1780,12 +1780,12 @@ export default function NewSale() {
                     value={form.bonusCartons}
                     onChange={handleChange}
                     placeholder="0"
-                    className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                     min={0}
                   />
                 </div>
                 <div>
-                  <label className="block mb-2 font-medium text-blue-200">
+                  <label className="block mb-2 font-medium text-slate-600">
                     Pieces bonus
                   </label>
                   <input
@@ -1794,30 +1794,30 @@ export default function NewSale() {
                     value={form.bonusPieces}
                     onChange={handleChange}
                     placeholder="0"
-                    className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                     min={0}
                     max={Math.max(0, piecesPerCarton - 1)}
                   />
-                  <p className="mt-1 text-xs text-blue-300/70">
+                  <p className="mt-1 text-xs text-slate-500">
                     Pour une demi-boite, entrez la moitie des pieces.
                   </p>
                 </div>
-                <div className="rounded-lg border border-blue-800/30 bg-blue-950/30 p-3 text-sm text-blue-200">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
                     <span>Vendu:</span>
-                    <strong className="text-white">
+                    <strong className="text-slate-950">
                       {formatCartonStock(paidQuantity, piecesPerCarton)}
                     </strong>
                   </div>
                   <div className="mt-2 flex justify-between gap-3">
                     <span>Bonus:</span>
-                    <strong className="text-white">
+                    <strong className="text-slate-950">
                       {formatCartonStock(bonusQuantity, piecesPerCarton)}
                     </strong>
                   </div>
-                  <div className="mt-2 flex justify-between gap-3 border-t border-blue-800/30 pt-2">
+                  <div className="mt-2 flex justify-between gap-3 border-t border-slate-200 pt-2">
                     <span>Facture:</span>
-                    <strong className="text-green-300">{formatCurrency(itemTotal)}</strong>
+                    <strong className="text-emerald-600">{formatCurrency(itemTotal)}</strong>
                   </div>
                 </div>
               </div>
@@ -1833,7 +1833,7 @@ export default function NewSale() {
             className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-all duration-200 ${
               canAddToCart
                 ? "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-lg shadow-blue-900/50 border border-blue-400/30"
-                : "bg-gray-800 cursor-not-allowed text-gray-500 border border-gray-700"
+                : "bg-slate-100 cursor-not-allowed text-slate-400 border border-slate-200"
             }`}
           >
             <Plus className="w-4 h-4" />
@@ -1843,40 +1843,40 @@ export default function NewSale() {
           {/* Cart Items Table */}
           {cart.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2">
+              <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5" />
                 Articles du panier
               </h3>
-              <div className="overflow-x-auto rounded-lg border border-blue-800/50">
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full">
-                  <thead className="bg-black/50">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-300">Articles</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-blue-300">Pièces</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-blue-300">Prix boite</th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-blue-300">Total</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-blue-300">Actions</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-slate-500">Articles</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-slate-500">Pièces</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-slate-500">Prix boite</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-slate-500">Total</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-slate-500">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-blue-800/30">
+                  <tbody className="divide-y divide-slate-100">
                     {cart.map((item, index) => (
-                      <tr key={index} className="hover:bg-blue-900/20">
-                        <td className="px-4 py-3 text-sm text-white">{item.name}</td>
-                        <td className="px-4 py-3 text-sm text-center text-blue-300">
+                      <tr key={index} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-sm text-slate-900">{item.name}</td>
+                        <td className="px-4 py-3 text-sm text-center text-slate-500">
                           {formatSaleQuantity(item)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-white">
+                        <td className="px-4 py-3 text-sm text-right text-slate-900">
                           {formatCurrency(item.unitPrice)}
                           {exchangeRate && (
-                            <div className="text-xs text-blue-300">
+                            <div className="text-xs text-slate-500">
                               ≈ {formatFc(item.unitPrice * exchangeRate.rate)}
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-white font-medium">
+                        <td className="px-4 py-3 text-sm text-right text-slate-900 font-medium">
                           {formatCurrency(item.total)}
                           {exchangeRate && (
-                            <div className="text-xs text-blue-300">
+                            <div className="text-xs text-slate-500">
                               ≈ {formatFc(item.total * exchangeRate.rate)}
                             </div>
                           )}
@@ -1884,7 +1884,7 @@ export default function NewSale() {
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => removeFromCart(index)}
-                            className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex items-center gap-1 justify-center mx-auto"
+                            className="text-rose-600 hover:text-rose-700 text-sm font-medium transition-colors flex items-center gap-1 justify-center mx-auto"
                           >
                             <Trash2 className="w-4 h-4" />
                             Enlever
@@ -1893,15 +1893,15 @@ export default function NewSale() {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-black/30">
+                  <tfoot className="bg-slate-50">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-blue-300">
+                      <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-slate-500">
                         Total:
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-white">
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-slate-950">
                         {formatCurrency(cartTotal)}
                         {exchangeRate && (
-                          <div className="text-xs text-blue-300">
+                          <div className="text-xs text-slate-500">
                             ≈ {formatFc(cartTotal * exchangeRate.rate)}
                           </div>
                         )}
@@ -1916,8 +1916,8 @@ export default function NewSale() {
         </div>
 
         {/* Customer Information Section */}
-        <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-          <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+        <div className="bg-white shadow-xl rounded-xl p-6 border border-slate-200">
+          <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
             <User className="w-5 h-5" />
             Informations du client
           </h3>
@@ -1930,7 +1930,7 @@ export default function NewSale() {
               className={`flex-1 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 border transition-all duration-200 ${
                 !isCreditSale
                   ? "bg-green-700 border-green-500 text-white shadow-lg shadow-green-900/40"
-                  : "bg-black/30 border-blue-800/50 text-blue-300 hover:bg-blue-900/30"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
               }`}
             >
               <ShoppingCart className="w-4 h-4" />
@@ -1942,7 +1942,7 @@ export default function NewSale() {
               className={`flex-1 py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 border transition-all duration-200 ${
                 isCreditSale
                   ? "bg-amber-700 border-amber-500 text-white shadow-lg shadow-amber-900/40"
-                  : "bg-black/30 border-blue-800/50 text-blue-300 hover:bg-blue-900/30"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
               }`}
             >
               <CreditCard className="w-4 h-4" />
@@ -1955,8 +1955,8 @@ export default function NewSale() {
             <label
               className={`mb-6 flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                 form.isWalkIn
-                  ? "bg-purple-900/30 border-purple-600/50"
-                  : "bg-black/20 border-blue-800/50 hover:bg-blue-900/20"
+                  ? "bg-purple-50 border-purple-300"
+                  : "bg-slate-50 border-slate-200 hover:bg-slate-100"
               }`}
             >
               <input
@@ -1974,8 +1974,8 @@ export default function NewSale() {
                 }}
                 className="w-4 h-4 accent-purple-600"
               />
-              <UserX className="w-4 h-4 text-purple-300" />
-              <span className="text-sm font-medium text-blue-100">
+              <UserX className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-medium text-slate-600">
                 Client de passage (aucune information à fournir)
               </span>
             </label>
@@ -1983,11 +1983,11 @@ export default function NewSale() {
 
           {/* Credit Warning Banner */}
           {isCreditSale && (
-            <div className="mb-6 p-4 bg-amber-900/30 border border-amber-600/50 rounded-lg flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-amber-300 font-semibold text-sm">Vente à crédit — les marchandises sont remises au client</p>
-                <p className="text-amber-200/70 text-xs mt-1">
+                <p className="text-amber-800 font-semibold text-sm">Vente à crédit — les marchandises sont remises au client</p>
+                <p className="text-amber-600 text-xs mt-1">
                   Le stock sera déduit immédiatement. Indiquez le montant versé à l'avance et la date d'échéance.
                 </p>
               </div>
@@ -1996,9 +1996,9 @@ export default function NewSale() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
-              <label className="block mb-2 font-medium text-blue-200">
+              <label className="block mb-2 font-medium text-slate-600">
                 <Phone className="w-4 h-4 inline mr-1" />
-                Téléphone du client {isCreditSale ? <span className="text-red-400 text-xs">*</span> : <span className="text-blue-400/60 text-xs">(optionnel)</span>}
+                Téléphone du client {isCreditSale ? <span className="text-rose-600 text-xs">*</span> : <span className="text-slate-400 text-xs">(optionnel)</span>}
               </label>
               <input
                 type="tel"
@@ -2025,16 +2025,16 @@ export default function NewSale() {
                   }
                 }}
                 placeholder="Ex: 0812345678"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 required={isCreditSale}
                 disabled={form.isWalkIn}
               />
             </div>
 
             <div>
-              <label className="block mb-2 font-medium text-blue-200">
+              <label className="block mb-2 font-medium text-slate-600">
                 <User className="w-4 h-4 inline mr-1" />
-                Nom du client {isCreditSale ? <span className="text-red-400 text-xs">*</span> : <span className="text-blue-400/60 text-xs">(optionnel)</span>}
+                Nom du client {isCreditSale ? <span className="text-rose-600 text-xs">*</span> : <span className="text-slate-400 text-xs">(optionnel)</span>}
               </label>
               <input
                 type="text"
@@ -2042,14 +2042,14 @@ export default function NewSale() {
                 value={form.isWalkIn ? WALK_IN_CUSTOMER_NAME : form.customerName}
                 onChange={handleChange}
                 placeholder="Entrer le nom du client"
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 required={isCreditSale}
                 disabled={form.isWalkIn}
               />
             </div>
 
             <div>
-              <label className="block mb-2 font-medium text-blue-200">
+              <label className="block mb-2 font-medium text-slate-600">
                 <Mail className="w-4 h-4 inline mr-1" />
                 Email du client (optionnel)
               </label>
@@ -2060,35 +2060,35 @@ export default function NewSale() {
                 onChange={handleChange}
                 placeholder="Entrer l'email du client"
                 disabled={form.isWalkIn}
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block mb-2 font-medium text-blue-200">
-                Méthode de paiement {isCreditSale && <span className="text-amber-400 text-xs">(versement initial)</span>}
+              <label className="block mb-2 font-medium text-slate-600">
+                Méthode de paiement {isCreditSale && <span className="text-amber-600 text-xs">(versement initial)</span>}
               </label>
               <select
                 name="paymentMethod"
                 value={form.paymentMethod}
                 onChange={handleChange}
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                 required
               >
-                <option value="cash" className="bg-gray-900">Cash</option>
-                <option value="mpesa" className="bg-gray-900">M-Pesa ou Airtel Money (Transfert)</option>
-                <option value="bank" className="bg-gray-900">Transfert Bank</option>
-                <option value="card" className="bg-gray-900">Carte Visa</option>
-                <option value="other" className="bg-gray-900">Autres</option>
+                <option value="cash" className="bg-white">Cash</option>
+                <option value="mpesa" className="bg-white">M-Pesa ou Airtel Money (Transfert)</option>
+                <option value="bank" className="bg-white">Transfert Bank</option>
+                <option value="card" className="bg-white">Carte Visa</option>
+                <option value="other" className="bg-white">Autres</option>
               </select>
             </div>
           </div>
 
           {/* Credit-specific fields */}
           {isCreditSale && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-amber-950/20 border border-amber-700/30 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div>
-                <label className="block mb-2 font-medium text-amber-300 flex items-center gap-2">
+                <label className="block mb-2 font-medium text-amber-700 flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
                   Montant versé à l'avance (USD)
                 </label>
@@ -2101,31 +2101,31 @@ export default function NewSale() {
                   value={form.creditAmountPaid}
                   onChange={handleChange}
                   placeholder="0.00 (laisser vide si rien payé)"
-                  className="w-full p-3 bg-black/50 border border-amber-700/50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white placeholder-amber-300/40"
+                  className="w-full p-3 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-slate-900 placeholder-amber-400"
                 />
                 {creditAmountPaidNum > 0 && (
-                  <p className="mt-1 text-xs font-medium text-amber-200">
+                  <p className="mt-1 text-xs font-medium text-amber-700">
                     Ce versement restera en attente. La dette ne sera réduite qu'après avoir cliqué sur &quot;J'ai reçu cet argent&quot;.
                   </p>
                 )}
                 {creditAmountPaidNum > 0 && cartTotal > 0 && (
-                  <p className="text-xs text-amber-300 mt-1">
-                    Solde après confirmation: <strong className="text-white">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Solde après confirmation: <strong className="text-slate-950">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
                     {exchangeRate && (
-                      <span className="ml-1 text-amber-200/60">
+                      <span className="ml-1 text-amber-600">
                         ≈ {formatFc(Math.max(0, cartTotal - creditAmountPaidNum) * exchangeRate.rate)}
                       </span>
                     )}
                   </p>
                 )}
                 {creditAmountPaidNum === 0 && cartTotal > 0 && (
-                  <p className="text-xs text-amber-400 mt-1">
+                  <p className="text-xs text-amber-600 mt-1">
                     Tout le montant ({formatCurrency(cartTotal)}) est dû à crédit
                   </p>
                 )}
               </div>
               <div>
-                <label className="block mb-2 font-medium text-amber-300 flex items-center gap-2">
+                <label className="block mb-2 font-medium text-amber-700 flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Date d'échéance de paiement
                 </label>
@@ -2135,9 +2135,9 @@ export default function NewSale() {
                   value={form.creditDueDate}
                   onChange={handleChange}
                   min={new Date().toISOString().split("T")[0]}
-                  className="w-full p-3 bg-black/50 border border-amber-700/50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                  className="w-full p-3 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-slate-900"
                 />
-                <p className="text-xs text-amber-300/60 mt-1">Optionnel — date limite de règlement</p>
+                <p className="text-xs text-amber-600 mt-1">Optionnel — date limite de règlement</p>
               </div>
             </div>
           )}
@@ -2151,7 +2151,7 @@ export default function NewSale() {
                 ? isCreditSale
                   ? "bg-gradient-to-r from-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white shadow-lg shadow-amber-900/50 border border-amber-400/30"
                   : "bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white shadow-lg shadow-green-900/50 border border-green-400/30"
-                : "bg-gray-800 cursor-not-allowed text-gray-500 border border-gray-700"
+                : "bg-slate-100 cursor-not-allowed text-slate-400 border border-slate-200"
             }`}
           >
             {submitting ? (

@@ -208,32 +208,32 @@ export default function Transfert() {
   };
 
   const inputCls =
-    "w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 outline-none";
-  const labelCls = "block mb-2 font-medium text-blue-200";
+    "w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 outline-none";
+  const labelCls = "block mb-2 font-medium text-slate-600";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-2">
           <div className="flex items-center gap-3 mb-1">
-            <ArrowLeftRight className="w-8 h-8 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white">Nouveau Transfert</h1>
+            <ArrowLeftRight className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-slate-950">Nouveau Transfert</h1>
           </div>
-          <p className="text-blue-200/70">
+          <p className="text-slate-600">
             Enregistrez le transfert d'articles vers une autre agence avec ses informations de
             transport.
           </p>
         </div>
 
         {message && (
-          <div className="p-4 bg-green-900/50 border border-green-700/50 text-green-300 rounded-xl flex items-center gap-2">
+          <div className="p-4 bg-green-100 border border-green-200 text-green-700 rounded-xl flex items-center gap-2">
             <CheckCircle className="w-5 h-5 shrink-0" />
             {message}
           </div>
         )}
         {error && (
-          <div className="p-4 bg-red-900/50 border border-red-700/50 text-red-300 rounded-xl flex items-center gap-2">
+          <div className="p-4 bg-red-100 border border-red-200 text-red-700 rounded-xl flex items-center gap-2">
             <AlertCircle className="w-5 h-5 shrink-0" />
             {error}
           </div>
@@ -241,8 +241,8 @@ export default function Transfert() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Source */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <MapPin className="w-5 h-5" /> Provenance
             </h2>
             <div className="max-w-md">
@@ -258,8 +258,8 @@ export default function Transfert() {
           </section>
 
           {/* Product */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <Package className="w-5 h-5" /> Article à transférer
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -270,19 +270,19 @@ export default function Transfert() {
                   onChange={(e) => handleProductSelect(e.target.value)}
                   className={inputCls}
                 >
-                  <option value="" className="bg-gray-900">— Choisir un article de l'inventaire —</option>
+                  <option value="" className="bg-white">— Choisir un article de l'inventaire —</option>
                   {products.map((p) => (
-                    <option key={p._id} value={p._id} className="bg-gray-900">
+                    <option key={p._id} value={p._id} className="bg-white">
                       {p.name}
                     </option>
                   ))}
                 </select>
                 {selectedProduct && (
-                  <p className="mt-1 text-xs text-blue-300/70">
+                  <p className="mt-1 text-xs text-slate-500">
                     Stock disponible: {formatStockCartons(availableStock, form.product.piecesPerCarton)}
                   </p>
                 )}
-                <p className="mt-1 text-xs text-blue-300/50">
+                <p className="mt-1 text-xs text-slate-500">
                   Seul un article existant de l'inventaire peut être transféré. Le stock du
                   destinataire ne sera mis à jour qu'une fois la réception confirmée.
                 </p>
@@ -330,26 +330,26 @@ export default function Transfert() {
             </div>
 
             {exceedsStock && (
-              <p className="mt-3 text-sm text-red-300 bg-red-900/30 border border-red-700/40 rounded-lg p-3">
+              <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
                 Stock insuffisant pour "{selectedProduct?.name}". Disponible:{" "}
                 {formatStockCartons(availableStock, form.product.piecesPerCarton)}.
               </p>
             )}
 
-            <div className="mt-4 bg-blue-950/40 rounded-lg p-4 border border-blue-800/30 flex items-center justify-center gap-4 text-sm">
+            <div className="mt-4 bg-slate-50 rounded-lg p-4 border border-slate-200 flex items-center justify-center gap-4 text-sm">
               <div className="text-center">
-                <p className="text-blue-300">Cartons à transférer</p>
-                <p className="text-white font-bold text-lg">
+                <p className="text-slate-500">Cartons à transférer</p>
+                <p className="text-slate-950 font-bold text-lg">
                   {form.product.cartonQuantity.toLocaleString()} carton
                   {form.product.cartonQuantity > 1 ? "s" : ""}
                 </p>
               </div>
               {form.product.looseQuantity > 0 && (
                 <>
-                  <span className="text-blue-400 text-lg">+</span>
+                  <span className="text-blue-600 text-lg">+</span>
                   <div className="text-center">
-                    <p className="text-blue-300">Pièces hors carton</p>
-                    <p className="text-white font-bold text-lg">
+                    <p className="text-slate-500">Pièces hors carton</p>
+                    <p className="text-slate-950 font-bold text-lg">
                       {form.product.looseQuantity.toLocaleString()} pièce
                       {form.product.looseQuantity > 1 ? "s" : ""}
                     </p>
@@ -360,14 +360,14 @@ export default function Transfert() {
           </section>
 
           {/* Transfer Information — destination, receiver & transport */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <ArrowLeftRight className="w-5 h-5" /> Informations sur le transfert
             </h2>
 
             {/* Destination agency */}
             <div className="mb-6">
-              <p className="font-medium text-blue-300 mb-3 flex items-center gap-2">
+              <p className="font-medium text-slate-500 mb-3 flex items-center gap-2">
                 <Building2 className="w-4 h-4" /> Agence de destination
               </p>
               <div className="max-w-md">
@@ -384,7 +384,7 @@ export default function Transfert() {
 
             {/* Receiver */}
             <div className="mb-6">
-              <p className="font-medium text-blue-300 mb-3 flex items-center gap-2">
+              <p className="font-medium text-slate-500 mb-3 flex items-center gap-2">
                 <User className="w-4 h-4" /> Personne réceptionnant les articles (le cas échéant)
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -413,7 +413,7 @@ export default function Transfert() {
 
             {/* Transport */}
             <div>
-              <p className="font-medium text-blue-300 mb-3 flex items-center gap-2">
+              <p className="font-medium text-slate-500 mb-3 flex items-center gap-2">
                 <Truck className="w-4 h-4" /> Détails du transport
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -458,7 +458,7 @@ export default function Transfert() {
                   />
                 </div>
               </div>
-              <p className="mt-2 text-xs text-blue-300/50">
+              <p className="mt-2 text-xs text-slate-500">
                 Indiquez le chauffeur et la plaque du véhicule, ou une société de transport (l'un des
                 deux est requis).
               </p>
@@ -466,7 +466,7 @@ export default function Transfert() {
           </section>
 
           {/* Notes */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
             <label className={labelCls}>Notes supplémentaires</label>
             <textarea
               value={form.notes}
@@ -478,19 +478,19 @@ export default function Transfert() {
           </section>
 
           {isAdmin && (
-            <section className="bg-gradient-to-br from-amber-950 to-orange-950 rounded-xl p-5 border border-amber-700/50 shadow-xl">
+            <section className="bg-amber-50 rounded-xl p-5 border border-amber-300 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+                <Calendar className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-800">Date de l'opération (Admin)</h3>
               </div>
               <input
                 type="date"
                 value={operationDate}
                 max={getTodayDate()}
                 onChange={(e) => setOperationDate(e.target.value)}
-                className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full p-3 bg-white border border-amber-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
-              <p className="mt-2 text-xs text-amber-300/80">
+              <p className="mt-2 text-xs text-amber-700">
                 Ce transfert sera enregistré et comptabilisé à cette date dans l'historique et les rapports.
               </p>
             </section>

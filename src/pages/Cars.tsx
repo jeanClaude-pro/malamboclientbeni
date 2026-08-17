@@ -222,31 +222,31 @@ export default function Cars() {
   };
 
   const inputCls =
-    "w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 outline-none";
-  const labelCls = "block mb-2 font-medium text-blue-200";
+    "w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 outline-none";
+  const labelCls = "block mb-2 font-medium text-slate-600";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-2">
           <div className="flex items-center gap-3 mb-1">
-            <Truck className="w-8 h-8 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white">Nouveau Départ de Camion</h1>
+            <Truck className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl font-bold text-slate-950">Nouveau Départ de Camion</h1>
           </div>
-          <p className="text-blue-200/70">
+          <p className="text-slate-600">
             Enregistrez le départ. L'arrivée et la réception seront confirmées dans l'historique.
           </p>
         </div>
 
         {message && (
-          <div className="p-4 bg-green-900/50 border border-green-700/50 text-green-300 rounded-xl flex items-center gap-2">
+          <div className="p-4 bg-green-100 border border-green-200 text-green-700 rounded-xl flex items-center gap-2">
             <CheckCircle className="w-5 h-5 shrink-0" />
             {message}
           </div>
         )}
         {error && (
-          <div className="p-4 bg-red-900/50 border border-red-700/50 text-red-300 rounded-xl flex items-center gap-2">
+          <div className="p-4 bg-red-100 border border-red-200 text-red-700 rounded-xl flex items-center gap-2">
             <AlertCircle className="w-5 h-5 shrink-0" />
             {error}
           </div>
@@ -254,8 +254,8 @@ export default function Cars() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Route */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <MapPin className="w-5 h-5" /> Itinéraire
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -283,8 +283,8 @@ export default function Cars() {
           </section>
 
           {/* Departure date */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <Calendar className="w-5 h-5" /> Date de départ
             </h2>
             <div className="max-w-xs">
@@ -295,15 +295,15 @@ export default function Cars() {
                 onChange={(e) => setStr("departureDate", e.target.value)}
                 className={inputCls}
               />
-              <p className="mt-1 text-xs text-blue-300/50">
+              <p className="mt-1 text-xs text-slate-500">
                 L'heure exacte sera enregistrée au moment de la soumission. L'arrivée est confirmée séparément.
               </p>
             </div>
           </section>
 
           {/* Driver */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <User className="w-5 h-5" /> Chauffeur
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -341,8 +341,8 @@ export default function Cars() {
           </section>
 
           {/* Vehicle */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <Truck className="w-5 h-5" /> Véhicule
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -382,8 +382,8 @@ export default function Cars() {
           </section>
 
           {/* Cargo */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
               <Package className="w-5 h-5" /> Chargement envoyé
             </h2>
             <div className="space-y-4">
@@ -391,19 +391,19 @@ export default function Cars() {
                 const selectedProduct = products.find((product) => product._id === item.productId);
                 const selectedElsewhere = new Set(form.products.filter((_, itemIndex) => itemIndex !== index).map((row) => row.productId));
                 return (
-                  <div key={item.key} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-end bg-blue-950/30 border border-blue-800/30 rounded-lg p-4">
+                  <div key={item.key} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-end bg-slate-50 border border-slate-200 rounded-lg p-4">
                     <div>
                       <label className={labelCls}>Produit *</label>
                       <select value={item.productId} onChange={(e) => handleProductSelect(index, e.target.value)} className={inputCls}>
-                        <option value="" className="bg-gray-900">— Choisir un article —</option>
+                        <option value="" className="bg-white">— Choisir un article —</option>
                         {products.map((product) => (
-                          <option key={product._id} value={product._id} disabled={selectedElsewhere.has(product._id)} className="bg-gray-900">
+                          <option key={product._id} value={product._id} disabled={selectedElsewhere.has(product._id)} className="bg-white">
                             {product.name}
                           </option>
                         ))}
                       </select>
                       {selectedProduct && (
-                        <p className="mt-1 text-xs text-blue-300/50">
+                        <p className="mt-1 text-xs text-slate-500">
                           Stock: {formatStockCartons(Number(selectedProduct.stock || 0), item.piecesPerBox)}
                         </p>
                       )}
@@ -420,36 +420,36 @@ export default function Cars() {
                       <label className={labelCls}>Poids (kg)</label>
                       <input type="number" value={item.weight || ""} onChange={(e) => updateCargoProduct(index, "weight", parseFloat(e.target.value) || 0)} min="0" className={inputCls} />
                     </div>
-                    <button type="button" onClick={() => removeCargoProduct(index)} disabled={form.products.length === 1} title="Retirer ce produit" className="p-3 text-red-300 border border-red-800/50 rounded-lg hover:bg-red-950/50 disabled:opacity-30">
+                    <button type="button" onClick={() => removeCargoProduct(index)} disabled={form.products.length === 1} title="Retirer ce produit" className="p-3 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 disabled:opacity-30">
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 );
               })}
-              <button type="button" onClick={addCargoProduct} disabled={form.products.length >= products.length && products.length > 0} className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600/60 text-blue-200 rounded-lg hover:bg-blue-900/40 disabled:opacity-40">
+              <button type="button" onClick={addCargoProduct} disabled={form.products.length >= products.length && products.length > 0} className="inline-flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 disabled:opacity-40">
                 <Plus className="w-4 h-4" /> Ajouter un produit
               </button>
             </div>
 
             {/* Summary */}
-            <div className="mt-4 bg-blue-950/40 rounded-lg p-4 border border-blue-800/30 grid grid-cols-3 gap-4 text-sm text-center">
+            <div className="mt-4 bg-slate-50 rounded-lg p-4 border border-slate-200 grid grid-cols-3 gap-4 text-sm text-center">
               <div>
-                <p className="text-blue-300">Cartons</p>
-                <p className="text-white font-bold text-lg">{totalCartons}</p>
+                <p className="text-slate-500">Cartons</p>
+                <p className="text-slate-950 font-bold text-lg">{totalCartons}</p>
               </div>
               <div>
-                <p className="text-blue-300">Produits</p>
-                <p className="text-white font-bold text-lg">{form.products.length}</p>
+                <p className="text-slate-500">Produits</p>
+                <p className="text-slate-950 font-bold text-lg">{form.products.length}</p>
               </div>
               <div>
-                <p className="text-blue-300">Total pièces</p>
-                <p className="text-white font-bold text-lg">{totalPieces.toLocaleString()}</p>
+                <p className="text-slate-500">Total pièces</p>
+                <p className="text-slate-950 font-bold text-lg">{totalPieces.toLocaleString()}</p>
               </div>
             </div>
           </section>
 
           {/* Notes */}
-          <section className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl p-6 border border-blue-800/50 shadow-xl">
+          <section className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
             <label className={labelCls}>Notes supplémentaires</label>
             <textarea
               value={form.notes}
@@ -461,19 +461,19 @@ export default function Cars() {
           </section>
 
           {isAdmin && (
-            <section className="bg-gradient-to-br from-amber-950 to-orange-950 rounded-xl p-5 border border-amber-700/50 shadow-xl">
+            <section className="bg-amber-50 rounded-xl p-5 border border-amber-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+                <Calendar className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-700">Date de l'opération (Admin)</h3>
               </div>
               <input
                 type="date"
                 value={operationDate}
                 max={getTodayDate()}
                 onChange={(e) => setOperationDate(e.target.value)}
-                className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full p-3 bg-white border border-amber-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
-              <p className="mt-2 text-xs text-amber-300/80">
+              <p className="mt-2 text-xs text-amber-700/80">
                 Ce trajet sera enregistré et comptabilisé à cette date dans l'historique et les rapports.
               </p>
             </section>

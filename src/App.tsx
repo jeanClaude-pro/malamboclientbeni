@@ -46,7 +46,7 @@ export default function App() {
 
           {/* Main content */}
           <main className="min-h-dvh min-w-0 overflow-x-hidden">
-            <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900 [&_.from-black]:!from-slate-50 [&_.via-blue-950]:!via-blue-50 [&_.to-black]:!to-indigo-50 [&_.from-gray-900]:!from-white [&_.from-blue-900]:!from-white [&_.to-blue-950]:!to-blue-50 [&_.bg-gray-900]:!bg-white [&_.bg-blue-950]:!bg-white [&_.from-amber-950]:!from-amber-50 [&_.to-orange-950]:!to-amber-100 [&_h1]:!text-slate-950 [&_h2]:!text-slate-950 [&_h3]:!text-slate-950 [&_h4]:!text-slate-950 [&_label]:!text-slate-700 [&_.text-blue-200]:!text-slate-600 [&_.text-blue-300]:!text-slate-600 [&_.text-gray-300]:!text-slate-700 [&_.text-gray-400]:!text-slate-500 [&_input]:!border-slate-300 [&_input]:!bg-white [&_input]:!text-slate-900 [&_select]:!border-slate-300 [&_select]:!bg-white [&_select]:!text-slate-900 [&_textarea]:!border-slate-300 [&_textarea]:!bg-white [&_textarea]:!text-slate-900 [&_table]:min-w-[720px] [&_table]:bg-white [&_table]:text-slate-700 [&_thead]:bg-slate-950 [&_thead]:text-white [&_.overflow-x-auto]:max-w-full [&_.overflow-auto]:max-w-full max-sm:[&_.p-6]:p-4">
+            <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900 [&_table]:min-w-[720px] [&_table]:bg-white [&_table]:text-slate-700 [&_thead]:bg-slate-950 [&_thead]:text-white [&_.overflow-x-auto]:max-w-full [&_.overflow-auto]:max-w-full max-sm:[&_.p-6]:p-4">
               <Routes>
                 <Route
                   path="/products"

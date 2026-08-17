@@ -68,8 +68,8 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-black via-blue-950 to-black flex items-center justify-center p-3 sm:p-4 fixed inset-0 overflow-hidden">
-      <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-2xl shadow-2xl overflow-hidden w-full max-w-md border border-blue-800/50 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 flex items-center justify-center p-3 sm:p-4 fixed inset-0 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden w-full max-w-md border border-slate-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         {/* Header with logo - Fixed at top */}
         <div className="p-6 sm:p-8 pb-4 sm:pb-6 flex-shrink-0">
           <div className="flex justify-center mb-4 sm:mb-6">
@@ -78,10 +78,10 @@ const LoginPage = () => {
             </div>
           </div>
           <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 mb-2">
               {mode === "login" ? "Bon retour" : "Créer un compte"}
             </h1>
-            <p className="text-sm sm:text-base text-blue-200/70">
+            <p className="text-sm sm:text-base text-slate-600">
               {mode === "login"
                 ? "Connectez-vous pour continuer"
                 : "Rejoignez-nous pour commencer"}
@@ -96,20 +96,20 @@ const LoginPage = () => {
               <div>
                 <label
                   htmlFor="username"
-                  className="block text-xs sm:text-sm font-medium text-blue-200 mb-1"
+                  className="block text-xs sm:text-sm font-medium text-slate-700 mb-1"
                 >
                   <User className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                   Nom d'utilisateur
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                   <input
                     id="username"
                     type="text"
                     placeholder="Entrez votre nom d'utilisateur"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 transition"
+                    className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition"
                     required
                   />
                 </div>
@@ -119,20 +119,20 @@ const LoginPage = () => {
             <div>
               <label
                 htmlFor="email"
-                className="block text-xs sm:text-sm font-medium text-blue-200 mb-1"
+                className="block text-xs sm:text-sm font-medium text-slate-700 mb-1"
               >
                 <Mail className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 <input
                   id="email"
                   type="email"
                   placeholder="Entrez votre email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 transition"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition"
                   required
                 />
               </div>
@@ -141,26 +141,26 @@ const LoginPage = () => {
             <div>
               <label
                 htmlFor="password"
-                className="block text-xs sm:text-sm font-medium text-blue-200 mb-1"
+                className="block text-xs sm:text-sm font-medium text-slate-700 mb-1"
               >
                 <Lock className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                 Mot de passe
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Entrez votre mot de passe"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 sm:pl-10 pr-11 py-2.5 sm:py-3 text-sm sm:text-base bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 transition"
+                  className="w-full pl-9 sm:pl-10 pr-11 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((visible) => !visible)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                   aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                   aria-pressed={showPassword}
                 >
@@ -173,26 +173,26 @@ const LoginPage = () => {
               <div>
                 <label
                   htmlFor="confirmPassword"
-                  className="block text-xs sm:text-sm font-medium text-blue-200 mb-1"
+                  className="block text-xs sm:text-sm font-medium text-slate-700 mb-1"
                 >
                   <Lock className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                   Confirmer le mot de passe
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                   <input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirmez votre mot de passe"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-9 sm:pl-10 pr-11 py-2.5 sm:py-3 text-sm sm:text-base bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50 transition"
+                    className="w-full pl-9 sm:pl-10 pr-11 py-2.5 sm:py-3 text-sm sm:text-base bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400 transition"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword((visible) => !visible)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                     aria-label={showConfirmPassword ? "Masquer la confirmation" : "Afficher la confirmation"}
                     aria-pressed={showConfirmPassword}
                   >
@@ -203,7 +203,7 @@ const LoginPage = () => {
             )}
 
             {error && (
-              <div className="bg-red-900/50 border border-red-700/50 text-red-300 p-2.5 sm:p-3 rounded-lg text-xs sm:text-sm flex items-center gap-2">
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 p-2.5 sm:p-3 rounded-lg text-xs sm:text-sm flex items-center gap-2">
                 <div className="w-1 h-6 sm:h-8 bg-red-500 rounded-full"></div>
                 {error}
               </div>
@@ -212,7 +212,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-2.5 sm:py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition disabled:opacity-50 border border-blue-400/30 shadow-lg shadow-blue-900/50"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-2.5 sm:py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-blue-500 transition disabled:opacity-50 border border-blue-400/30 shadow-lg shadow-blue-900/50"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
@@ -253,7 +253,7 @@ const LoginPage = () => {
           </form>
 
           <div className="mt-4 sm:mt-6 text-center">
-            <p className="text-xs sm:text-sm text-blue-200/70">
+            <p className="text-xs sm:text-sm text-slate-600">
               {mode === "login"
                 ? "Vous n'avez pas de compte ? "
                 : "Vous avez déjà un compte ? "}
@@ -269,7 +269,7 @@ const LoginPage = () => {
                   setShowPassword(false);
                   setShowConfirmPassword(false);
                 }}
-                className="text-blue-400 font-medium hover:text-blue-300 focus:outline-none focus:underline transition border-b border-blue-400/30 hover:border-blue-300/50 text-xs sm:text-sm"
+                className="text-blue-600 font-medium hover:text-blue-800 focus:outline-none focus:underline transition border-b border-blue-300 hover:border-blue-500 text-xs sm:text-sm"
               >
                 {mode === "login" ? "S'inscrire" : "Se connecter"}
               </button>
@@ -279,8 +279,8 @@ const LoginPage = () => {
 
         {/* Footer - Fixed at bottom for login mode */}
         {mode === "login" && (
-          <div className="bg-black/30 p-3 sm:p-4 border-t border-blue-800/30 text-center flex-shrink-0">
-            <p className="text-[10px] sm:text-xs text-blue-300/70">
+          <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 text-center flex-shrink-0">
+            <p className="text-[10px] sm:text-xs text-slate-500">
               En continuant, vous acceptez nos Conditions d'utilisation
             </p>
           </div>

@@ -1113,105 +1113,105 @@ export default function SortieHistory() {
     if (!summaryStats || !userPermissions.isAdmin) return null;
 
     return (
-      <div className="bg-gradient-to-br from-blue-900 to-blue-950 p-4 rounded-lg border border-blue-700/50 mb-6">
+      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-blue-300 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-400" />
+          <h3 className="text-lg font-semibold text-slate-500 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-600" />
             Statistiques des Dépenses (Vue Admin)
           </h3>
           {currentUser && (
-            <span className="text-sm text-blue-300 bg-blue-900/50 px-3 py-1 rounded-full border border-blue-700/30">
+            <span className="text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
               Connecté en tant que: {currentUser.name || currentUser.username} ({currentUser.role})
             </span>
           )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-black/50 p-4 rounded-lg border border-blue-800/50">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-300">Total Dépenses</p>
-                <p className="text-2xl font-bold text-white">{summaryStats.totalRecords}</p>
-                <p className="text-sm text-blue-300">{formatCurrency(summaryStats.totalAmount)}</p>
+                <p className="text-sm text-slate-500">Total Dépenses</p>
+                <p className="text-2xl font-bold text-slate-950">{summaryStats.totalRecords}</p>
+                <p className="text-sm text-slate-500">{formatCurrency(summaryStats.totalAmount)}</p>
               </div>
-              <FileText className="w-8 h-8 text-blue-400" />
+              <FileText className="w-8 h-8 text-blue-600" />
             </div>
           </div>
           
-          <div className="bg-black/50 p-4 rounded-lg border border-blue-800/50">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-300">Validées</p>
-                <p className="text-2xl font-bold text-green-400">{summaryStats.validated.count}</p>
-                <p className="text-sm text-green-400">{formatCurrency(summaryStats.validated.amount)}</p>
+                <p className="text-sm text-slate-500">Validées</p>
+                <p className="text-2xl font-bold text-emerald-600">{summaryStats.validated.count}</p>
+                <p className="text-sm text-emerald-600">{formatCurrency(summaryStats.validated.amount)}</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-400" />
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
             </div>
           </div>
           
-          <div className="bg-black/50 p-4 rounded-lg border border-blue-800/50">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-300">En Attente</p>
-                <p className="text-2xl font-bold text-yellow-400">{summaryStats.pending.count}</p>
-                <p className="text-sm text-yellow-400">{formatCurrency(summaryStats.pending.amount)}</p>
+                <p className="text-sm text-slate-500">En Attente</p>
+                <p className="text-2xl font-bold text-amber-600">{summaryStats.pending.count}</p>
+                <p className="text-sm text-amber-600">{formatCurrency(summaryStats.pending.amount)}</p>
               </div>
-              <AlertCircle className="w-8 h-8 text-yellow-400" />
+              <AlertCircle className="w-8 h-8 text-amber-600" />
             </div>
           </div>
           
-          <div className="bg-black/50 p-4 rounded-lg border border-blue-800/50">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-300">Rejetées</p>
-                <p className="text-2xl font-bold text-red-400">{summaryStats.rejected?.count || 0}</p>
-                <p className="text-sm text-red-400">{formatCurrency(summaryStats.rejected?.amount || 0)}</p>
+                <p className="text-sm text-slate-500">Rejetées</p>
+                <p className="text-2xl font-bold text-rose-600">{summaryStats.rejected?.count || 0}</p>
+                <p className="text-sm text-rose-600">{formatCurrency(summaryStats.rejected?.amount || 0)}</p>
               </div>
-              <XCircle className="w-8 h-8 text-red-400" />
+              <XCircle className="w-8 h-8 text-rose-600" />
             </div>
           </div>
         </div>
 
         {/* Detailed statistics */}
-        <div className="mt-4 pt-4 border-t border-blue-800/50">
+        <div className="mt-4 pt-4 border-t border-slate-200">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-black/30 p-3 rounded-lg border border-blue-800/30">
-              <div className="text-sm font-medium text-blue-300 mb-2">Répartition par statut</div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="text-sm font-medium text-slate-500 mb-2">Répartition par statut</div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Validées:</span>
+                  <span className="text-sm text-slate-500">Validées:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-green-400">{summaryStats.validated.count}</span>
-                    <div className="text-xs text-blue-300">{formatCurrency(summaryStats.validated.amount)}</div>
+                    <span className="font-semibold text-emerald-600">{summaryStats.validated.count}</span>
+                    <div className="text-xs text-slate-500">{formatCurrency(summaryStats.validated.amount)}</div>
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">En attente:</span>
+                  <span className="text-sm text-slate-500">En attente:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-yellow-400">{summaryStats.pending.count}</span>
-                    <div className="text-xs text-blue-300">{formatCurrency(summaryStats.pending.amount)}</div>
+                    <span className="font-semibold text-amber-600">{summaryStats.pending.count}</span>
+                    <div className="text-xs text-slate-500">{formatCurrency(summaryStats.pending.amount)}</div>
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Rejetées:</span>
+                  <span className="text-sm text-slate-500">Rejetées:</span>
                   <div className="text-right">
-                    <span className="font-semibold text-red-400">{summaryStats.rejected?.count || 0}</span>
-                    <div className="text-xs text-blue-300">{formatCurrency(summaryStats.rejected?.amount || 0)}</div>
+                    <span className="font-semibold text-rose-600">{summaryStats.rejected?.count || 0}</span>
+                    <div className="text-xs text-slate-500">{formatCurrency(summaryStats.rejected?.amount || 0)}</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-black/30 p-3 rounded-lg border border-blue-800/30">
-              <div className="text-sm font-medium text-blue-300 mb-2">Montants totaux</div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="text-sm font-medium text-slate-500 mb-2">Montants totaux</div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Total général:</span>
-                  <span className="font-bold text-white">{formatCurrency(summaryStats.totalAmount)}</span>
+                  <span className="text-sm text-slate-500">Total général:</span>
+                  <span className="font-bold text-slate-950">{formatCurrency(summaryStats.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Montant moyen:</span>
-                  <span className="font-medium text-white">
+                  <span className="text-sm text-slate-500">Montant moyen:</span>
+                  <span className="font-medium text-slate-950">
                     {summaryStats.totalRecords > 0 
                       ? formatCurrency(summaryStats.totalAmount / summaryStats.totalRecords)
                       : formatCurrency(0)
@@ -1219,8 +1219,8 @@ export default function SortieHistory() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Taux de validation:</span>
-                  <span className="font-medium text-green-400">
+                  <span className="text-sm text-slate-500">Taux de validation:</span>
+                  <span className="font-medium text-emerald-600">
                     {summaryStats.totalRecords > 0 
                       ? `${((summaryStats.validated.count / summaryStats.totalRecords) * 100).toFixed(1)}%`
                       : '0%'
@@ -1230,20 +1230,20 @@ export default function SortieHistory() {
               </div>
             </div>
 
-            <div className="bg-black/30 p-3 rounded-lg border border-blue-800/30">
-              <div className="text-sm font-medium text-blue-300 mb-2">Informations temporelles</div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="text-sm font-medium text-slate-500 mb-2">Informations temporelles</div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Période:</span>
-                  <span className="text-sm font-medium text-white">{timeframeDescription}</span>
+                  <span className="text-sm text-slate-500">Période:</span>
+                  <span className="text-sm font-medium text-slate-950">{timeframeDescription}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Dernière mise à jour:</span>
-                  <span className="text-sm text-white">{new Date().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Johannesburg' })}</span>
+                  <span className="text-sm text-slate-500">Dernière mise à jour:</span>
+                  <span className="text-sm text-slate-900">{new Date().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Johannesburg' })}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-blue-300">Données filtrées:</span>
-                  <span className="text-sm text-white">{filteredExpenses.length} / {expenses.length}</span>
+                  <span className="text-sm text-slate-500">Données filtrées:</span>
+                  <span className="text-sm text-slate-900">{filteredExpenses.length} / {expenses.length}</span>
                 </div>
               </div>
             </div>
@@ -1254,22 +1254,22 @@ export default function SortieHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-blue-950 to-black p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-              <History className="w-8 h-8 text-blue-400" />
+            <h1 className="text-3xl font-bold text-slate-950 flex items-center gap-2">
+              <History className="w-8 h-8 text-blue-600" />
               Historique des Sorties de Caisse
             </h1>
-            <p className="text-blue-200/70">
+            <p className="text-slate-600">
               {userPermissions.isAdmin
                 ? "Gestion et validation des dépenses"
                 : "Consultation des dépenses du jour"}
             </p>
             {!userPermissions.isAdmin && (
-              <div className="mt-2 text-sm text-blue-300 bg-blue-900/50 px-3 py-1 rounded-md border border-blue-700/30 inline-block">
+              <div className="mt-2 text-sm text-blue-700 bg-blue-50 px-3 py-1 rounded-md border border-blue-200 inline-block">
                 🔒 Vue limitée aux dépenses d'aujourd'hui uniquement
               </div>
             )}
@@ -1284,11 +1284,11 @@ export default function SortieHistory() {
               Actualiser
             </button>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Rechercher des dépenses..."
-                className="pl-10 w-64 px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="pl-10 w-64 px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1300,9 +1300,9 @@ export default function SortieHistory() {
         <SummaryStats />
 
         {/* Timeframe Filter Section */}
-        <div className="bg-gradient-to-br from-gray-900 to-blue-950 p-4 sm:p-6 rounded-lg shadow-xl border border-blue-800/50">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-xl border border-slate-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <h3 className="text-lg font-semibold text-blue-400 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-blue-600 flex items-center gap-2">
               <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
               Filtre par période ({getTimeframeLabel()})
             </h3>
@@ -1310,7 +1310,7 @@ export default function SortieHistory() {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-3 py-2 text-sm bg-blue-900/30 hover:bg-blue-800/50 text-blue-300 rounded-lg flex items-center gap-2 border border-blue-800/30"
+                className="px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg flex items-center gap-2 border border-blue-200"
               >
                 <Filter className="w-4 h-4" />
                 {showFilters ? "Hide Filters" : "Show Filters"}
@@ -1319,7 +1319,7 @@ export default function SortieHistory() {
               
               <button
                 onClick={clearAllFilters}
-                className="px-3 py-2 text-sm bg-blue-900/30 hover:bg-blue-800/50 text-blue-300 rounded-lg flex items-center gap-2 border border-blue-800/30"
+                className="px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg flex items-center gap-2 border border-blue-200"
               >
                 <RefreshCw className="w-4 h-4" />
                 Clear Filters
@@ -1331,7 +1331,7 @@ export default function SortieHistory() {
           {showFilters && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-blue-300 mb-2">
+                <label className="block text-sm font-medium text-slate-500 mb-2">
                   Type de période
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -1343,7 +1343,7 @@ export default function SortieHistory() {
                       className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border ${
                         timeframeType === type
                           ? "bg-gradient-to-r from-blue-600 to-blue-800 text-white border-blue-400/30 shadow-lg"
-                          : "bg-blue-900/30 text-blue-300 hover:bg-blue-800/50 border-blue-800/30"
+                          : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
                       } ${!userPermissions.isAdmin && type !== "day" ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {type === "today" && "Aujourd'hui"}
@@ -1360,14 +1360,14 @@ export default function SortieHistory() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {timeframeType === "day" && (
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Date
                     </label>
                     <input
                       type="date"
                       value={queryParams.date}
                       onChange={(e) => handleQueryParamChange("date", e.target.value)}
-                      className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       disabled={!userPermissions.isAdmin}
                     />
                   </div>
@@ -1376,32 +1376,32 @@ export default function SortieHistory() {
                 {timeframeType === "month" && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Année
                       </label>
                       <select
                         value={queryParams.year}
                         onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       >
                         {getAvailableYears().map(year => (
-                          <option key={year} value={year} className="bg-gray-900">{year}</option>
+                          <option key={year} value={year} className="bg-white">{year}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Mois
                       </label>
                       <select
                         value={queryParams.month}
                         onChange={(e) => handleQueryParamChange("month", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       >
                         {Array.from({ length: 12 }, (_, i) => {
                           const monthNum = (i + 1).toString().padStart(2, '0');
                           return (
-                            <option key={monthNum} value={monthNum} className="bg-gray-900">
+                            <option key={monthNum} value={monthNum} className="bg-white">
                               {new Date(2000, i).toLocaleString('fr-FR', { timeZone: 'Africa/Johannesburg', month: 'long' })} ({monthNum})
                             </option>
                           );
@@ -1413,16 +1413,16 @@ export default function SortieHistory() {
 
                 {timeframeType === "year" && (
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Année
                     </label>
                     <select
                       value={queryParams.year}
                       onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                      className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                     >
                       {getAvailableYears().map(year => (
-                        <option key={year} value={year} className="bg-gray-900">{year}</option>
+                        <option key={year} value={year} className="bg-white">{year}</option>
                       ))}
                     </select>
                   </div>
@@ -1431,25 +1431,25 @@ export default function SortieHistory() {
                 {timeframeType === "custom" && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Date de début
                       </label>
                       <input
                         type="date"
                         value={queryParams.from}
                         onChange={(e) => handleQueryParamChange("from", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Date de fin
                       </label>
                       <input
                         type="date"
                         value={queryParams.to}
                         onChange={(e) => handleQueryParamChange("to", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       />
                     </div>
                   </>
@@ -1460,51 +1460,51 @@ export default function SortieHistory() {
               <div>
                 <button
                   onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
                 >
                   {showAdvancedFilters ? "Hide Advanced Filters" : "Show Advanced Filters"}
                   <ChevronDown className={`w-4 h-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showAdvancedFilters && (
-                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-black/30 rounded-lg border border-blue-800/30">
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Statut
                       </label>
                       <select
                         value={queryParams.status}
                         onChange={(e) => handleQueryParamChange("status", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       >
-                        <option value="" className="bg-gray-900">Tous les statuts</option>
-                        <option value="pending" className="bg-gray-900">En attente</option>
-                        <option value="validated" className="bg-gray-900">Validées</option>
-                        <option value="rejected" className="bg-gray-900">Rejetées</option>
-                        <option value="all" className="bg-gray-900">Toutes</option>
+                        <option value="" className="bg-white">Tous les statuts</option>
+                        <option value="pending" className="bg-white">En attente</option>
+                        <option value="validated" className="bg-white">Validées</option>
+                        <option value="rejected" className="bg-white">Rejetées</option>
+                        <option value="all" className="bg-white">Toutes</option>
                       </select>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Méthode de paiement
                       </label>
                       <select
                         value={queryParams.paymentMethod}
                         onChange={(e) => handleQueryParamChange("paymentMethod", e.target.value)}
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       >
-                        <option value="" className="bg-gray-900">Toutes</option>
-                        <option value="cash" className="bg-gray-900">Espèces</option>
-                        <option value="card" className="bg-gray-900">Carte</option>
-                        <option value="bank" className="bg-gray-900">Banque</option>
-                        <option value="mpesa" className="bg-gray-900">M-Pesa</option>
-                        <option value="other" className="bg-gray-900">Autre</option>
+                        <option value="" className="bg-white">Toutes</option>
+                        <option value="cash" className="bg-white">Espèces</option>
+                        <option value="card" className="bg-white">Carte</option>
+                        <option value="bank" className="bg-white">Banque</option>
+                        <option value="mpesa" className="bg-white">M-Pesa</option>
+                        <option value="other" className="bg-white">Autre</option>
                       </select>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Enregistré par
                       </label>
                       <input
@@ -1512,7 +1512,7 @@ export default function SortieHistory() {
                         value={queryParams.recordedBy}
                         onChange={(e) => handleQueryParamChange("recordedBy", e.target.value)}
                         placeholder="Filtrer par enregistreur..."
-                        className="w-full p-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                       />
                     </div>
                   </div>
@@ -1523,8 +1523,8 @@ export default function SortieHistory() {
 
           {/* Applied Filters Summary */}
           {appliedFilters && (
-            <div className="mt-4 text-sm text-blue-300 bg-black/30 p-2 rounded-lg border border-blue-800/30">
-              <span className="font-medium text-blue-400">Filtres appliqués:</span>
+            <div className="mt-4 text-sm text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200">
+              <span className="font-medium text-blue-600">Filtres appliqués:</span>
               <span className="ml-2">
                 Statut: {appliedFilters.status}, 
                 Paiement: {appliedFilters.paymentMethod}
@@ -1537,16 +1537,16 @@ export default function SortieHistory() {
 
         {/* User restriction notice */}
         {!userPermissions.isAdmin && (
-          <div className="bg-yellow-900/30 border border-yellow-700/30 rounded-lg p-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-yellow-400" />
+                <AlertCircle className="h-5 w-5 text-amber-600" />
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-300">
+                <h3 className="text-sm font-medium text-amber-800">
                   Accès limité
                 </h3>
-                <div className="mt-1 text-sm text-yellow-200">
+                <div className="mt-1 text-sm text-amber-700">
                   <p>
                     Vous ne pouvez voir que les dépenses d'aujourd'hui. Seul
                     l'administrateur peut accéder à l'historique complet.
@@ -1558,11 +1558,11 @@ export default function SortieHistory() {
         )}
 
         {message && (
-          <div className="mb-4 p-3 bg-green-900/50 border border-green-700/50 text-green-300 rounded-lg">
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg">
             {message}
             <button
               onClick={() => setMessage(null)}
-              className="float-right text-green-300 hover:text-green-100"
+              className="float-right text-emerald-700 hover:text-emerald-900"
             >
               ×
             </button>
@@ -1570,11 +1570,11 @@ export default function SortieHistory() {
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-700/50 text-red-300 rounded-lg">
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg">
             {error}
             <button
               onClick={() => setError(null)}
-              className="float-right text-red-300 hover:text-red-100"
+              className="float-right text-rose-700 hover:text-rose-900"
             >
               ×
             </button>
@@ -1582,9 +1582,9 @@ export default function SortieHistory() {
         )}
 
         {/* Main Table */}
-        <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-lg shadow-xl border border-blue-800/50">
-          <div className="px-6 py-4 border-b border-blue-800/50">
-            <h2 className="text-lg font-semibold text-blue-400 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-xl border border-slate-200">
+          <div className="px-6 py-4 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-blue-600 flex items-center gap-2">
               <FileText className="w-5 h-5" />
               {userPermissions.isAdmin ? "Dépenses en attente et validées" : "Dépenses du jour"} (
               {filteredExpenses.length})
@@ -1595,66 +1595,66 @@ export default function SortieHistory() {
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
-                <p className="text-blue-300 mt-2">Chargement des dépenses...</p>
+                <p className="text-slate-500 mt-2">Chargement des dépenses...</p>
               </div>
             ) : filteredExpenses.length === 0 ? (
-              <div className="text-center py-12 text-blue-300">
-                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50 text-blue-400" />
+              <div className="text-center py-12 text-slate-500">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50 text-blue-600" />
                 <p>Aucune dépense trouvée</p>
-                <p className="text-sm text-blue-300/70">pour la période sélectionnée</p>
+                <p className="text-sm text-slate-500">pour la période sélectionnée</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-blue-800/30">
-                <thead className="bg-black/50">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       ID Dépense
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Raison
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Bénéficiaire
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Montant
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Paiement
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Statut
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-blue-300 uppercase tracking-wider sticky right-0 bg-black/95 sm:bg-black/50 z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] min-w-[9.5rem] sm:min-w-[12rem]">
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider sticky right-0 bg-white sm:bg-white z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.08)] min-w-[9.5rem] sm:min-w-[12rem]">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-blue-800/30">
+                <tbody className="divide-y divide-slate-100">
                   {filteredExpenses.map((expense) => (
-                    <tr key={expense._id} className="hover:bg-blue-900/20 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                    <tr key={expense._id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-950">
                         {expense.expenseId}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                         {expense.reason}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-white">
+                        <div className="text-sm text-slate-900">
                           {expense.recipientName}
                         </div>
-                        <div className="text-sm text-blue-300">
+                        <div className="text-sm text-slate-500">
                           {expense.recipientPhone}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-400">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-emerald-600">
                         {formatCurrency(expense.amount)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700/30">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
                           {expense.paymentMethod}
                         </span>
                       </td>
@@ -1662,10 +1662,10 @@ export default function SortieHistory() {
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                             expense.status === "validated"
-                              ? "bg-green-900/50 text-green-400 border border-green-700/30"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               : expense.status === "rejected"
-                              ? "bg-red-900/50 text-red-400 border border-red-700/30"
-                              : "bg-yellow-900/50 text-yellow-400 border border-yellow-700/30"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
                           }`}
                         >
                           {expense.status === "validated"
@@ -1675,14 +1675,14 @@ export default function SortieHistory() {
                             : "En attente"}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-300">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                         {formatDate(expense.createdAt)}
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm font-medium sticky right-0 bg-gray-900/95 sm:bg-gray-900/80 lg:bg-transparent z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.4)] lg:shadow-none min-w-[9.5rem] sm:min-w-[12rem]">
+                      <td className="px-3 sm:px-6 py-4 text-sm font-medium sticky right-0 bg-white sm:bg-white lg:bg-transparent z-20 shadow-[-8px_0_8px_-4px_rgba(0,0,0,0.08)] lg:shadow-none min-w-[9.5rem] sm:min-w-[12rem]">
                         <div className="grid grid-cols-3 sm:flex sm:flex-wrap justify-center gap-2">
                           <button
                             onClick={() => viewExpenseDetails(expense)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-500/40 bg-blue-900/60 text-blue-200 shadow-sm shadow-blue-950/40 transition-colors hover:bg-blue-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition-colors hover:bg-blue-100 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
                             title="Voir les détails"
                           >
                             <Eye className="w-5 h-5" />
@@ -1691,7 +1691,7 @@ export default function SortieHistory() {
                           {/* History button */}
                           <button
                             onClick={() => fetchExpenseHistory(expense._id)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-500/40 bg-slate-800/70 text-slate-200 shadow-sm shadow-slate-950/40 transition-colors hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-400"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-slate-600 shadow-sm transition-colors hover:bg-slate-200 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
                             title="Voir l'historique"
                           >
                             <History className="w-5 h-5" />
@@ -1707,7 +1707,7 @@ export default function SortieHistory() {
                                   disabled={
                                     actionLoading === `validating-${expense._id}`
                                   }
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-green-500/40 bg-green-900/60 text-green-200 shadow-sm shadow-green-950/40 transition-colors hover:bg-green-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-green-400 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm transition-colors hover:bg-emerald-100 hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Valider la dépense"
                                 >
                                   <CheckCircle className="w-5 h-5" />
@@ -1717,7 +1717,7 @@ export default function SortieHistory() {
                                   disabled={
                                     actionLoading === `validating-${expense._id}`
                                   }
-                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-500/40 bg-red-900/60 text-red-200 shadow-sm shadow-red-950/40 transition-colors hover:bg-red-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Rejeter la dépense"
                                 >
                                   <XCircle className="w-5 h-5" />
@@ -1729,7 +1729,7 @@ export default function SortieHistory() {
                           {canEditExpense(expense) && (
                             <button
                               onClick={() => openEditModal(expense)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-yellow-500/40 bg-yellow-900/60 text-yellow-100 shadow-sm shadow-yellow-950/40 transition-colors hover:bg-yellow-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-600 shadow-sm transition-colors hover:bg-amber-100 hover:text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
                               title="Modifier la dépense"
                             >
                               <Edit className="w-5 h-5" />
@@ -1740,7 +1740,7 @@ export default function SortieHistory() {
                           {canDeleteExpense(expense) && (
                             <button
                               onClick={() => openDeleteModal(expense)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-500/40 bg-red-900/60 text-red-200 shadow-sm shadow-red-950/40 transition-colors hover:bg-red-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
                               title="Supprimer la dépense"
                             >
                               <Trash2 className="w-5 h-5" />
@@ -1751,7 +1751,7 @@ export default function SortieHistory() {
                           {expense.status === "validated" && (
                             <button
                               onClick={() => printExpenseReceipt(expense)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-purple-500/40 bg-purple-900/60 text-purple-200 shadow-sm shadow-purple-950/40 transition-colors hover:bg-purple-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-600 shadow-sm transition-colors hover:bg-purple-100 hover:text-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
                               title="Imprimer le reçu"
                             >
                               <Printer className="w-5 h-5" />
@@ -1770,15 +1770,15 @@ export default function SortieHistory() {
         {/* Expense Details Modal */}
         {showModal && selectedExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-800/50 shadow-2xl">
-              <div className="px-6 py-4 border-b border-blue-800/50 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-blue-400" />
+            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-blue-600" />
                   Détails de la Dépense
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -1788,40 +1788,40 @@ export default function SortieHistory() {
                 {/* Expense Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       ID Dépense
                     </label>
-                    <p className="text-sm text-white bg-black/30 p-2 rounded border border-blue-800/30">
+                    <p className="text-sm font-semibold text-slate-950 bg-slate-50 p-2 rounded border border-slate-200">
                       {selectedExpense.expenseId}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Date
                     </label>
-                    <p className="text-sm text-white bg-black/30 p-2 rounded border border-blue-800/30">
+                    <p className="text-sm text-slate-900 bg-slate-50 p-2 rounded border border-slate-200">
                       {formatDate(selectedExpense.createdAt)}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Méthode de Paiement
                     </label>
-                    <p className="text-sm text-white bg-black/30 p-2 rounded border border-blue-800/30 capitalize">
+                    <p className="text-sm text-slate-900 bg-slate-50 p-2 rounded border border-slate-200 capitalize">
                       {selectedExpense.paymentMethod}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Statut
                     </label>
                     <span
                       className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium capitalize ${
                         selectedExpense.status === "validated"
-                          ? "bg-green-900/50 text-green-400 border border-green-700/30"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : selectedExpense.status === "rejected"
-                          ? "bg-red-900/50 text-red-400 border border-red-700/30"
-                          : "bg-yellow-900/50 text-yellow-400 border border-yellow-700/30"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
                       }`}
                     >
                       {selectedExpense.status === "validated"
@@ -1832,10 +1832,10 @@ export default function SortieHistory() {
                     </span>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Enregistré par
                     </label>
-                    <p className="text-sm text-white bg-black/30 p-2 rounded border border-blue-800/30">
+                    <p className="text-sm text-slate-900 bg-slate-50 p-2 rounded border border-slate-200">
                       {selectedExpense.recordedBy}
                     </p>
                   </div>
@@ -1843,26 +1843,26 @@ export default function SortieHistory() {
 
                 {/* Reason and Amount */}
                 <div>
-                  <h4 className="text-md font-medium text-blue-400 mb-3 flex items-center gap-2 border-b border-blue-800/50 pb-2">
+                  <h4 className="text-md font-medium text-blue-600 mb-3 flex items-center gap-2 border-b border-slate-200 pb-2">
                     <FileText className="w-4 h-4" />
                     Détails de la Dépense
                   </h4>
-                  <div className="bg-black/30 rounded-lg p-4 border border-blue-800/30">
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-500 mb-1">
                           Raison
                         </label>
-                        <p className="text-sm text-white">
+                        <p className="text-sm text-slate-900">
                           {selectedExpense.reason}
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-blue-300 mb-1">
+                          <label className="block text-sm font-medium text-slate-500 mb-1">
                             Montant
                           </label>
-                          <p className="text-lg font-semibold text-green-400">
+                          <p className="text-lg font-semibold text-emerald-600">
                             {formatCurrency(selectedExpense.amount)}
                           </p>
                         </div>
@@ -1873,25 +1873,25 @@ export default function SortieHistory() {
 
                 {/* Recipient Information */}
                 <div>
-                  <h4 className="text-md font-medium text-blue-400 mb-3 flex items-center gap-2 border-b border-blue-800/50 pb-2">
+                  <h4 className="text-md font-medium text-blue-600 mb-3 flex items-center gap-2 border-b border-slate-200 pb-2">
                     <User className="w-4 h-4" />
                     Information du Bénéficiaire
                   </h4>
-                  <div className="bg-black/30 rounded-lg p-4 border border-blue-800/30">
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-500 mb-1">
                           Nom
                         </label>
-                        <p className="text-sm text-white">
+                        <p className="text-sm text-slate-900">
                           {selectedExpense.recipientName}
                         </p>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-500 mb-1">
                           Téléphone
                         </label>
-                        <p className="text-sm text-white">
+                        <p className="text-sm text-slate-900">
                           {selectedExpense.recipientPhone}
                         </p>
                       </div>
@@ -1902,11 +1902,11 @@ export default function SortieHistory() {
                 {/* Notes */}
                 {selectedExpense.notes && (
                   <div>
-                    <h4 className="text-md font-medium text-blue-400 mb-3">
+                    <h4 className="text-md font-medium text-blue-600 mb-3">
                       Notes supplémentaires
                     </h4>
-                    <div className="bg-black/30 rounded-lg p-4 border border-blue-800/30">
-                      <p className="text-sm text-white whitespace-pre-line">
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <p className="text-sm text-slate-900 whitespace-pre-line">
                         {selectedExpense.notes}
                       </p>
                     </div>
@@ -1914,7 +1914,7 @@ export default function SortieHistory() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-4 border-t border-blue-800/50">
+                <div className="flex gap-3 pt-4 border-t border-slate-200">
                   {/* History button */}
                   <button
                     onClick={() => fetchExpenseHistory(selectedExpense._id)}
@@ -1964,7 +1964,7 @@ export default function SortieHistory() {
                   )}
                   <button
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 text-blue-300 transition-colors"
+                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-blue-50 text-blue-700 transition-colors"
                   >
                     Fermer
                   </button>
@@ -1977,15 +1977,15 @@ export default function SortieHistory() {
         {/* Validation Modal */}
         {showValidationModal && validatingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-md w-full mx-4 border border-blue-800/50 shadow-2xl">
-              <div className="px-6 py-4 border-b border-blue-800/50 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-400" />
+            <div className="bg-white rounded-xl max-w-md w-full mx-4 border border-slate-200 shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
                   Validation de Dépense
                 </h3>
                 <button
                   onClick={closeValidationModal}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -1993,23 +1993,23 @@ export default function SortieHistory() {
 
               <div className="p-6">
                 <div className="text-center mb-6">
-                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-900/50 border border-blue-700/30 mb-4">
-                    <DollarSign className="h-6 w-6 text-blue-400" />
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-50 border border-blue-200 mb-4">
+                    <DollarSign className="h-6 w-6 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-medium text-white mb-2">
+                  <h3 className="text-lg font-medium text-slate-950 mb-2">
                     Confirmer la validation
                   </h3>
-                  <p className="text-sm text-blue-300">
+                  <p className="text-sm text-slate-500">
                     Voulez-vous valider ou rejeter cette dépense ?
                   </p>
-                  <div className="mt-4 p-4 bg-black/30 rounded-lg border border-blue-800/30">
-                    <p className="text-sm font-medium text-white">
+                  <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-medium text-slate-950">
                       {validatingExpense.reason}
                     </p>
-                    <p className="text-lg font-bold text-green-400 mt-1">
+                    <p className="text-lg font-bold text-emerald-600 mt-1">
                       {formatCurrency(validatingExpense.amount)}
                     </p>
-                    <p className="text-sm text-blue-300 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       Pour: {validatingExpense.recipientName}
                     </p>
                   </div>
@@ -2047,7 +2047,7 @@ export default function SortieHistory() {
                 </div>
 
                 <div className="mt-4 text-center">
-                  <p className="text-xs text-blue-300">
+                  <p className="text-xs text-slate-500">
                     <strong>Rejeter:</strong> La dépense sera supprimée dans 3
                     secondes
                     <br />
@@ -2063,15 +2063,15 @@ export default function SortieHistory() {
         {/* Edit Expense Modal */}
         {showEditModal && editingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-800/50 shadow-2xl">
-              <div className="px-6 py-4 border-b border-blue-800/50 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Edit className="w-5 h-5 text-blue-400" />
+            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                  <Edit className="w-5 h-5 text-blue-600" />
                   Modifier la Dépense
                 </h3>
                 <button
                   onClick={closeEditModal}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -2079,14 +2079,14 @@ export default function SortieHistory() {
 
               <div className="p-6 space-y-6">
                 {requiresUpdateReason(editingExpense) && (
-                  <div className="bg-yellow-900/30 border border-yellow-700/30 rounded-lg p-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <div className="flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-yellow-400" />
-                      <span className="text-sm font-medium text-yellow-300">
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+                      <span className="text-sm font-medium text-amber-800">
                         Modification d'une dépense {editingExpense.status}
                       </span>
                     </div>
-                    <p className="text-sm text-yellow-200 mt-2">
+                    <p className="text-sm text-amber-700 mt-2">
                       Vous modifiez une dépense {editingExpense.status}. Veuillez
                       fournir une raison pour cette modification.
                     </p>
@@ -2095,7 +2095,7 @@ export default function SortieHistory() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Raison de la dépense *
                     </label>
                     <input
@@ -2104,14 +2104,14 @@ export default function SortieHistory() {
                       onChange={(e) =>
                         setEditForm({ ...editForm, reason: e.target.value })
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       required
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Nom du bénéficiaire *
                       </label>
                       <input
@@ -2120,13 +2120,13 @@ export default function SortieHistory() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, recipientName: e.target.value })
                         }
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Téléphone du bénéficiaire *
                       </label>
                       <input
@@ -2135,7 +2135,7 @@ export default function SortieHistory() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, recipientPhone: e.target.value })
                         }
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                         required
                       />
                     </div>
@@ -2143,7 +2143,7 @@ export default function SortieHistory() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Montant (USD) *
                       </label>
                       <input
@@ -2154,13 +2154,13 @@ export default function SortieHistory() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, amount: e.target.value })
                         }
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Méthode de paiement *
                       </label>
                       <select
@@ -2168,20 +2168,20 @@ export default function SortieHistory() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, paymentMethod: e.target.value })
                         }
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       >
-                        <option value="cash" className="bg-gray-900">Espèces</option>
-                        <option value="card" className="bg-gray-900">Carte</option>
-                        <option value="bank" className="bg-gray-900">Virement bancaire</option>
-                        <option value="mpesa" className="bg-gray-900">M-Pesa</option>
-                        <option value="other" className="bg-gray-900">Autre</option>
+                        <option value="cash" className="bg-white">Espèces</option>
+                        <option value="card" className="bg-white">Carte</option>
+                        <option value="bank" className="bg-white">Virement bancaire</option>
+                        <option value="mpesa" className="bg-white">M-Pesa</option>
+                        <option value="other" className="bg-white">Autre</option>
                       </select>
                     </div>
                   </div>
 
                   {requiresUpdateReason(editingExpense) && (
                     <div>
-                      <label className="block text-sm font-medium text-blue-300 mb-1">
+                      <label className="block text-sm font-medium text-slate-500 mb-1">
                         Raison de la modification *
                       </label>
                       <textarea
@@ -2189,12 +2189,12 @@ export default function SortieHistory() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, updateReason: e.target.value })
                         }
-                        className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                         rows={3}
                         placeholder="Expliquez pourquoi vous modifiez cette dépense..."
                         required
                       />
-                      <p className="text-xs text-blue-300/50 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         Cette raison sera enregistrée dans l'historique de la
                         dépense.
                       </p>
@@ -2202,7 +2202,7 @@ export default function SortieHistory() {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-500 mb-1">
                       Notes supplémentaires (optionnel)
                     </label>
                     <textarea
@@ -2210,14 +2210,14 @@ export default function SortieHistory() {
                       onChange={(e) =>
                         setEditForm({ ...editForm, notes: e.target.value })
                       }
-                      className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                       rows={3}
                       placeholder="Ajoutez des notes supplémentaires..."
                     />
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-blue-800/50">
+                <div className="flex gap-3 pt-4 border-t border-slate-200">
                   <button
                     onClick={handleEditExpense}
                     disabled={actionLoading === `editing-${editingExpense._id}`}
@@ -2232,7 +2232,7 @@ export default function SortieHistory() {
                   </button>
                   <button
                     onClick={closeEditModal}
-                    className="px-4 py-2 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 text-blue-300 transition-colors"
+                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-blue-50 text-blue-700 transition-colors"
                   >
                     Annuler
                   </button>
@@ -2245,15 +2245,15 @@ export default function SortieHistory() {
         {/* Delete Expense Modal */}
         {showDeleteModal && deletingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-md w-full mx-4 border border-blue-800/50 shadow-2xl">
-              <div className="px-6 py-4 border-b border-blue-800/50 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Trash2 className="w-5 h-5 text-red-400" />
+            <div className="bg-white rounded-xl max-w-md w-full mx-4 border border-slate-200 shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
                   Supprimer la Dépense
                 </h3>
                 <button
                   onClick={closeDeleteModal}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -2261,34 +2261,34 @@ export default function SortieHistory() {
 
               <div className="p-6">
                 <div className="text-center mb-6">
-                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-900/50 border border-red-700/30 mb-4">
-                    <Trash2 className="h-6 w-6 text-red-400" />
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-rose-50 border border-rose-200 mb-4">
+                    <Trash2 className="h-6 w-6 text-rose-600" />
                   </div>
-                  <h3 className="text-lg font-medium text-white mb-2">
+                  <h3 className="text-lg font-medium text-slate-950 mb-2">
                     Confirmer la suppression
                   </h3>
-                  <p className="text-sm text-blue-300">
+                  <p className="text-sm text-slate-500">
                     Êtes-vous sûr de vouloir supprimer cette dépense ?
                   </p>
-                  <div className="mt-4 p-4 bg-black/30 rounded-lg border border-blue-800/30">
-                    <p className="text-sm font-medium text-white">
+                  <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm font-medium text-slate-950">
                       {deletingExpense.reason}
                     </p>
-                    <p className="text-lg font-bold text-green-400 mt-1">
+                    <p className="text-lg font-bold text-emerald-600 mt-1">
                       {formatCurrency(deletingExpense.amount)}
                     </p>
-                    <p className="text-sm text-blue-300 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       Pour: {deletingExpense.recipientName}
                     </p>
-                    <p className="text-sm text-blue-300 mt-1">
+                    <p className="text-sm text-slate-500 mt-1">
                       Statut:{" "}
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                           deletingExpense.status === "validated"
-                            ? "bg-green-900/50 text-green-400 border border-green-700/30"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : deletingExpense.status === "rejected"
-                            ? "bg-red-900/50 text-red-400 border border-red-700/30"
-                            : "bg-yellow-900/50 text-yellow-400 border border-yellow-700/30"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                       >
                         {deletingExpense.status === "validated"
@@ -2301,14 +2301,14 @@ export default function SortieHistory() {
                   </div>
 
                   {deletingExpense.status !== "pending" && (
-                    <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-700/30 rounded-lg">
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-yellow-400" />
-                        <span className="text-sm font-medium text-yellow-300">
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        <span className="text-sm font-medium text-amber-800">
                           Attention: Dépense {deletingExpense.status}
                         </span>
                       </div>
-                      <p className="text-xs text-yellow-200 mt-1">
+                      <p className="text-xs text-amber-700 mt-1">
                         Vous êtes sur le point de supprimer une dépense{" "}
                         {deletingExpense.status}. Cette action est permanente et
                         enverra une notification aux administrateurs.
@@ -2319,13 +2319,13 @@ export default function SortieHistory() {
                   {userPermissions.isAdmin &&
                     deletingExpense.status !== "pending" && (
                       <div className="mt-4">
-                        <label className="block text-sm font-medium text-blue-300 mb-1">
+                        <label className="block text-sm font-medium text-slate-500 mb-1">
                           Raison de la suppression (optionnel)
                         </label>
                         <textarea
                           value={deleteReason}
                           onChange={(e) => setDeleteReason(e.target.value)}
-                          className="w-full px-3 py-2 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                           rows={2}
                           placeholder="Expliquez pourquoi vous supprimez cette dépense..."
                         />
@@ -2348,14 +2348,14 @@ export default function SortieHistory() {
                   </button>
                   <button
                     onClick={closeDeleteModal}
-                    className="px-4 py-2 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 text-blue-300 transition-colors"
+                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-blue-50 text-blue-700 transition-colors"
                   >
                     Annuler
                   </button>
                 </div>
 
                 <div className="mt-4 text-center">
-                  <p className="text-xs text-blue-300">
+                  <p className="text-xs text-slate-500">
                     <strong>Note:</strong> Cette action ne peut pas être annulée.
                     {deletingExpense.status === "validated" &&
                       " Les administrateurs seront notifiés par email."}
@@ -2369,15 +2369,15 @@ export default function SortieHistory() {
         {/* Expense History Modal */}
         {showHistoryModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-gray-900 to-blue-950 rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-blue-800/50 shadow-2xl">
-              <div className="px-6 py-4 border-b border-blue-800/50 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <History className="w-5 h-5 text-blue-400" />
+            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                  <History className="w-5 h-5 text-blue-600" />
                   Historique de la Dépense
                 </h3>
                 <button
                   onClick={closeHistoryModal}
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-600 hover:text-blue-700 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -2387,29 +2387,29 @@ export default function SortieHistory() {
                 {historyLoading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
-                    <p className="text-blue-300 mt-2">Chargement de l'historique...</p>
+                    <p className="text-slate-500 mt-2">Chargement de l'historique...</p>
                   </div>
                 ) : expenseHistory.length === 0 ? (
-                  <div className="text-center py-8 text-blue-300">
-                    <History className="w-12 h-12 mx-auto mb-4 opacity-50 text-blue-400" />
+                  <div className="text-center py-8 text-slate-500">
+                    <History className="w-12 h-12 mx-auto mb-4 opacity-50 text-blue-600" />
                     <p>Aucun historique disponible</p>
-                    <p className="text-sm text-blue-300/70">pour cette dépense</p>
+                    <p className="text-sm text-slate-500">pour cette dépense</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-black/30 rounded-lg p-4 border border-blue-800/30">
-                      <p className="text-sm font-medium text-white">
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <p className="text-sm font-medium text-slate-950">
                         Dépense: {selectedExpense?.expenseId || "N/A"}
                       </p>
-                      <p className="text-sm text-blue-300 mt-1">
+                      <p className="text-sm text-slate-500 mt-1">
                         Statut actuel:{" "}
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                             selectedExpense?.status === "validated"
-                              ? "bg-green-900/50 text-green-400 border border-green-700/30"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               : selectedExpense?.status === "rejected"
-                              ? "bg-red-900/50 text-red-400 border border-red-700/30"
-                              : "bg-yellow-900/50 text-yellow-400 border border-yellow-700/30"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
                           }`}
                         >
                           {selectedExpense?.status === "validated"
@@ -2422,24 +2422,24 @@ export default function SortieHistory() {
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-md font-medium text-blue-400">
+                      <h4 className="text-md font-medium text-blue-600">
                         Journal des modifications
                       </h4>
                       <div className="space-y-3">
                         {expenseHistory.map((item, index) => (
                           <div
                             key={index}
-                            className="border-l-4 border-blue-600 pl-4 py-2 bg-black/30 rounded-r-lg border border-blue-800/30"
+                            className="border-l-4 border-blue-600 pl-4 py-2 bg-slate-50 rounded-r-lg border border-slate-200"
                           >
                             <div className="flex justify-between items-start">
-                              <p className="text-sm text-white font-medium">
+                              <p className="text-sm text-slate-950 font-medium">
                                 {item.action}
                               </p>
-                              <span className="text-xs text-blue-300">
+                              <span className="text-xs text-slate-500">
                                 {item.formattedDate}
                               </span>
                             </div>
-                            <p className="text-xs text-blue-300 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               {new Date(item.timestamp).toLocaleTimeString("fr-FR")}
                             </p>
                           </div>
@@ -2452,7 +2452,7 @@ export default function SortieHistory() {
                 <div className="flex gap-3 pt-6">
                   <button
                     onClick={closeHistoryModal}
-                    className="flex-1 px-4 py-2 border border-blue-800/50 rounded-lg hover:bg-blue-900/30 text-blue-300 transition-colors"
+                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg hover:bg-blue-50 text-blue-700 transition-colors"
                   >
                     Fermer
                   </button>

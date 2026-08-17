@@ -990,41 +990,41 @@ export default function Entry() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-blue-950 to-black p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header with Exchange Rate */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <DollarSign className="w-7 h-7 text-blue-400" />
+              <h2 className="text-2xl font-bold text-slate-950 flex items-center gap-2">
+                <DollarSign className="w-7 h-7 text-blue-600" />
                 Nouvelle Entrée d'Argent
               </h2>
-              <p className="text-blue-200/70 mt-1">
+              <p className="text-slate-600 mt-1">
                 Enregistrez une nouvelle entrée d'argent dans le système
               </p>
             </div>
             
             {/* Exchange Rate Display */}
-            <div className="bg-gradient-to-br from-blue-900 to-blue-950 border border-blue-700/50 rounded-xl p-4 min-w-[280px] shadow-lg">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-w-[280px] shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-blue-400" />
-                  <span className="font-semibold text-blue-200">Taux du jour:</span>
+                  <DollarSign className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-slate-600">Taux du jour:</span>
                 </div>
                 {loadingRate ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
                 ) : exchangeRate ? (
                   <div className="text-right">
-                    <div className="font-bold text-white text-lg">
+                    <div className="font-bold text-slate-950 text-lg">
                       1 USD = {new Intl.NumberFormat('fr-FR').format(exchangeRate.rate)} FC
                     </div>
-                    <div className="text-xs text-blue-300/70">
+                    <div className="text-xs text-slate-500">
                       Effectif depuis {new Date(exchangeRate.effectiveFrom).toLocaleDateString('fr-FR', { timeZone: 'Africa/Johannesburg' })}
                     </div>
                   </div>
                 ) : (
-                  <span className="text-red-400 text-sm">Taux non disponible</span>
+                  <span className="text-rose-600 text-sm">Taux non disponible</span>
                 )}
               </div>
             </div>
@@ -1032,34 +1032,34 @@ export default function Entry() {
         </div>
 
         {message && (
-          <div className="mb-4 p-3 bg-green-900/50 border border-green-700/50 text-green-300 rounded-xl">
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
             {message}
           </div>
         )}
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-700/50 text-red-300 rounded-xl">
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl">
             {error}
           </div>
         )}
 
         <form onSubmit={handleEntry} className="space-y-6">
           {/* Amount and Basic Info */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-            <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <DollarSign className="w-5 h-5 text-blue-400" />
+          <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-6">
+            <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
+              <DollarSign className="w-5 h-5 text-blue-600" />
               Informations de l'Entrée
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block font-medium text-blue-200">
+                  <label className="block font-medium text-slate-600">
                     Montant *
                   </label>
                   <button
                     type="button"
                     onClick={toggleCurrencyMode}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-blue-300 rounded-md transition-colors border border-blue-800/30"
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-md transition-colors border border-slate-200"
                   >
                     <Calculator className="w-3 h-3" />
                     {form.currencyMode === 'usd' ? 'USD → FC' : 'FC → USD'}
@@ -1074,7 +1074,7 @@ export default function Entry() {
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     placeholder="Entrer le montant en USD"
-                    className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                     min="0.01"
                     required
                   />
@@ -1085,7 +1085,7 @@ export default function Entry() {
                     value={form.amountInFC}
                     onChange={(e) => setForm({ ...form, amountInFC: e.target.value })}
                     placeholder="Entrer le montant en FC"
-                    className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                     min="1"
                     required
                   />
@@ -1093,31 +1093,31 @@ export default function Entry() {
                 
                 {/* Conversion Display */}
                 {form.amount && form.currencyMode === 'usd' && exchangeRate && (
-                  <p className="text-xs text-green-400 mt-1">
+                  <p className="text-xs text-emerald-600 mt-1">
                     ≈ {formatFc(parseFloat(form.amount) * exchangeRate.rate)}
                   </p>
                 )}
                 {form.amountInFC && form.currencyMode === 'fc' && exchangeRate && (
-                  <p className="text-xs text-green-400 mt-1">
+                  <p className="text-xs text-emerald-600 mt-1">
                     ≈ {formatCurrency(parseFloat(form.amountInFC) / exchangeRate.rate)}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   Source *
                 </label>
                 <select
                   name="source"
                   value={form.source}
                   onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   required
                 >
-                  <option value="" className="bg-gray-900">Sélectionner la source</option>
+                  <option value="" className="bg-white">Sélectionner la source</option>
                   {sources.map((source) => (
-                    <option key={source} value={source} className="bg-gray-900">
+                    <option key={source} value={source} className="bg-white">
                       {source}
                     </option>
                   ))}
@@ -1125,19 +1125,19 @@ export default function Entry() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   Catégorie *
                 </label>
                 <select
                   name="category"
                   value={form.category}
                   onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   required
                 >
-                  <option value="" className="bg-gray-900">Sélectionner la catégorie</option>
+                  <option value="" className="bg-white">Sélectionner la catégorie</option>
                   {categories.map((category) => (
-                    <option key={category} value={category} className="bg-gray-900">
+                    <option key={category} value={category} className="bg-white">
                       {category}
                     </option>
                   ))}
@@ -1145,27 +1145,27 @@ export default function Entry() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   Méthode de Paiement *
                 </label>
                 <select
                   name="paymentMethod"
                   value={form.paymentMethod}
                   onChange={handleChange}
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
                   required
                 >
-                  <option value="cash" className="bg-gray-900">Espèces</option>
-                  <option value="mpesa" className="bg-gray-900">M-Pesa ou Airtel Money (Transfert)</option>
-                  <option value="bank" className="bg-gray-900">Transfert Bancaire</option>
-                  <option value="card" className="bg-gray-900">Carte Visa</option>
-                  <option value="other" className="bg-gray-900">Autre</option>
+                  <option value="cash" className="bg-white">Espèces</option>
+                  <option value="mpesa" className="bg-white">M-Pesa ou Airtel Money (Transfert)</option>
+                  <option value="bank" className="bg-white">Transfert Bancaire</option>
+                  <option value="card" className="bg-white">Carte Visa</option>
+                  <option value="other" className="bg-white">Autre</option>
                 </select>
               </div>
             </div>
 
             <div className="mt-4">
-              <label className="block mb-2 font-medium text-blue-200">
+              <label className="block mb-2 font-medium text-slate-600">
                 Description (Optionnel)
               </label>
               <textarea
@@ -1173,22 +1173,22 @@ export default function Entry() {
                 value={form.description}
                 onChange={handleChange}
                 placeholder="Description de l'entrée d'argent..."
-                className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                 rows={3}
               />
             </div>
           </div>
 
           {/* Received From Information */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
-            <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2 border-b border-blue-800/50 pb-3">
-              <User className="w-5 h-5 text-blue-400" />
+          <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-6">
+            <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
+              <User className="w-5 h-5 text-blue-600" />
               Informations de l'Expéditeur
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   <User className="w-4 h-4 inline mr-1" />
                   Nom de l'Expéditeur *
                 </label>
@@ -1198,13 +1198,13 @@ export default function Entry() {
                   value={form.receivedFromName}
                   onChange={handleChange}
                   placeholder="Entrer le nom de la personne"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   required
                 />
               </div>
 
               <div>
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   <Phone className="w-4 h-4 inline mr-1" />
                   Téléphone de l'Expéditeur *
                 </label>
@@ -1214,13 +1214,13 @@ export default function Entry() {
                   value={form.receivedFromPhone}
                   onChange={handleChange}
                   placeholder="Entrer le numéro de téléphone"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                   required
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block mb-2 font-medium text-blue-200">
+                <label className="block mb-2 font-medium text-slate-600">
                   <Mail className="w-4 h-4 inline mr-1" />
                   Email de l'Expéditeur (Optionnel)
                 </label>
@@ -1230,7 +1230,7 @@ export default function Entry() {
                   value={form.receivedFromEmail}
                   onChange={handleChange}
                   placeholder="Entrer l'email de l'expéditeur"
-                  className="w-full p-3 bg-black/50 border border-blue-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-blue-300/50"
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
                 />
               </div>
             </div>
@@ -1238,33 +1238,33 @@ export default function Entry() {
 
           {/* Date de l'opération — Admin uniquement */}
           {isAdmin && (
-            <div className="bg-gradient-to-br from-amber-950 to-orange-950 shadow-xl rounded-xl p-5 border border-amber-700/50">
+            <div className="bg-amber-50 border border-amber-200 shadow-xl rounded-xl p-5">
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="font-semibold text-amber-300">Date de l'opération (Admin)</h3>
+                <Calendar className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-700">Date de l'opération (Admin)</h3>
               </div>
               <input
                 type="date"
                 value={operationDate}
                 max={getTodayDate()}
                 onChange={(e) => setOperationDate(e.target.value)}
-                className="w-full p-3 bg-black/30 border border-amber-700/50 rounded-lg text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full p-3 bg-white border border-amber-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
-              <p className="mt-2 text-xs text-amber-300/80">
+              <p className="mt-2 text-xs text-amber-700/80">
                 Cette entrée sera enregistrée et comptabilisée à cette date dans l'historique et les rapports.
               </p>
             </div>
           )}
 
           {/* Submit Button */}
-          <div className="bg-gradient-to-br from-gray-900 to-blue-950 shadow-xl rounded-xl p-6 border border-blue-800/50">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-6">
             <button
               type="submit"
               disabled={!isFormValid || submitting}
               className={`w-full px-8 py-4 rounded-xl font-medium text-lg flex items-center justify-center gap-2 transition-all duration-200 ${
                 isFormValid && !submitting
                   ? "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-lg shadow-blue-900/50 border border-blue-400/30"
-                  : "bg-gray-800 cursor-not-allowed text-gray-500 border border-gray-700"
+                  : "bg-slate-200 cursor-not-allowed text-slate-400 border border-slate-300"
               }`}
             >
               {submitting ? (
@@ -1281,7 +1281,7 @@ export default function Entry() {
             </button>
 
             {!isFormValid && (
-              <p className="text-sm text-orange-400 mt-2 text-center bg-black/30 p-2 rounded-lg border border-orange-800/30">
+              <p className="text-sm text-amber-600 mt-2 text-center bg-amber-50 p-2 rounded-lg border border-amber-200">
                 * Veuillez remplir tous les champs obligatoires (Montant, Source, Catégorie, Nom et Téléphone)
               </p>
             )}
