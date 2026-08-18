@@ -1,6 +1,7 @@
 // components/Cars.tsx
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../services/authService";
+import { getActiveBranchId } from "../services/dataSync";
 import { useAuth } from "../hooks/useAuth";
 import {
   Truck,
@@ -91,8 +92,12 @@ export default function Cars() {
 
   useEffect(() => {
     const loadProducts = () => {
+      const requestedBranch = getActiveBranchId();
       apiFetch<Product[]>("/products")
-        .then((data) => setProducts(Array.isArray(data) ? data.filter((product) => product.status !== "inactive") : []))
+        .then((data) => {
+          if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+          setProducts(Array.isArray(data) ? data.filter((product) => product.status !== "inactive") : []);
+        })
         .catch(() => setProducts([]));
     };
     loadProducts();

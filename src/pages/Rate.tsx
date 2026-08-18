@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Info
 } from 'lucide-react';
+import { getActiveBranchId } from '../services/dataSync';
 
 interface TauxChange {
   _id: string;
@@ -60,6 +61,7 @@ export default function TauxChange() {
 
   // Charger le taux actuel et l'historique
   const chargerTaux = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +76,9 @@ export default function TauxChange() {
       if (reponseActuel.ok) {
         const donneesActuel = await reponseActuel.json();
         console.log('Données taux actuel:', donneesActuel); // Debug log
-        
+
+        if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+
         // Handle different response structures
         if (donneesActuel.rate) {
           // If the response has a rate object (from POST response)
@@ -100,6 +104,7 @@ export default function TauxChange() {
       if (reponseHistorique.ok) {
         const donneesHistorique = await reponseHistorique.json();
         console.log('Données historique:', donneesHistorique); // Debug log
+        if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
         setHistoriqueTaux(donneesHistorique.history || donneesHistorique || []);
       } else if (reponseHistorique.status === 403) {
         setError('Vous n\'avez pas la permission de voir l\'historique des taux');

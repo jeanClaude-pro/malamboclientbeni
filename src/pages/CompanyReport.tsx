@@ -23,6 +23,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
 import { getCustomerDisplayName } from "../utils/constants";
+import { getActiveBranchId } from "../services/dataSync";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const COMPANY_NAME = "Entre Nous Renove";
@@ -222,6 +223,7 @@ export default function CompanyReport() {
   }
 
   async function loadReport() {
+    const requestedBranch = getActiveBranchId();
     setLoading(true);
     setError(null);
 
@@ -246,6 +248,7 @@ export default function CompanyReport() {
         apiGet("/exchange-rates/current").catch(() => null),
       ]);
 
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setData({
         sales: Array.isArray(salesRes?.data) ? salesRes.data : [],
         expenses: Array.isArray(expensesRes?.data) ? expensesRes.data : [],
@@ -268,13 +271,14 @@ export default function CompanyReport() {
   }
 
   async function loadDailyBalance() {
+    const requestedBranch = getActiveBranchId();
     setDailyBalanceLoading(true);
     try {
       const params = new URLSearchParams();
       if (reportPeriod.from) params.set("from", reportPeriod.from);
       if (reportPeriod.to) params.set("to", reportPeriod.to);
       const res = await apiGet(`/company-report/daily-balance?${params.toString()}`);
-      if (res.success) setDailyBalance(res as DailyBalanceData);
+      if (res.success && getActiveBranchId() === requestedBranch) setDailyBalance(res as DailyBalanceData);
     } catch {
       // Non-blocking — main report still shows if balance fails
     } finally {

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface Transfer {
   _id: string;
@@ -144,6 +145,7 @@ export default function TransfertHistory() {
   };
 
   const fetchTransfers = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -156,6 +158,7 @@ export default function TransfertHistory() {
 
       const query = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<{ data: Transfer[] }>(`/transfers${query}`);
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setTransfers(data.data || []);
     } catch (err) {
       console.error("Error fetching transfers:", err);

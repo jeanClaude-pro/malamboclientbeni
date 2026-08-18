@@ -30,6 +30,7 @@ import { toast } from "react-toastify";
 import type { Product } from "../types";
 import { serverUrl } from "../utils/constants";
 import CategoriesDropdown from "../components/CategoriesDropdown";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface User {
   _id: string;
@@ -224,6 +225,7 @@ export default function Products() {
 
   // API Functions
   const fetchProducts = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       const response = await fetch(`${serverUrl}/products`, {
@@ -233,6 +235,7 @@ export default function Products() {
       });
       if (response.ok) {
         const data = await response.json();
+        if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
         setProducts(data);
       } else {
         console.error("Failed to fetch products:", await response.text());
@@ -384,6 +387,7 @@ export default function Products() {
       toast.error("Veuillez sélectionner une période personnalisée valide");
       return;
     }
+    const requestedBranch = getActiveBranchId();
     try {
       setFicheLedgerLoading(true);
       const params = new URLSearchParams({ range });
@@ -395,6 +399,7 @@ export default function Products() {
         `${serverUrl}/stock-movements/ledger/${product._id}?${params.toString()}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
       );
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       if (res.ok) {
         const json = await res.json();
         setFicheLedger(json);
@@ -825,12 +830,17 @@ export default function Products() {
     if (products.length === 0) return;
     toast.info("Génération du PDF en cours...");
 
+    const requestedBranch = getActiveBranchId();
     try {
       const today = new Date().toISOString().slice(0, 10);
       const res = await fetch(`${serverUrl}/sales?from=1970-01-01&to=${today}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
       });
       if (!res.ok) { toast.error("Impossible de charger les ventes"); return; }
+      if (getActiveBranchId() !== requestedBranch) {
+        toast.error("L'agence a changé pendant le chargement — veuillez réessayer");
+        return;
+      }
 
       const json = await res.json();
       const allSales: FicheSale[] = Array.isArray(json?.data) ? json.data : [];

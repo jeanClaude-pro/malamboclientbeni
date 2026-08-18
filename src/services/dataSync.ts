@@ -2,6 +2,9 @@ const DATA_CHANGED_EVENT = "appDataChanged";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DATA_ENDPOINT = /\/(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|exchange-rates)(?:\/|$)/;
+// Every endpoint that is branch-dependent — used both to decide whether to attach
+// X-Branch-Id and to track in-flight requests for the branch-switch completion signal.
+const BRANCH_SCOPED_ENDPOINT = /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|company-report|loan|users|exchange-rates)(?:\/|\?|$)/;
 
 type ChangeDetail = {
   method: string;
@@ -11,6 +14,35 @@ type ChangeDetail = {
 
 const source = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let channel: BroadcastChannel | null = null;
+
+// Tracks how many branch-scoped requests are currently in flight, so the
+// branch-switch overlay can wait for real readiness instead of a pure timer.
+let pendingBranchRequests = 0;
+let idleWaiters: Array<() => void> = [];
+
+function beginBranchRequest() {
+  pendingBranchRequests++;
+}
+
+function endBranchRequest() {
+  pendingBranchRequests = Math.max(0, pendingBranchRequests - 1);
+  if (pendingBranchRequests === 0 && idleWaiters.length > 0) {
+    const waiters = idleWaiters;
+    idleWaiters = [];
+    waiters.forEach((resolve) => resolve());
+  }
+}
+
+/**
+ * Resolves once every branch-scoped request that is in flight *right now*
+ * has settled. Callers should give listeners a tick to actually call fetch()
+ * after triggering a refresh before awaiting this, otherwise it can resolve
+ * immediately against zero in-flight requests.
+ */
+export function waitForPendingBranchRequests(): Promise<void> {
+  if (pendingBranchRequests === 0) return Promise.resolve();
+  return new Promise((resolve) => idleWaiters.push(resolve));
+}
 
 function notify(detail: Omit<ChangeDetail, "source">) {
   const change: ChangeDetail = { ...detail, source };
@@ -58,17 +90,32 @@ export function installDataSynchronization() {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const token = localStorage.getItem("token");
     const branchId = localStorage.getItem("activeBranchId");
+    const isBranchScoped = Boolean(token && branchId && BRANCH_SCOPED_ENDPOINT.test(url));
     const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-    if (token && branchId && /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|company-report|loan|users)(?:\/|\?|$)/.test(url)) {
-      headers.set("X-Branch-Id", branchId);
-    }
-    const response = await nativeFetch(input, { ...init, headers });
+    if (isBranchScoped) headers.set("X-Branch-Id", branchId as string);
 
-    if (response.ok && MUTATING_METHODS.has(method) && DATA_ENDPOINT.test(url)) {
-      notify({ method, url });
+    if (isBranchScoped) beginBranchRequest();
+    try {
+      const response = await nativeFetch(input, { ...init, headers });
+
+      if (response.ok && MUTATING_METHODS.has(method) && DATA_ENDPOINT.test(url)) {
+        notify({ method, url });
+      }
+      return response;
+    } finally {
+      if (isBranchScoped) endBranchRequest();
     }
-    return response;
   };
+}
+
+/**
+ * The branch active right now, per localStorage (the single source of truth
+ * shared by AuthProvider, the fetch header injector above, and every page).
+ * Pages use this to discard a response that resolved after the user already
+ * switched branches, instead of overwriting the new branch's state with stale data.
+ */
+export function getActiveBranchId(): string | null {
+  return localStorage.getItem("activeBranchId");
 }
 
 export { DATA_CHANGED_EVENT };

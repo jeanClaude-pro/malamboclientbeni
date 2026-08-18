@@ -23,6 +23,7 @@ import {
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getCustomerDisplayName } from "../utils/constants";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface SaleItem {
   productId: string;
@@ -376,6 +377,7 @@ export default function SalesHistory() {
   };
 
   const fetchSales = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -405,7 +407,9 @@ export default function SalesHistory() {
           // Filter out expenses and invalid sales
           const validSales = filterValidSales(fetchedSales);
           console.log(`After filtering: ${validSales.length} valid sales`);
-          
+
+          if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+
           // Update sales state
           setSales(validSales);
           
@@ -434,6 +438,7 @@ export default function SalesHistory() {
   };
 
   const fetchUnpaidSales = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -447,6 +452,7 @@ export default function SalesHistory() {
       if (!res.ok || !data.success || !Array.isArray(data.data)) {
         throw new Error(data.error || "Impossible de charger les ventes impayees");
       }
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setSales(data.data);
       setShowUnpaidSales(true);
       setShowEditedSales(false);
@@ -562,6 +568,7 @@ export default function SalesHistory() {
   };
 
   const fetchProducts = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoadingProducts(true);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/products?limit=0`, {
@@ -584,6 +591,7 @@ export default function SalesHistory() {
         }
 
         console.log("Processed products:", productsArray.length);
+        if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
         setProducts(productsArray);
       } else {
         console.error("Products API Error:", res.status, res.statusText);

@@ -1,10 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Building2, Clock3, Home, LogOut, ShieldCheck, Store } from "lucide-react";
+import { Building2, Clock3, Home, Loader2, LogOut, ShieldCheck, Store } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
 import { MODULES, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
+import { waitForPendingBranchRequests } from "../services/dataSync";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
+
+// Upper bound on how long the "switching branch" overlay can stay up. The
+// overlay normally clears via waitForPendingBranchRequests() below (a real
+// signal driven by in-flight branch-scoped fetches, tracked centrally in
+// dataSync.ts) — this timeout only protects against a hung/never-resolving
+// request or a page that doesn't refetch, so the UI can never get stuck.
+const BRANCH_SWITCH_MAX_WAIT_MS = 4000;
+// Lets appDataChanged listeners actually call fetch() before we start waiting
+// on them — otherwise waitForPendingBranchRequests() can resolve immediately
+// against zero in-flight requests.
+const BRANCH_SWITCH_LISTENER_TICK_MS = 30;
 
 function isRestrictedTime(): boolean {
   const now = new Date();
@@ -24,7 +37,38 @@ export default function Navbar() {
   const { token, user, clearAuth, activeBranchId, setActiveBranchId } = useAuth();
   const location = useLocation();
   const [clock, setClock] = useState(() => new Date());
+  const [branchSwitching, setBranchSwitching] = useState(false);
+  // Identifies the in-progress switch so a superseded call (user re-toggled
+  // before the first switch finished) never fires its overlay-hide/toast after
+  // a later switch has already taken over — the final branch always wins.
+  const switchTokenRef = useRef(0);
+  const mountedRef = useRef(true);
   const superAdmin = isSuperAdmin(user);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const handleBranchChange = async (nextBranch: "butembo" | "beni") => {
+    if (nextBranch === activeBranchId) return;
+    const myToken = ++switchTokenRef.current;
+    setBranchSwitching(true);
+    setActiveBranchId(nextBranch);
+
+    await new Promise((resolve) => window.setTimeout(resolve, BRANCH_SWITCH_LISTENER_TICK_MS));
+    await Promise.race([
+      waitForPendingBranchRequests(),
+      new Promise((resolve) => window.setTimeout(resolve, BRANCH_SWITCH_MAX_WAIT_MS)),
+    ]);
+
+    if (!mountedRef.current || switchTokenRef.current !== myToken) return; // superseded by a newer switch
+    setBranchSwitching(false);
+    const label = nextBranch === "beni" ? "Beni" : "Butembo";
+    toast.success(`Agence ${label} active`);
+  };
   const unrestrictedSchedule = superAdmin || user?.role === "manager";
   const restricted = Boolean(user && !unrestrictedSchedule && isRestrictedTime());
 
@@ -87,8 +131,9 @@ export default function Navbar() {
                 <select
                   aria-label="Agence active"
                   value={activeBranchId}
-                  onChange={(event) => setActiveBranchId(event.target.value as "butembo" | "beni")}
-                  className="max-w-24 bg-transparent text-sm font-bold outline-none sm:max-w-none"
+                  disabled={branchSwitching}
+                  onChange={(event) => handleBranchChange(event.target.value as "butembo" | "beni")}
+                  className="max-w-24 bg-transparent text-sm font-bold outline-none disabled:opacity-60 sm:max-w-none"
                 >
                   <option value="butembo">Butembo</option>
                   <option value="beni">Beni</option>
@@ -120,6 +165,24 @@ export default function Navbar() {
           </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {branchSwitching && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="no-print fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-6 py-4 shadow-2xl">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-700" />
+              <span className="text-sm font-bold text-slate-900">
+                Passage à {activeBranchId === "beni" ? "Beni" : "Butembo"}...
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {restricted && (

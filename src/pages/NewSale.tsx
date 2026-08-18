@@ -20,6 +20,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { WALK_IN_CUSTOMER_NAME } from "../utils/constants";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface Product {
   _id: string;
@@ -259,6 +260,7 @@ export default function NewSale() {
   // product maintenance) while this sales screen is open. Reload the catalogue
   // from the server instead of relying on a stale in-memory stock value.
   const refreshProducts = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/products`, {
@@ -274,6 +276,7 @@ export default function NewSale() {
         : Array.isArray(data) && !(data as any).__nonJson
           ? (data as any)
           : [];
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setProducts(list);
     } catch (e: any) {
       setError(e?.message || "Failed to refresh products");
@@ -290,6 +293,7 @@ export default function NewSale() {
 
   // Load exchange rate
   const loadExchangeRate = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoadingRate(true);
       const token = localStorage.getItem("token");
@@ -301,7 +305,7 @@ export default function NewSale() {
 
       if (response.ok) {
         const data = await response.json();
-        setExchangeRate(data);
+        if (getActiveBranchId() === requestedBranch) setExchangeRate(data);
       } else {
         console.warn('Failed to load exchange rate');
       }
@@ -333,6 +337,7 @@ export default function NewSale() {
     }
 
     async function loadProducts() {
+      const requestedBranch = getActiveBranchId();
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(`${API_BASE}/products`, {
@@ -354,7 +359,7 @@ export default function NewSale() {
           : Array.isArray(data) && !(data as any).__nonJson
           ? (data as any)
           : [];
-        if (!cancelled) setProducts(list);
+        if (!cancelled && getActiveBranchId() === requestedBranch) setProducts(list);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load products");
       }

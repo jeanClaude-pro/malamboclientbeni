@@ -20,6 +20,7 @@ import {
   Shield
 } from "lucide-react";
 import jsPDF from "jspdf";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface EditHistoryEntry {
   editedBy: string;
@@ -253,6 +254,7 @@ export default function EntryHistory() {
   };
 
   const fetchEntries = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       
@@ -278,6 +280,8 @@ export default function EntryHistory() {
         
         console.log("API Response:", data);
         
+        if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+
         if (data.success && data.data) {
           // Set entries
           const fetchedEntries: Entry[] = data.data;

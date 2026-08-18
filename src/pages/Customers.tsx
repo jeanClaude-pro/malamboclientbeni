@@ -16,6 +16,7 @@ import {
   TrendingUp,
   FileText,
 } from "lucide-react";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface Customer {
   _id: string;
@@ -112,6 +113,7 @@ export default function Customers() {
   const [showFiche, setShowFiche] = useState(false);
 
   const fetchRecent = useCallback(async () => {
+    const requestedBranch = getActiveBranchId();
     setLoadingRecent(true);
     try {
       const [recentRes, statsRes] = await Promise.all([
@@ -121,11 +123,11 @@ export default function Customers() {
 
       if (recentRes.ok) {
         const data: Customer[] = await recentRes.json();
-        setRecentCustomers(data);
+        if (getActiveBranchId() === requestedBranch) setRecentCustomers(data);
       }
       if (statsRes.ok) {
         const data = await statsRes.json();
-        setTotalCount(data.total ?? 0);
+        if (getActiveBranchId() === requestedBranch) setTotalCount(data.total ?? 0);
       }
     } catch (e) {
       console.error("Failed to load recent customers", e);

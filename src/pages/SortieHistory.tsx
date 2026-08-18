@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getActiveBranchId } from "../services/dataSync";
 import {
   Search,
   FileText,
@@ -319,6 +320,7 @@ export default function SortieHistory() {
   };
 
   const fetchExpenses = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -349,6 +351,8 @@ export default function SortieHistory() {
           const sortedExpenses = fetchedExpenses.sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
+
+          if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
 
           setExpenses(sortedExpenses);
           setAllExpenses(sortedExpenses);

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { getActiveBranchId } from "../services/dataSync";
 import {
   Calendar,
   DollarSign,
@@ -95,6 +96,7 @@ export default function Entry() {
 
   // Load exchange rate
   const loadExchangeRate = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoadingRate(true);
       const response = await fetch(`${API_BASE}/exchange-rates/current`, {
@@ -105,7 +107,7 @@ export default function Entry() {
 
       if (response.ok) {
         const data = await response.json();
-        setExchangeRate(data);
+        if (getActiveBranchId() === requestedBranch) setExchangeRate(data);
       } else {
         console.warn('Failed to load exchange rate');
       }

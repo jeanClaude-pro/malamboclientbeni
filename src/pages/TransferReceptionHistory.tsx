@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatDateTimeGmt2 } from "../utils/time";
+import { getActiveBranchId } from "../services/dataSync";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -178,6 +179,7 @@ export default function TransferReceptionHistory() {
   };
 
   const fetchReceptions = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
@@ -188,6 +190,7 @@ export default function TransferReceptionHistory() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       if (data.success) {
         setReceptions(data.data || []);
         setSummary(data.summary || { total: 0, active: 0, voided: 0, totalPiecesReceived: 0 });

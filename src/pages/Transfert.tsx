@@ -1,6 +1,7 @@
 // pages/Transfert.tsx
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../services/authService";
+import { getActiveBranchId } from "../services/dataSync";
 import { useAuth } from "../hooks/useAuth";
 import {
   ArrowLeftRight,
@@ -85,8 +86,12 @@ export default function Transfert() {
 
   useEffect(() => {
     const handleDataChange = () => {
+      const requestedBranch = getActiveBranchId();
       void apiFetch<Product[]>("/products")
-        .then((data) => setProducts(Array.isArray(data) ? data : []))
+        .then((data) => {
+          if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+          setProducts(Array.isArray(data) ? data : []);
+        })
         .catch(() => setProducts([]));
     };
     window.addEventListener("appDataChanged", handleDataChange);

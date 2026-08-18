@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../services/authService";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface Product {
   _id: string;
@@ -81,9 +82,11 @@ export default function TransferReception() {
   }, []);
 
   const fetchProducts = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       const data = await apiFetch<Product[] | { data: Product[] }>("/products");
       const list: Product[] = Array.isArray(data) ? data : (data.data || []);
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setProducts(list);
     } catch {
       // apiFetch already redirects to /login if the session expired; otherwise the stock preview just won't be available

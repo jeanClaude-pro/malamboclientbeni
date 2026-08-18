@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
+import { getActiveBranchId } from "../services/dataSync";
 
 interface TripProduct {
   productId: string;
@@ -243,20 +244,22 @@ export default function CarsHistory() {
   };
 
   const fetchTrips = async () => {
+    const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams();
-      
+
       if (statusFilter) params.append("status", statusFilter);
       if (plateFilter) params.append("plateNumber", plateFilter);
       if (timeframe.from) params.append("from", timeframe.from);
       if (timeframe.to) params.append("to", timeframe.to);
-      
+
       const query = params.toString() ? `?${params.toString()}` : "";
 
       const data = await apiFetch<{ data: CarTrip[] }>(`/car-trips${query}`);
+      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setTrips(data.data || []);
     } catch (error) {
       console.error("Error fetching trips:", error);
