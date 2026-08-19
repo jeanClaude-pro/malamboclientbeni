@@ -142,9 +142,21 @@ function splitStock(totalPieces: number, piecesPerCarton: number) {
   };
 }
 
-function formatCartonStock(totalPieces: number, piecesPerCarton: number) {
+// zeroAsPieces is opt-in and defaults to false so every existing caller
+// (catalogue, POS, transfers, the "Stock actuel" lines) keeps today's exact
+// output. When true (fiche de stock only), it additionally: shows "0 pièce"
+// for a zero total instead of "0 carton", and passes a negative total through
+// as-is instead of clamping it to 0 — both needed for stock-audit reconciliation.
+function formatCartonStock(totalPieces: number, piecesPerCarton: number, zeroAsPieces = false) {
+  const rawTotal = Number(totalPieces || 0);
+  if (zeroAsPieces && rawTotal < 0) {
+    return `${rawTotal} pièce${Math.abs(rawTotal) > 1 ? "s" : ""}`;
+  }
+  if (zeroAsPieces && rawTotal === 0) {
+    return "0 pièce";
+  }
   if (piecesPerCarton <= 1) {
-    const safeTotal = Math.max(0, Math.floor(Number(totalPieces || 0)));
+    const safeTotal = Math.max(0, Math.floor(rawTotal));
     return `${safeTotal} pièce${safeTotal > 1 ? "s" : ""}`;
   }
   const { cartons, pieces } = splitStock(totalPieces, piecesPerCarton);
@@ -681,16 +693,18 @@ export default function Products() {
     y += 8;
 
     // Summary block
-    checkPage(20);
+    checkPage(30);
     doc.setDrawColor(30, 60, 140);
     doc.setLineWidth(0.3);
     doc.line(left, y, pageW - left, y);
     y += 6;
-    const summaryCols: { label: string; value: string; color: [number, number, number] }[] = [
-      { label: "STOCK DE DÉPART", value: `${ledger.summary.startingStock}`, color: [0, 0, 0] },
-      { label: "STOCK AJOUTÉ", value: `+${ledger.summary.added}`, color: [20, 130, 60] },
-      { label: "STOCK RÉDUIT", value: `-${ledger.summary.removed}`, color: [180, 40, 40] },
-      { label: "STOCK FINAL", value: `${ledger.summary.endingStock}`, color: [30, 60, 140] },
+    // sub = raw total pieces, kept visible for reconciliation against the
+    // carton-formatted primary value.
+    const summaryCols: { label: string; value: string; sub: string; color: [number, number, number] }[] = [
+      { label: "STOCK DE DÉPART", value: formatCartonStock(ledger.summary.startingStock, ppc, true), sub: `${formatCartonStock(ledger.summary.startingStock, 1, true)} au total`, color: [0, 0, 0] },
+      { label: "STOCK AJOUTÉ", value: `+${formatCartonStock(ledger.summary.added, ppc, true)}`, sub: `${formatCartonStock(ledger.summary.added, 1, true)} au total`, color: [20, 130, 60] },
+      { label: "STOCK RÉDUIT", value: `-${formatCartonStock(ledger.summary.removed, ppc, true)}`, sub: `${formatCartonStock(ledger.summary.removed, 1, true)} au total`, color: [180, 40, 40] },
+      { label: "STOCK FINAL", value: formatCartonStock(ledger.summary.endingStock, ppc, true), sub: `${formatCartonStock(ledger.summary.endingStock, 1, true)} au total`, color: [30, 60, 140] },
     ];
     const colW4 = (pageW - left * 2) / 4;
     summaryCols.forEach((col, i) => {
@@ -699,12 +713,19 @@ export default function Products() {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(100, 100, 100);
       doc.text(col.label, x, y);
-      doc.setFontSize(13);
+      doc.setFontSize(10.5);
       doc.setTextColor(col.color[0], col.color[1], col.color[2]);
-      doc.text(col.value, x, y + 7);
+      // Carton-formatted text can be longer than the old plain number, so wrap
+      // it instead of letting it overrun into the next column.
+      const valueLines = doc.splitTextToSize(col.value, colW4 - 4) as string[];
+      doc.text(valueLines, x, y + 6.5);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(120, 120, 120);
+      doc.text(col.sub, x, y + 6.5 + valueLines.length * 4.2);
     });
     doc.setTextColor(0, 0, 0);
-    y += 14;
+    y += 24;
     doc.line(left, y, pageW - left, y);
     y += 8;
 
@@ -723,8 +744,11 @@ export default function Products() {
     doc.text("Journal des mouvements de stock", left, y);
     y += 6;
 
-    const headers = ["Date", "Action", "Source", "Référence", "Préc.", "Var.", "Nouv.", "Par", "Raison"];
-    const colWidths = [22, 24, 22, 24, 14, 14, 14, 22, 26];
+    // Numeric columns are labeled "(pièces)" so they can't be mistaken for the
+    // carton-formatted summary cards above — widened accordingly, compensated
+    // by trimming the other columns (row total width is unchanged).
+    const headers = ["Date", "Action", "Source", "Référence", "Préc. (pièces)", "Var. (pièces)", "Nouv. (pièces)", "Par", "Raison"];
+    const colWidths = [18, 20, 18, 20, 22, 22, 22, 18, 22];
 
     const drawTableHeader = () => {
       doc.setFontSize(7.5);
@@ -1966,19 +1990,23 @@ export default function Products() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
                               <div className="rounded-lg p-3 border border-blue-200 bg-slate-50">
                                 <div className="text-xs text-blue-600 mb-1">Stock de départ</div>
-                                <div className="text-xl font-bold text-slate-950">{ficheLedger.summary.startingStock}</div>
+                                <div className="text-xl font-bold text-slate-950">{formatCartonStock(ficheLedger.summary.startingStock, ppc, true)}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.startingStock, 1, true)} au total</div>
                               </div>
                               <div className="rounded-lg p-3 border border-emerald-200 bg-slate-50">
                                 <div className="text-xs text-emerald-600 mb-1">Stock ajouté</div>
-                                <div className="text-xl font-bold text-slate-950">+{ficheLedger.summary.added}</div>
+                                <div className="text-xl font-bold text-slate-950">+{formatCartonStock(ficheLedger.summary.added, ppc, true)}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.added, 1, true)} au total</div>
                               </div>
                               <div className="rounded-lg p-3 border border-rose-200 bg-slate-50">
                                 <div className="text-xs text-rose-600 mb-1">Stock réduit</div>
-                                <div className="text-xl font-bold text-slate-950">-{ficheLedger.summary.removed}</div>
+                                <div className="text-xl font-bold text-slate-950">-{formatCartonStock(ficheLedger.summary.removed, ppc, true)}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.removed, 1, true)} au total</div>
                               </div>
                               <div className="rounded-lg p-3 border border-purple-200 bg-slate-50">
                                 <div className="text-xs text-purple-600 mb-1">Stock final</div>
-                                <div className="text-xl font-bold text-slate-950">{ficheLedger.summary.endingStock}</div>
+                                <div className="text-xl font-bold text-slate-950">{formatCartonStock(ficheLedger.summary.endingStock, ppc, true)}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.endingStock, 1, true)} au total</div>
                               </div>
                             </div>
                             <p className="text-xs text-slate-500 mb-4">
@@ -2009,9 +2037,9 @@ export default function Products() {
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Action</th>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Source</th>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Référence</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Précédent</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Variation</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Nouveau stock</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Précédent (pièces)</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Variation (pièces)</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Nouveau stock (pièces)</th>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Effectué par</th>
                                       <th className="text-left py-2 text-slate-500 font-medium">Raison</th>
                                     </tr>

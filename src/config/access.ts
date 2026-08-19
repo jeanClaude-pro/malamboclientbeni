@@ -94,6 +94,11 @@ export function isSuperAdmin(user: Pick<User, "role" | "isSuperAdmin"> | null | 
   return Boolean(user?.isSuperAdmin || user?.role === "admin" || user?.role === "superadmin");
 }
 
+// Branch switching is narrower than isSuperAdmin: superadmin only, admin excluded.
+export function canSwitchBranch(user: Pick<User, "role"> | null | undefined): boolean {
+  return user?.role === "superadmin";
+}
+
 export function canAccessModule(user: Pick<User, "role" | "isSuperAdmin"> | null | undefined, module: ModuleAccess): boolean {
   if (!user) return false;
   return isSuperAdmin(user) || module.roles.includes(user.role as OperationalRole);

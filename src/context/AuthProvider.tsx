@@ -2,6 +2,7 @@
 import * as React from "react";
 import type { AuthState, BranchId, User } from "../types/auth";
 import { AuthContext } from "./auth-context";
+import { canSwitchBranch } from "../config/access";
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({
   children,
@@ -26,7 +27,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     const user: User | null = userRaw ? JSON.parse(userRaw) : null;
     const assignedBranch: BranchId = user?.branchId || "butembo";
     const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
-    const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+    const canSwitch = canSwitchBranch(user);
     const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
       ? storedBranch
       : assignedBranch;
@@ -43,7 +44,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
       else localStorage.removeItem("user");
 
       const assignedBranch: BranchId = user?.branchId || "butembo";
-      const canSwitch = user?.role === "admin" || user?.role === "superadmin" || user?.isSuperAdmin;
+      const canSwitch = canSwitchBranch(user);
       const storedBranch = localStorage.getItem("activeBranchId") as BranchId | null;
       const activeBranchId = canSwitch && (storedBranch === "butembo" || storedBranch === "beni")
         ? storedBranch
@@ -64,7 +65,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
   const setActiveBranchId = React.useCallback((branchId: BranchId) => {
     if (branchId !== "butembo" && branchId !== "beni") return;
     setState((current) => {
-      const canSwitch = current.user?.role === "admin" || current.user?.role === "superadmin" || current.user?.isSuperAdmin;
+      const canSwitch = canSwitchBranch(current.user);
       const nextBranch: BranchId = canSwitch ? branchId : current.user?.branchId || "butembo";
       localStorage.setItem("activeBranchId", nextBranch);
       window.dispatchEvent(new CustomEvent("branchChanged", { detail: { branchId: nextBranch } }));

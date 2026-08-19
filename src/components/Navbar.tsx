@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Building2, Clock3, Home, Loader2, LogOut, ShieldCheck, Store } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { MODULES, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
+import { MODULES, canSwitchBranch, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
 import { waitForPendingBranchRequests } from "../services/dataSync";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
@@ -36,6 +36,7 @@ function isRestrictedTime(): boolean {
 export default function Navbar() {
   const { token, user, clearAuth, activeBranchId, setActiveBranchId } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [clock, setClock] = useState(() => new Date());
   const [branchSwitching, setBranchSwitching] = useState(false);
   // Identifies the in-progress switch so a superseded call (user re-toggled
@@ -44,6 +45,10 @@ export default function Navbar() {
   const switchTokenRef = useRef(0);
   const mountedRef = useRef(true);
   const superAdmin = isSuperAdmin(user);
+  // Narrower than superAdmin: only superadmin may switch branches (Rule A).
+  const canSwitch = canSwitchBranch(user);
+  // Rule B: switching is only allowed from the landing page.
+  const onLandingPage = location.pathname === "/";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -68,6 +73,9 @@ export default function Navbar() {
     setBranchSwitching(false);
     const label = nextBranch === "beni" ? "Beni" : "Butembo";
     toast.success(`Agence ${label} active`);
+    // Switching is only ever reachable from the landing page (Rule B), so this
+    // is a no-op today by construction — kept defensively in case that changes.
+    navigate("/");
   };
   const unrestrictedSchedule = superAdmin || user?.role === "manager";
   const restricted = Boolean(user && !unrestrictedSchedule && isRestrictedTime());
@@ -127,11 +135,12 @@ export default function Navbar() {
 
             <label className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
               <Building2 className="h-4 w-4 shrink-0" />
-              {superAdmin ? (
+              {canSwitch ? (
                 <select
                   aria-label="Agence active"
                   value={activeBranchId}
-                  disabled={branchSwitching}
+                  disabled={branchSwitching || !onLandingPage}
+                  title={onLandingPage ? undefined : "Retournez à l'accueil pour changer d'agence"}
                   onChange={(event) => handleBranchChange(event.target.value as "butembo" | "beni")}
                   className="max-w-24 bg-transparent text-sm font-bold outline-none disabled:opacity-60 sm:max-w-none"
                 >
