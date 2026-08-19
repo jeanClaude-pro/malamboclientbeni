@@ -1,23 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Building2, Clock3, Home, Loader2, LogOut, ShieldCheck, Store } from "lucide-react";
+import { ArrowLeftRight, Building2, Clock3, Home, LogOut, ShieldCheck, Store } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { MODULES, canSwitchBranch, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
-import { waitForPendingBranchRequests } from "../services/dataSync";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
-
-// Upper bound on how long the "switching branch" overlay can stay up. The
-// overlay normally clears via waitForPendingBranchRequests() below (a real
-// signal driven by in-flight branch-scoped fetches, tracked centrally in
-// dataSync.ts) — this timeout only protects against a hung/never-resolving
-// request or a page that doesn't refetch, so the UI can never get stuck.
-const BRANCH_SWITCH_MAX_WAIT_MS = 4000;
-// Lets appDataChanged listeners actually call fetch() before we start waiting
-// on them — otherwise waitForPendingBranchRequests() can resolve immediately
-// against zero in-flight requests.
-const BRANCH_SWITCH_LISTENER_TICK_MS = 30;
 
 function isRestrictedTime(): boolean {
   const now = new Date();
@@ -34,49 +21,16 @@ function isRestrictedTime(): boolean {
 }
 
 export default function Navbar() {
-  const { token, user, clearAuth, activeBranchId, setActiveBranchId } = useAuth();
+  const { token, user, clearAuth, activeBranchId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [clock, setClock] = useState(() => new Date());
-  const [branchSwitching, setBranchSwitching] = useState(false);
-  // Identifies the in-progress switch so a superseded call (user re-toggled
-  // before the first switch finished) never fires its overlay-hide/toast after
-  // a later switch has already taken over — the final branch always wins.
-  const switchTokenRef = useRef(0);
-  const mountedRef = useRef(true);
   const superAdmin = isSuperAdmin(user);
-  // Narrower than superAdmin: only superadmin may switch branches (Rule A).
+  // Narrower than superAdmin: only superadmin may switch branches, and only
+  // via the branch gateway (/workspace) — never directly from inside the app.
   const canSwitch = canSwitchBranch(user);
-  // Rule B: switching is only allowed from the landing page.
-  const onLandingPage = location.pathname === "/";
+  const onWorkspacePage = location.pathname === "/workspace";
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const handleBranchChange = async (nextBranch: "butembo" | "beni") => {
-    if (nextBranch === activeBranchId) return;
-    const myToken = ++switchTokenRef.current;
-    setBranchSwitching(true);
-    setActiveBranchId(nextBranch);
-
-    await new Promise((resolve) => window.setTimeout(resolve, BRANCH_SWITCH_LISTENER_TICK_MS));
-    await Promise.race([
-      waitForPendingBranchRequests(),
-      new Promise((resolve) => window.setTimeout(resolve, BRANCH_SWITCH_MAX_WAIT_MS)),
-    ]);
-
-    if (!mountedRef.current || switchTokenRef.current !== myToken) return; // superseded by a newer switch
-    setBranchSwitching(false);
-    const label = nextBranch === "beni" ? "Beni" : "Butembo";
-    toast.success(`Agence ${label} active`);
-    // Switching is only ever reachable from the landing page (Rule B), so this
-    // is a no-op today by construction — kept defensively in case that changes.
-    navigate("/");
-  };
   const unrestrictedSchedule = superAdmin || user?.role === "manager";
   const restricted = Boolean(user && !unrestrictedSchedule && isRestrictedTime());
 
@@ -133,24 +87,21 @@ export default function Navbar() {
               <Clock3 className="h-4 w-4 text-blue-600" /> {formattedTime}
             </div>
 
-            <label className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
+            <div className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
               <Building2 className="h-4 w-4 shrink-0" />
-              {canSwitch ? (
-                <select
-                  aria-label="Agence active"
-                  value={activeBranchId}
-                  disabled={branchSwitching || !onLandingPage}
-                  title={onLandingPage ? undefined : "Retournez à l'accueil pour changer d'agence"}
-                  onChange={(event) => handleBranchChange(event.target.value as "butembo" | "beni")}
-                  className="max-w-24 bg-transparent text-sm font-bold outline-none disabled:opacity-60 sm:max-w-none"
+              <span className="hidden sm:inline">{branchName}</span>
+              {canSwitch && !onWorkspacePage && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/workspace")}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-white px-2 py-1 text-[11px] font-black uppercase tracking-wide text-blue-700 transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title="Changer d'agence"
                 >
-                  <option value="butembo">Butembo</option>
-                  <option value="beni">Beni</option>
-                </select>
-              ) : (
-                <span className="hidden sm:inline">{branchName}</span>
+                  <ArrowLeftRight className="h-3 w-3" />
+                  <span className="hidden md:inline">Changer</span>
+                </button>
               )}
-            </label>
+            </div>
 
             <div className="hidden min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 md:flex">
               <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600" />
@@ -174,24 +125,6 @@ export default function Navbar() {
           </div>
         </div>
       </header>
-
-      <AnimatePresence>
-        {branchSwitching && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="no-print fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm"
-          >
-            <div className="flex items-center gap-3 rounded-2xl bg-white px-6 py-4 shadow-2xl">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-700" />
-              <span className="text-sm font-bold text-slate-900">
-                Passage à {activeBranchId === "beni" ? "Beni" : "Butembo"}...
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {restricted && (

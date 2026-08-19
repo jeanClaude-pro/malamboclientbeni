@@ -107,6 +107,9 @@ export function canAccessModule(user: Pick<User, "role" | "isSuperAdmin"> | null
 export function canAccessPath(user: Pick<User, "role" | "isSuperAdmin"> | null | undefined, path: string): boolean {
   if (!user) return false;
   if (path === "/") return true;
+  // The branch gateway is the only intentional branch-selection entry point —
+  // gated the same as switching itself (canSwitchBranch, superadmin only, not admin).
+  if (path === "/workspace") return canSwitchBranch(user as Pick<User, "role">);
   const module = MODULES.find((item) => item.path.toLowerCase() === path.toLowerCase());
   return module ? canAccessModule(user, module) : false;
 }

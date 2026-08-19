@@ -13,6 +13,7 @@ import {
 } from "../services/authService";
 
 import { Store, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
+import { canSwitchBranch } from "../config/access";
 
 type Mode = "login" | "register";
 
@@ -56,7 +57,9 @@ const LoginPage = () => {
         const { user, token } = await loginApi({ email, password });
         setAuth({ token, user });
         toast.success("Connexion réussie !");
-        navigate("/");
+        // Superadmins choose their workspace explicitly on every fresh login;
+        // everyone else goes straight into their assigned branch as before.
+        navigate(canSwitchBranch(user) ? "/workspace" : "/");
       }
     } catch (err: any) {
       const msg = err?.message || "Une erreur est survenue";

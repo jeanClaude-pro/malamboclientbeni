@@ -32,6 +32,7 @@ import TransferReception from "./pages/TransferReception";
 import TransferReceptionHistory from "./pages/TransferReceptionHistory";
 import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
+import SuperadminLanding from "./pages/SuperadminLanding";
 
 // Reactive counterpart to RequireAuth: reads from AuthContext (not a one-off
 // localStorage snapshot) so it stays correct across login/logout without
@@ -166,6 +167,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Analytics />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/workspace"
+                  element={
+                    <RequireAuth>
+                      <SuperadminLanding />
                     </RequireAuth>
                   }
                 />
