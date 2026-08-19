@@ -1,7 +1,12 @@
 const DATA_CHANGED_EVENT = "appDataChanged";
+const AUTH_TOKEN_REFRESHED_EVENT = "authTokenRefreshed";
+const AUTH_LOGGED_OUT_EVENT = "authLoggedOut";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DATA_ENDPOINT = /\/(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|exchange-rates)(?:\/|$)/;
+// Auth endpoints legitimately return 401 for wrong credentials — that must
+// surface as a login-form error, not trigger a global forced logout.
+const AUTH_ENDPOINT = /\/auth\//;
 // Every endpoint that is branch-dependent — used both to decide whether to attach
 // X-Branch-Id and to track in-flight requests for the branch-switch completion signal.
 const BRANCH_SCOPED_ENDPOINT = /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|company-report|loan|users|exchange-rates)(?:\/|\?|$)/;
@@ -98,6 +103,26 @@ export function installDataSynchronization() {
     try {
       const response = await nativeFetch(input, { ...init, headers });
 
+      // The server hands back a renewed JWT on any request made while the
+      // current one is nearing expiry (server/middleware/auth.js). Every
+      // fetch in the app funnels through here, so this is the one place that
+      // needs to notice it and keep localStorage + AuthContext in sync —
+      // otherwise an active user's session would still die at the hard 1-day
+      // mark despite the server willingly extending it.
+      const refreshedToken = response.headers.get("X-New-Token");
+      if (refreshedToken && refreshedToken !== token) {
+        localStorage.setItem("token", refreshedToken);
+        window.dispatchEvent(
+          new CustomEvent(AUTH_TOKEN_REFRESHED_EVENT, { detail: { token: refreshedToken } })
+        );
+      }
+
+      if (response.status === 401 && token && !AUTH_ENDPOINT.test(url)) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.dispatchEvent(new CustomEvent(AUTH_LOGGED_OUT_EVENT));
+      }
+
       if (response.ok && MUTATING_METHODS.has(method) && DATA_ENDPOINT.test(url)) {
         notify({ method, url });
       }
@@ -118,4 +143,4 @@ export function getActiveBranchId(): string | null {
   return localStorage.getItem("activeBranchId");
 }
 
-export { DATA_CHANGED_EVENT };
+export { DATA_CHANGED_EVENT, AUTH_TOKEN_REFRESHED_EVENT, AUTH_LOGGED_OUT_EVENT };

@@ -23,6 +23,7 @@ import Entry from "./pages/Entry";
 import EntryHistory from "./pages/EntryHistory";
 import { RequireAuth } from "./components/RequireAuth";
 import { AuthProvider } from "./context/AuthProvider";
+import { useAuth } from "./hooks/useAuth";
 import Cars from "./pages/Cars";
 import CarsHistory  from "./pages/CarsHistory";
 import Transfert from "./pages/Transfert";
@@ -32,10 +33,17 @@ import TransferReceptionHistory from "./pages/TransferReceptionHistory";
 import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
 
-export default function App() {
-  const token = localStorage.getItem("token");
-  const isAuthenticated = !!token;
+// Reactive counterpart to RequireAuth: reads from AuthContext (not a one-off
+// localStorage snapshot) so it stays correct across login/logout without
+// needing a full page reload — see AuthProvider's token-refreshed/logout
+// event listeners for how that state is kept in sync.
+function LoginRoute() {
+  const { token, loading } = useAuth();
+  if (loading) return null;
+  return token ? <Navigate to="/" replace /> : <LoginPage />;
+}
 
+export default function App() {
   return (
     <AuthProvider>
       <ToastContainer position="top-right" autoClose={3000} newestOnTop />
@@ -194,16 +202,7 @@ export default function App() {
                     </RequireAuth>
                   }
                 />
-                <Route
-                  path="/login"
-                  element={
-                    isAuthenticated ? (
-                      <Navigate to="/" replace />
-                    ) : (
-                      <LoginPage />
-                    )
-                  }
-                />
+                <Route path="/login" element={<LoginRoute />} />
               </Routes>
             </div>
           </main>

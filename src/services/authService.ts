@@ -9,8 +9,9 @@ const API_BASE =
 export async function apiFetch<T>(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const activeBranchId = typeof window !== "undefined" ? localStorage.getItem("activeBranchId") : null;
+  const isAuthEndpoint = path.startsWith("/auth/");
 
-  if (!token && !path.startsWith("/auth/")) {
+  if (!token && !isAuthEndpoint) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
@@ -29,7 +30,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}) {
 
   const data = (await res.json().catch(() => ({}))) as any;
 
-  if (res.status === 401) {
+  // A 401 from /auth/login or /auth/register just means wrong credentials —
+  // that must surface as a normal form error, not a forced logout/redirect.
+  if (res.status === 401 && !isAuthEndpoint) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";

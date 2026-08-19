@@ -3,6 +3,7 @@ import * as React from "react";
 import type { AuthState, BranchId, User } from "../types/auth";
 import { AuthContext } from "./auth-context";
 import { canSwitchBranch } from "../config/access";
+import { AUTH_TOKEN_REFRESHED_EVENT, AUTH_LOGGED_OUT_EVENT } from "../services/dataSync";
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({
   children,
@@ -61,6 +62,27 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
     localStorage.removeItem("activeBranchId");
     setState({ token: null, user: null, loading: false, activeBranchId: "butembo" });
   }, []);
+
+  // The global fetch interceptor (services/dataSync.ts) is the one place that
+  // actually sees every response, so it owns writing to localStorage on a
+  // silent token refresh or a 401. These listeners keep this context's React
+  // state (what RequireAuth/Navbar/pages actually read) from drifting out of
+  // sync with that — without them the app can keep rendering as "logged out"
+  // or hold a now-invalid token in memory until the next full page reload.
+  React.useEffect(() => {
+    const handleRefreshed = (event: Event) => {
+      const token = (event as CustomEvent<{ token: string }>).detail?.token;
+      if (token) setState((s) => ({ ...s, token }));
+    };
+    const handleLoggedOut = () => clearAuth();
+
+    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshed);
+    window.addEventListener(AUTH_LOGGED_OUT_EVENT, handleLoggedOut);
+    return () => {
+      window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshed);
+      window.removeEventListener(AUTH_LOGGED_OUT_EVENT, handleLoggedOut);
+    };
+  }, [clearAuth]);
 
   const setActiveBranchId = React.useCallback((branchId: BranchId) => {
     if (branchId !== "butembo" && branchId !== "beni") return;

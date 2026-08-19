@@ -1432,15 +1432,15 @@ export default function NewSale() {
       const data = await readJsonSafe(res);
       
       if (!res.ok) {
-        // If 401, token might be invalid or expired
+        // The global fetch interceptor (services/dataSync.ts) already clears
+        // the stored session and notifies AuthContext on any 401; this just
+        // surfaces the message here too.
         if (res.status === 401) {
-          // Clear invalid token
-          localStorage.removeItem("token");
           setError("Session expirée. Veuillez vous reconnecter.");
           setSubmitting(false);
           return;
         }
-        
+
         const msg =
           (data as any)?.error ||
           (data as any)?.text ||
