@@ -109,6 +109,11 @@ interface StockLedger {
     endingStock: number;
     currentStock: number;
     actionsCount: number;
+    soldCartons: number;
+    soldPieces: number;
+    soldTransactionsCount: number;
+    bonusCartons: number;
+    bonusPieces: number;
   };
   actions: LedgerAction[];
 }
@@ -810,7 +815,15 @@ export default function Products() {
       `Stock actuel: ${formatCartonStock(ledger.product.currentStock, ppc)}   |   ${ledger.summary.actionsCount} action(s) de stock sur la période`,
       left, y
     );
-    y += 8;
+    y += 5;
+    if (ledger.summary.soldTransactionsCount > 0 || ledger.summary.bonusCartons > 0 || ledger.summary.bonusPieces > 0) {
+      doc.text(
+        `Total vendu: -${formatCartonStock(ledger.summary.soldCartons * ppc + ledger.summary.soldPieces, ppc, true)} (${ledger.summary.soldTransactionsCount} vente${ledger.summary.soldTransactionsCount > 1 ? "s" : ""})   |   Total bonus: -${formatCartonStock(ledger.summary.bonusCartons * ppc + ledger.summary.bonusPieces, ppc, true)}`,
+        left, y
+      );
+      y += 5;
+    }
+    y += 3;
 
     // Actions table
     checkPage(14);
@@ -2096,6 +2109,41 @@ export default function Products() {
                                 <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.endingStock, 1, true)} au total</div>
                               </div>
                             </div>
+
+                            {/* Sales/bonus totals for the period — aggregated, not one row per transaction */}
+                            {(ficheLedger.summary.soldTransactionsCount > 0 ||
+                              ficheLedger.summary.bonusCartons > 0 ||
+                              ficheLedger.summary.bonusPieces > 0) && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                                <div className="rounded-lg p-3 border border-slate-200 bg-white flex items-center justify-between">
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Total vendu sur la période</div>
+                                    <div className="text-lg font-bold text-slate-950">
+                                      -{formatCartonStock(
+                                        ficheLedger.summary.soldCartons * ppc + ficheLedger.summary.soldPieces,
+                                        ppc,
+                                        true
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-slate-500 text-right">
+                                    {ficheLedger.summary.soldTransactionsCount} vente
+                                    {ficheLedger.summary.soldTransactionsCount > 1 ? "s" : ""}
+                                  </div>
+                                </div>
+                                <div className="rounded-lg p-3 border border-slate-200 bg-white">
+                                  <div className="text-xs text-slate-500 mb-1">Total bonus donné</div>
+                                  <div className="text-lg font-bold text-slate-950">
+                                    -{formatCartonStock(
+                                      ficheLedger.summary.bonusCartons * ppc + ficheLedger.summary.bonusPieces,
+                                      ppc,
+                                      true
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <p className="text-xs text-slate-500 mb-4">
                               Stock actuel:{" "}
                               <span className="text-slate-950 font-medium">
