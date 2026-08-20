@@ -241,6 +241,9 @@ export default function NewSale() {
 
   // Check if user is admin
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  // Backdating a sale's date is restricted to superadmin only (admin excluded).
+  // The backend re-checks this independently — never trust this flag alone.
+  const isSuperAdminUser = currentUser?.role === "superadmin";
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -1415,7 +1418,7 @@ export default function NewSale() {
           creditAmountPaid: creditAmountPaidNum,
           creditDueDate: form.creditDueDate || undefined,
         }),
-        ...(isAdmin && form.saleDate && form.saleDate !== getTodayDate() && {
+        ...(isSuperAdminUser && form.saleDate && form.saleDate !== getTodayDate() && {
           saleDate: form.saleDate,
         }),
       };
@@ -1507,7 +1510,7 @@ export default function NewSale() {
         paymentMode: "normal",
         creditAmountPaid: "",
         creditDueDate: "",
-        saleDate: getTodayDate(),
+        saleDate: form.saleDate,
         isWalkIn: false,
       });
       setCart([]);
@@ -1585,13 +1588,13 @@ export default function NewSale() {
             </div>
           </div>
 
-          {/* Admin-only: choose which calendar day this sale belongs to */}
-          {isAdmin && (
+          {/* Superadmin-only: choose which calendar day this sale belongs to */}
+          {isSuperAdminUser && (
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
               <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0" />
               <div className="flex-1">
                 <label className="block text-sm font-medium text-amber-700 mb-1">
-                  Date de la vente (Admin)
+                  Date de la vente (Super Admin)
                 </label>
                 <input
                   type="date"

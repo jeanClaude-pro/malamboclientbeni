@@ -80,7 +80,8 @@ interface LedgerAction {
   type: string;
   label: string;
   source: string;
-  reference: string;
+  boxes: number; // signed — positive increases stock, negative decreases it
+  pieces: number; // signed, same convention as boxes
   previousStock: number;
   change: number; // signed — positive increases stock, negative decreases it
   newStock: number;
@@ -217,6 +218,14 @@ export default function Products() {
   const [ficheLoading, setFicheLoading] = useState(false);
   const [ficheTab, setFicheTab] = useState<"summary" | "bonus" | "credit">("summary");
 
+  // "Update Stock" modal — manual add/reduce adjustment from inside Fiche de Stock
+  const [showStockUpdateModal, setShowStockUpdateModal] = useState(false);
+  const [stockUpdateAction, setStockUpdateAction] = useState<"add" | "reduce">("add");
+  const [stockUpdateBoxes, setStockUpdateBoxes] = useState(0);
+  const [stockUpdatePieces, setStockUpdatePieces] = useState(0);
+  const [stockUpdateReason, setStockUpdateReason] = useState("");
+  const [stockUpdateSubmitting, setStockUpdateSubmitting] = useState(false);
+
   // Manual stock adjustment reason — captured on edit, sent to the backend so the
   // Fiche de Stock audit trail can show why the stock number changed.
   const [editReason, setEditReason] = useState("");
@@ -234,6 +243,9 @@ export default function Products() {
   }, []);
 
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  // Advanced Fiche de Stock is superadmin-only — deliberately narrower than
+  // isAdmin, which also allows role "admin".
+  const isSuperadminStrict = currentUser?.role === "superadmin";
 
   // API Functions
   const fetchProducts = async () => {
@@ -473,6 +485,69 @@ export default function Products() {
     setFicheSales([]);
     setFicheLedger(null);
     setFicheTab("summary");
+  };
+
+  const openStockUpdateModal = () => {
+    setStockUpdateAction("add");
+    setStockUpdateBoxes(0);
+    setStockUpdatePieces(0);
+    setStockUpdateReason("");
+    setShowStockUpdateModal(true);
+  };
+
+  const closeStockUpdateModal = () => {
+    setShowStockUpdateModal(false);
+  };
+
+  const submitStockUpdate = async () => {
+    if (!ficheProduct) return;
+
+    const reason = stockUpdateReason.trim();
+    if (!reason) {
+      toast.error("La raison est obligatoire");
+      return;
+    }
+    const boxes = Math.max(0, Math.floor(Number(stockUpdateBoxes) || 0));
+    const pieces = Math.max(0, Math.floor(Number(stockUpdatePieces) || 0));
+    const ppc = getPiecesPerCarton(ficheProduct);
+    const quantity = boxes * ppc + pieces;
+    if (quantity <= 0) {
+      toast.error("Indiquez au moins un carton ou une pièce");
+      return;
+    }
+    if (stockUpdateAction === "reduce" && quantity > ficheProduct.stock) {
+      toast.error(`Stock insuffisant. Disponible: ${formatCartonStock(ficheProduct.stock, ppc, true)}`);
+      return;
+    }
+
+    try {
+      setStockUpdateSubmitting(true);
+      const res = await fetch(`${serverUrl}/stock-movements`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({
+          productId: ficheProduct._id,
+          type: stockUpdateAction === "add" ? "adjustment_in" : "adjustment_out",
+          quantity,
+          notes: reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Stock mis à jour");
+        setShowStockUpdateModal(false);
+        await Promise.all([loadFicheData(ficheProduct, ficheRange), fetchProducts()]);
+      } else {
+        toast.error(data.error || "Échec de la mise à jour du stock");
+      }
+    } catch {
+      toast.error("Erreur réseau lors de la mise à jour du stock");
+    } finally {
+      setStockUpdateSubmitting(false);
+    }
   };
 
   const COMPANY_NAME = "Entre Nous Renove";
@@ -747,7 +822,7 @@ export default function Products() {
     // Numeric columns are labeled "(pièces)" so they can't be mistaken for the
     // carton-formatted summary cards above — widened accordingly, compensated
     // by trimming the other columns (row total width is unchanged).
-    const headers = ["Date", "Action", "Source", "Référence", "Préc. (pièces)", "Var. (pièces)", "Nouv. (pièces)", "Par", "Raison"];
+    const headers = ["Date", "Opération", "Source", "Boxes", "Pieces", "Préc. (pièces)", "Nouv. (pièces)", "Par", "Raison"];
     const colWidths = [18, 20, 18, 20, 22, 22, 22, 18, 22];
 
     const drawTableHeader = () => {
@@ -801,9 +876,9 @@ export default function Products() {
           new Date(action.date).toLocaleDateString("fr-FR"),
           action.label,
           action.source,
-          action.reference || "—",
+          `${action.boxes >= 0 ? "+" : ""}${action.boxes}`,
+          `${action.pieces >= 0 ? "+" : ""}${action.pieces}`,
           `${action.previousStock}`,
-          `${action.change >= 0 ? "+" : ""}${action.change}`,
           `${action.newStock}`,
           action.performedBy || "—",
           action.reason || "—",
@@ -824,8 +899,10 @@ export default function Products() {
         let x = left;
         doc.setFontSize(7);
         wrappedValues.forEach((lines, index) => {
-          if (index === 5) {
-            doc.setTextColor(action.change >= 0 ? 20 : 180, action.change >= 0 ? 130 : 40, action.change >= 0 ? 60 : 40);
+          if (index === 3) {
+            doc.setTextColor(action.boxes >= 0 ? 20 : 180, action.boxes >= 0 ? 130 : 40, action.boxes >= 0 ? 60 : 40);
+          } else if (index === 4) {
+            doc.setTextColor(action.pieces >= 0 ? 20 : 180, action.pieces >= 0 ? 130 : 40, action.pieces >= 0 ? 60 : 40);
           } else {
             doc.setTextColor(0, 0, 0);
           }
@@ -1266,13 +1343,15 @@ export default function Products() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => openFicheModal(product)}
-                          className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
-                          title="Fiche de stocks"
-                        >
-                          <ClipboardList className="w-4 h-4" />
-                        </button>
+                        {isSuperadminStrict && (
+                          <button
+                            onClick={() => openFicheModal(product)}
+                            className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
+                            title="Fiche de stocks"
+                          >
+                            <ClipboardList className="w-4 h-4" />
+                          </button>
+                        )}
                         {isAdmin && (
                           <>
                             <button
@@ -1705,6 +1784,14 @@ export default function Products() {
                       <RefreshCw className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={openStockUpdateModal}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                      title="Mettre à jour le stock"
+                    >
+                      <Box className="w-4 h-4" />
+                      Update Stock
+                    </button>
+                    <button
                       onClick={downloadFichePDF}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors"
                       title="Télécharger la fiche en PDF"
@@ -2034,11 +2121,11 @@ export default function Products() {
                                   <thead className="border-b border-slate-200">
                                     <tr>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Date</th>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Action</th>
+                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Opération</th>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Source</th>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Référence</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Boxes</th>
+                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Pieces</th>
                                       <th className="text-right py-2 pr-3 text-slate-500 font-medium">Précédent (pièces)</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Variation (pièces)</th>
                                       <th className="text-right py-2 pr-3 text-slate-500 font-medium">Nouveau stock (pièces)</th>
                                       <th className="text-left py-2 pr-3 text-slate-500 font-medium">Effectué par</th>
                                       <th className="text-left py-2 text-slate-500 font-medium">Raison</th>
@@ -2052,16 +2139,23 @@ export default function Products() {
                                         </td>
                                         <td className="py-2.5 pr-3 text-slate-950 font-medium">{action.label}</td>
                                         <td className="py-2.5 pr-3 text-slate-600">{action.source}</td>
-                                        <td className="py-2.5 pr-3 text-slate-600">{action.reference || "—"}</td>
-                                        <td className="py-2.5 pr-3 text-right text-slate-600">{action.previousStock}</td>
                                         <td
                                           className={`py-2.5 pr-3 text-right font-semibold ${
-                                            action.change >= 0 ? "text-emerald-600" : "text-rose-600"
+                                            action.boxes >= 0 ? "text-emerald-600" : "text-rose-600"
                                           }`}
                                         >
-                                          {action.change >= 0 ? "+" : ""}
-                                          {action.change}
+                                          {action.boxes >= 0 ? "+" : ""}
+                                          {action.boxes}
                                         </td>
+                                        <td
+                                          className={`py-2.5 pr-3 text-right font-semibold ${
+                                            action.pieces >= 0 ? "text-emerald-600" : "text-rose-600"
+                                          }`}
+                                        >
+                                          {action.pieces >= 0 ? "+" : ""}
+                                          {action.pieces}
+                                        </td>
+                                        <td className="py-2.5 pr-3 text-right text-slate-600">{action.previousStock}</td>
                                         <td className="py-2.5 pr-3 text-right text-slate-950 font-medium">{action.newStock}</td>
                                         <td className="py-2.5 pr-3 text-slate-600">{action.performedBy || "—"}</td>
                                         <td className="py-2.5 text-slate-600">{action.reason || "—"}</td>
@@ -2082,6 +2176,111 @@ export default function Products() {
           </div>
         );
       })()}
+
+      {/* Update Stock Modal — manual add/reduce adjustment from inside Fiche de Stock */}
+      {showStockUpdateModal && ficheProduct && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-md w-full shadow-2xl">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
+                <Box className="w-5 h-5 text-emerald-600" />
+                Update Stock
+              </h3>
+              <button onClick={closeStockUpdateModal} className="text-slate-500 hover:text-slate-700 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Article</label>
+                <input
+                  type="text"
+                  value={ficheProduct.name}
+                  disabled
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockUpdateAction("add")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      stockUpdateAction === "add"
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockUpdateAction("reduce")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      stockUpdateAction === "reduce"
+                        ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    Reduce
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Boxes</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={stockUpdateBoxes}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStockUpdateBoxes(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Pieces</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={stockUpdatePieces}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStockUpdatePieces(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
+                <textarea
+                  value={stockUpdateReason}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setStockUpdateReason(e.target.value)}
+                  rows={3}
+                  placeholder="Ex: Livraison fournisseur, article endommagé..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
+                />
+              </div>
+            </div>
+            <div className="p-5 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                onClick={closeStockUpdateModal}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={submitStockUpdate}
+                disabled={stockUpdateSubmitting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 transition-colors"
+              >
+                {stockUpdateSubmitting ? "Enregistrement..." : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick View Modal */}
       {showViewModal && selectedProduct && (
