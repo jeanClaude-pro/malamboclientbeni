@@ -22,6 +22,7 @@ import {
 import { Link } from "react-router-dom";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,9 @@ export default function TransferReceptionHistory() {
 
   // Summary
   const [summary, setSummary] = useState({ total: 0, active: 0, voided: 0, totalPiecesReceived: 0 });
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams, statusFilter]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -155,7 +159,7 @@ export default function TransferReceptionHistory() {
 
   useEffect(() => {
     fetchReceptions();
-  }, [timeframeType, queryParams, statusFilter]);
+  }, [timeframeType, queryParams, statusFilter, pagination.page]);
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +179,8 @@ export default function TransferReceptionHistory() {
         break;
     }
     if (statusFilter !== "all") params.append("status", statusFilter);
+    params.set("page", String(pagination.page));
+    params.set("limit", String(pagination.limit));
     return params.toString();
   };
 
@@ -194,6 +200,7 @@ export default function TransferReceptionHistory() {
       if (data.success) {
         setReceptions(data.data || []);
         setSummary(data.summary || { total: 0, active: 0, voided: 0, totalPiecesReceived: 0 });
+        setPagination(data.pagination || EMPTY_PAGINATION);
       } else {
         setError(data.error || "Erreur lors du chargement");
       }
@@ -824,6 +831,8 @@ export default function TransferReceptionHistory() {
       )}
 
       {/* ── Edit Modal ─────────────────────────────────────────────────────────── */}
+      <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
       {showEditModal && editingReception && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">

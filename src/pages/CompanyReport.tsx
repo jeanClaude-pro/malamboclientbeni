@@ -71,6 +71,7 @@ interface ReportData {
   transfersSummary?: any;
   customersStats?: any;
   exchangeRate?: any;
+  inventorySummary?: any;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -228,40 +229,21 @@ export default function CompanyReport() {
     setError(null);
 
     try {
-      const query = timeframeParams ? `?${timeframeParams}` : "";
-
-      const [
-        salesRes,
-        expensesRes,
-        entriesRes,
-        transfersRes,
-        productsRes,
-        customersRes,
-        exchangeRateRes,
-      ] = await Promise.all([
-        apiGet(`/sales${query}`),
-        apiGet(`/expenses${query}${query ? "&" : "?"}status=all`),
-        apiGet(`/entries${query}${query ? "&" : "?"}status=all`),
-        apiGet(`/transfers${query}`).catch(() => null),
-        apiGet("/products"),
-        apiGet("/customers/all"),
-        apiGet("/exchange-rates/current").catch(() => null),
-      ]);
+      const params = new URLSearchParams();
+      params.set("from", reportPeriod.from);
+      params.set("to", reportPeriod.to);
+      const report = await apiGet(`/company-report/summary?${params.toString()}`);
 
       if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setData({
-        sales: Array.isArray(salesRes?.data) ? salesRes.data : [],
-        expenses: Array.isArray(expensesRes?.data) ? expensesRes.data : [],
-        entries: Array.isArray(entriesRes?.data) ? entriesRes.data : [],
-        transfers: Array.isArray(transfersRes?.data) ? transfersRes.data : [],
-        products: Array.isArray(productsRes) ? productsRes : [],
-        customers: Array.isArray(customersRes?.customers) ? customersRes.customers : [],
-        salesSummary: salesRes?.summary,
-        expensesSummary: expensesRes?.summary,
-        entriesSummary: entriesRes?.summary,
-        transfersSummary: transfersRes?.summary,
-        customersStats: customersRes?.stats,
-        exchangeRate: exchangeRateRes,
+        sales: [], expenses: [], entries: [], transfers: [], products: [], customers: [],
+        salesSummary: report.salesSummary,
+        expensesSummary: report.expensesSummary,
+        entriesSummary: report.entriesSummary,
+        transfersSummary: report.transfersSummary,
+        customersStats: report.customersStats,
+        exchangeRate: report.exchangeRate,
+        inventorySummary: report.inventorySummary,
       });
     } catch (err) {
       setError(getErrorMessage(err));
@@ -317,16 +299,16 @@ export default function CompanyReport() {
       data.entries
         .filter((entry) => entry.status !== "deleted")
         .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-    const lowStock = data.products.filter(
+    const lowStock = data.inventorySummary?.lowStock ?? data.products.filter(
       (product) => Number(product.stock || 0) <= Number(product.minStock || 0)
     ).length;
 
     // Credit sale metrics
     const creditSales = data.sales.filter((s: any) => s.paymentType === "credit");
-    const creditTotal = creditSales.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
-    const creditCollected = creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountPaid || 0), 0);
-    const creditOutstanding = creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountDue || 0), 0);
-    const creditFullyPaid = creditSales.filter((s: any) => s.creditDetails?.fullyPaid).length;
+    const creditTotal = data.salesSummary?.creditTotal ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
+    const creditCollected = data.salesSummary?.creditCollected ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountPaid || 0), 0);
+    const creditOutstanding = data.salesSummary?.creditOutstanding ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountDue || 0), 0);
+    const creditFullyPaid = data.salesSummary?.creditFullyPaid ?? creditSales.filter((s: any) => s.creditDetails?.fullyPaid).length;
 
     const transfersPending = data.transfers.filter((t: any) => t.status === "pending").length;
     const transfersInTransit = data.transfers.filter((t: any) => t.status === "in_transit").length;
@@ -347,24 +329,24 @@ export default function CompanyReport() {
       validatedExpenses,
       entriesAmount,
       netResult: salesRevenue + entriesAmount - validatedExpenses,
-      salesCount: data.sales.length,
-      expensesCount: data.expenses.length,
-      entriesCount: data.entries.length,
-      productsCount: data.products.length,
-      customersCount: data.customers.length,
+      salesCount: data.salesSummary?.salesCount ?? data.sales.length,
+      expensesCount: data.expensesSummary?.validated?.count ?? data.expenses.length,
+      entriesCount: data.entriesSummary?.active?.count ?? data.entries.length,
+      productsCount: data.inventorySummary?.productsCount ?? data.products.length,
+      customersCount: data.customersStats?.totalCustomers ?? data.customers.length,
       lowStock,
-      creditSalesCount: creditSales.length,
+      creditSalesCount: data.salesSummary?.creditSalesCount ?? creditSales.length,
       creditTotal,
       creditCollected,
       creditOutstanding,
       creditFullyPaid,
-      transfersCount: data.transfers.length,
-      transfersPending,
-      transfersInTransit,
-      transfersDelivered,
-      transfersCancelled,
-      transfersCartonsTotal,
-      transfersLoosePiecesTotal,
+      transfersCount: data.transfersSummary?.total ?? data.transfers.length,
+      transfersPending: data.transfersSummary?.pending ?? transfersPending,
+      transfersInTransit: data.transfersSummary?.inTransit ?? transfersInTransit,
+      transfersDelivered: data.transfersSummary?.delivered ?? transfersDelivered,
+      transfersCancelled: data.transfersSummary?.cancelled ?? transfersCancelled,
+      transfersCartonsTotal: data.transfersSummary?.cartons ?? transfersCartonsTotal,
+      transfersLoosePiecesTotal: data.transfersSummary?.loosePieces ?? transfersLoosePiecesTotal,
     };
   }, [data]);
 

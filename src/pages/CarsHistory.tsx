@@ -28,6 +28,7 @@ import {
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 
 interface TripProduct {
   productId: string;
@@ -197,6 +198,7 @@ export default function CarsHistory() {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canValidateArrivals, setCanValidateArrivals] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
   
   const [statusFilter, setStatusFilter] = useState("");
   const [plateFilter, setPlateFilter] = useState("");
@@ -215,6 +217,8 @@ export default function CarsHistory() {
   });
   const [arrivalSubmitting, setArrivalSubmitting] = useState(false);
 
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, plateFilter, timeframe.from, timeframe.to]);
+
   useEffect(() => {
     fetchCurrentUser();
     fetchTrips();
@@ -228,7 +232,7 @@ export default function CarsHistory() {
     return () => {
       window.removeEventListener("appDataChanged", handleTripUpdate);
     };
-  }, [statusFilter, plateFilter, timeframe]);
+  }, [statusFilter, plateFilter, timeframe, pagination.page]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -255,12 +259,15 @@ export default function CarsHistory() {
       if (plateFilter) params.append("plateNumber", plateFilter);
       if (timeframe.from) params.append("from", timeframe.from);
       if (timeframe.to) params.append("to", timeframe.to);
+      params.set("page", String(pagination.page));
+      params.set("limit", String(pagination.limit));
 
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      const data = await apiFetch<{ data: CarTrip[] }>(`/car-trips${query}`);
+      const data = await apiFetch<{ data: CarTrip[]; pagination?: PaginationState }>(`/car-trips${query}`);
       if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setTrips(data.data || []);
+      setPagination(data.pagination || EMPTY_PAGINATION);
     } catch (error) {
       console.error("Error fetching trips:", error);
       setError("Erreur lors du chargement des trajets");
@@ -937,6 +944,8 @@ export default function CarsHistory() {
       </div>
       
       {/* Trip Details Modal */}
+      <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
       {showModal && selectedTrip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">

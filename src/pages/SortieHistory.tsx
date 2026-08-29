@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 import {
   Search,
   FileText,
@@ -43,6 +44,7 @@ interface ExpenseItem {
 }
 
 interface ExpensesResponse {
+  pagination?: PaginationState;
   success: boolean;
   data: ExpenseItem[];
   timeframe: {
@@ -174,6 +176,9 @@ export default function SortieHistory() {
 
   const [initialLoad, setInitialLoad] = useState(true);
   const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams]);
   const [appliedFilters, setAppliedFilters] = useState<any>(null);
   const [timeframeDescription, setTimeframeDescription] = useState<string>("Today");
   const [showFilters, setShowFilters] = useState(false);
@@ -219,6 +224,8 @@ export default function SortieHistory() {
     if (queryParams.paymentMethod) params.append("paymentMethod", queryParams.paymentMethod);
     if (queryParams.recordedBy) params.append("recordedBy", queryParams.recordedBy);
     if (queryParams.search) params.append("search", queryParams.search);
+    params.set("page", String(pagination.page));
+    params.set("limit", String(pagination.limit));
     
     return params.toString();
   };
@@ -241,7 +248,7 @@ export default function SortieHistory() {
     if (Object.keys(queryParams).length > 0) {
       fetchExpenses();
     }
-  }, [queryParams]);
+  }, [queryParams, pagination.page]);
 
   // Effect to automatically set to today's date when timeframe changes to "day"
   useEffect(() => {
@@ -361,6 +368,7 @@ export default function SortieHistory() {
           setTimeframeDescription(data.timeframe.description);
           setSummaryStats(data.summary);
           setAppliedFilters(data.filtersApplied);
+          setPagination(data.pagination || EMPTY_PAGINATION);
           
         } else {
           console.warn("Unexpected expenses data structure:", data);
@@ -2065,6 +2073,8 @@ export default function SortieHistory() {
         )}
 
         {/* Edit Expense Modal */}
+        <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
         {showEditModal && editingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">

@@ -28,6 +28,7 @@ import {
 import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 
 interface Transfer {
   _id: string;
@@ -110,6 +111,7 @@ export default function TransfertHistory() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
 
   const [statusFilter, setStatusFilter] = useState("");
   const [agencyFilter, setAgencyFilter] = useState("");
@@ -118,6 +120,8 @@ export default function TransfertHistory() {
 
   const [editForm, setEditForm] = useState<EditFormData>({});
   const [editReason, setEditReason] = useState("");
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, agencyFilter, timeframe.from, timeframe.to]);
 
   useEffect(() => {
     fetchCurrentUser();
@@ -130,7 +134,7 @@ export default function TransfertHistory() {
       window.removeEventListener("appDataChanged", handleUpdate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, agencyFilter, timeframe]);
+  }, [statusFilter, agencyFilter, timeframe, pagination.page]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -155,11 +159,14 @@ export default function TransfertHistory() {
       if (agencyFilter) params.append("destinationAgency", agencyFilter);
       if (timeframe.from) params.append("from", timeframe.from);
       if (timeframe.to) params.append("to", timeframe.to);
+      params.set("page", String(pagination.page));
+      params.set("limit", String(pagination.limit));
 
       const query = params.toString() ? `?${params.toString()}` : "";
-      const data = await apiFetch<{ data: Transfer[] }>(`/transfers${query}`);
+      const data = await apiFetch<{ data: Transfer[]; pagination?: PaginationState }>(`/transfers${query}`);
       if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setTransfers(data.data || []);
+      setPagination(data.pagination || EMPTY_PAGINATION);
     } catch (err) {
       console.error("Error fetching transfers:", err);
       setError("Erreur lors du chargement des transferts");
@@ -687,6 +694,8 @@ export default function TransfertHistory() {
       </div>
 
       {/* Transfer Details Modal */}
+      <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
       {showModal && selectedTransfer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">

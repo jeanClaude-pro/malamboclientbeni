@@ -24,6 +24,7 @@ import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getCustomerDisplayName } from "../utils/constants";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 
 interface SaleItem {
   productId: string;
@@ -130,6 +131,7 @@ interface TimeframeMetadata {
 
 // Response interface for timeframe API
 interface SalesResponse {
+  pagination?: PaginationState;
   success: boolean;
   data: Sale[];
   timeframe: TimeframeMetadata;
@@ -254,6 +256,8 @@ export default function SalesHistory() {
   // Timeframe metadata
   const [timeframeMetadata, setTimeframeMetadata] = useState<TimeframeMetadata | null>(null);
   const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
+
   const [appliedFilters, setAppliedFilters] = useState<any>(null);
 
   // UI state
@@ -271,6 +275,8 @@ export default function SalesHistory() {
   const [paymentRequestId, setPaymentRequestId] = useState("");
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [showUnpaidSales, setShowUnpaidSales] = useState(false);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams, creditFilter]);
 
   // Fetch current user on component mount
   useEffect(() => {
@@ -295,7 +301,7 @@ export default function SalesHistory() {
     if (Object.keys(queryParams).length > 0) {
       fetchSales();
     }
-  }, [queryParams]);
+  }, [queryParams, creditFilter, pagination.page]);
 
   // Fetch current user from API or localStorage
   const fetchCurrentUser = async () => {
@@ -372,6 +378,9 @@ export default function SalesHistory() {
     if (queryParams.type) params.append("type", queryParams.type);
     if (queryParams.status) params.append("status", queryParams.status);
     if (queryParams.customerPhone) params.append("customerPhone", queryParams.customerPhone);
+    if (creditFilter !== "all") params.set("creditFilter", creditFilter);
+    params.set("page", String(pagination.page));
+    params.set("limit", String(pagination.limit));
     
     return params.toString();
   };
@@ -417,6 +426,7 @@ export default function SalesHistory() {
           setTimeframeMetadata(data.timeframe);
           setSummaryStats(data.summary);
           setAppliedFilters(data.filtersApplied);
+          setPagination(data.pagination || EMPTY_PAGINATION);
           
           // Update edited sales
           updateEditedSales(validSales);
@@ -540,10 +550,12 @@ export default function SalesHistory() {
     }
     
     setQueryParams(newParams);
+    setPagination((value) => ({ ...value, page: 1 }));
   };
 
   // Handle query parameter changes
   const handleQueryParamChange = (key: keyof typeof queryParams, value: string) => {
+    setPagination((current) => ({ ...current, page: 1 }));
     setQueryParams(prev => ({
       ...prev,
       [key]: value
@@ -2914,6 +2926,8 @@ export default function SalesHistory() {
       )}
 
       {/* Edit Sale Modal */}
+      <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
       {showEditModal && editingSale && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-blue-200">

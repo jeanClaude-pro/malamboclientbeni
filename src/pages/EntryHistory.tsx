@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { getActiveBranchId } from "../services/dataSync";
+import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 
 interface EditHistoryEntry {
   editedBy: string;
@@ -150,6 +151,9 @@ export default function EntryHistory() {
   const [selectedEditedEntry, setSelectedEditedEntry] = useState<Entry | null>(null);
   const [showEditedDetailsModal, setShowEditedDetailsModal] = useState(false);
   const [summary, setSummary] = useState<any>(null);
+  const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframe, selectedYear, selectedDate, showEditedEntries]);
 
   // Sources and categories (same as Entry.tsx)
   const sources = [
@@ -198,7 +202,7 @@ export default function EntryHistory() {
     if (currentUser !== null) { // Only fetch entries after user data is loaded
       fetchEntries();
     }
-  }, [timeframe, selectedYear, selectedDate, showEditedEntries, currentUser]);
+  }, [timeframe, selectedYear, selectedDate, showEditedEntries, currentUser, pagination.page]);
 
   // Update edited entries when entries change
   useEffect(() => {
@@ -264,7 +268,7 @@ export default function EntryHistory() {
       // Add status filter for edited entries view
       const statusParam = showEditedEntries ? "&status=all" : "&status=active";
       
-      const url = `${import.meta.env.VITE_API_URL}/entries?${timeframeParams}${statusParam}`;
+      const url = `${import.meta.env.VITE_API_URL}/entries?${timeframeParams}${statusParam}&page=${pagination.page}&limit=${pagination.limit}`;
       
       console.log("Fetching entries from:", url);
       
@@ -294,6 +298,7 @@ export default function EntryHistory() {
           if (data.summary) {
             setSummary(data.summary);
           }
+          setPagination(data.pagination || EMPTY_PAGINATION);
           
           console.log(`Fetched ${fetchedEntries.length} entries with timeframe: ${data.timeframe?.description}`);
         } else {
@@ -1574,6 +1579,8 @@ export default function EntryHistory() {
       )}
 
       {/* Edit Entry Modal */}
+      <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
+
       {showEditModal && editingEntry && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
