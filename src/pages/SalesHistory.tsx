@@ -1669,7 +1669,7 @@ export default function SalesHistory() {
       return;
     }
     const due = paymentSale.creditDetails?.amountDue ?? 0;
-    const available = Math.max(0, due - (paymentSale.creditDetails?.pendingAmount ?? 0));
+    const available = Math.max(0, due);
     if (amount > available + 0.001) {
       setError(`Le montant ne peut pas dépasser le solde disponible ($${available.toFixed(2)})`);
       return;
@@ -1694,7 +1694,8 @@ export default function SalesHistory() {
       );
       const data = await res.json();
       if (res.ok) {
-        setMessage(data.message || "✅ Paiement enregistré avec succès");
+        setMessage(data.message || "✅ Paiement reçu et dette mise à jour");
+        window.dispatchEvent(new Event("appDataChanged"));
         closePaymentModal();
         if (showUnpaidSales) {
           await fetchUnpaidSales();
@@ -3319,23 +3320,23 @@ export default function SalesHistory() {
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max={Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0))}
+                  max={Math.max(0, paymentSale.creditDetails?.amountDue ?? 0)}
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={`Max: $${Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)).toFixed(2)}`}
+                  placeholder={`Max: $${Math.max(0, paymentSale.creditDetails?.amountDue ?? 0).toFixed(2)}`}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 />
                 <div className="flex gap-2 mt-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount((Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)) / 2).toFixed(2))}
+                    onClick={() => setPaymentAmount((Math.max(0, paymentSale.creditDetails?.amountDue ?? 0) / 2).toFixed(2))}
                     className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-600"
                   >
                     50%
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount(Math.max(0, (paymentSale.creditDetails?.amountDue ?? 0) - (paymentSale.creditDetails?.pendingAmount ?? 0)).toFixed(2))}
+                    onClick={() => setPaymentAmount(Math.max(0, paymentSale.creditDetails?.amountDue ?? 0).toFixed(2))}
                     className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 rounded border text-green-700 font-semibold"
                   >
                     Solde total
@@ -3365,8 +3366,8 @@ export default function SalesHistory() {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                 />
               </div>
-              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Ce paiement restera en attente et ne réduira pas la dette avant de cliquer sur &quot;J'ai reçu cet argent&quot;.
+              <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+                En enregistrant, vous confirmez que l'argent a été reçu. La dette et les recettes seront mises à jour immédiatement.
               </p>
               <div className="flex gap-3 pt-2">
                 <button
@@ -3377,7 +3378,7 @@ export default function SalesHistory() {
                   {paymentSubmitting ? (
                     <><RefreshCw className="w-4 h-4 animate-spin" /> Enregistrement...</>
                   ) : (
-                    <>Enregistrer en attente</>
+                    <>Enregistrer le paiement</>
                   )}
                 </button>
                 <button onClick={closePaymentModal} className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">

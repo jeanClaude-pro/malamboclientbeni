@@ -1472,10 +1472,8 @@ export default function NewSale() {
         stubNumber: saleId,
         // Credit info
         isCredit: isCreditSale,
-        // A declared advance is still pending until the seller acknowledges it
-        // from credit history, so the receipt keeps the full debt outstanding.
         creditAmountPaid: isCreditSale ? creditAmountPaidNum : cartTotal,
-        creditAmountDue: isCreditSale ? cartTotal : 0,
+        creditAmountDue: isCreditSale ? Math.max(0, cartTotal - creditAmountPaidNum) : 0,
         creditDueDate: form.creditDueDate || null,
       };
 
@@ -2112,13 +2110,13 @@ export default function NewSale() {
                   className="w-full p-3 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-slate-900 placeholder-amber-400"
                 />
                 {creditAmountPaidNum > 0 && (
-                  <p className="mt-1 text-xs font-medium text-amber-700">
-                    Ce versement restera en attente. La dette ne sera réduite qu'après avoir cliqué sur &quot;J'ai reçu cet argent&quot;.
+                  <p className="mt-1 text-xs font-medium text-green-700">
+                    Ce versement sera confirmé à l'enregistrement, ajouté aux recettes et déduit de la dette.
                   </p>
                 )}
                 {creditAmountPaidNum > 0 && cartTotal > 0 && (
                   <p className="text-xs text-amber-700 mt-1">
-                    Solde après confirmation: <strong className="text-slate-950">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
+                    Solde restant: <strong className="text-slate-950">{formatCurrency(Math.max(0, cartTotal - creditAmountPaidNum))}</strong>
                     {exchangeRate && (
                       <span className="ml-1 text-amber-600">
                         ≈ {formatFc(Math.max(0, cartTotal - creditAmountPaidNum) * exchangeRate.rate)}
