@@ -512,7 +512,7 @@ export default function CompanyReport() {
       sectionTitle("Ventes à crédit");
       line("Nombre de ventes à crédit", formatNumber(totals.creditSalesCount));
       line("Total crédit accordé", formatMoney(totals.creditTotal));
-      line("Montant encaissé", formatMoney(totals.creditCollected));
+      line("Encaissé sur ces factures (à ce jour)", formatMoney(totals.creditCollected));
       line("Créances impayées", formatMoney(totals.creditOutstanding));
       line("Crédits soldés", `${formatNumber(totals.creditFullyPaid)} / ${formatNumber(totals.creditSalesCount)}`);
     }
@@ -1067,7 +1067,7 @@ export default function CompanyReport() {
                   <p className="font-black text-lg text-amber-800">{formatMoney(totals.creditTotal)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-green-200">
-                  <p className="text-gray-500 text-xs">Montant encaissé</p>
+                  <p className="text-gray-500 text-xs">Encaissé sur ces factures (à ce jour)</p>
                   <p className="font-black text-lg text-green-700">{formatMoney(totals.creditCollected)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-red-200">

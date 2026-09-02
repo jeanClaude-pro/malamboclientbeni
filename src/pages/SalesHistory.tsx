@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   FileText,
@@ -21,7 +21,7 @@ import {
   Shield,
 } from "lucide-react";
 import jsPDF from "jspdf";
-import { formatDateTimeGmt2 } from "../utils/time";
+import { formatDateGmt2, formatDateTimeGmt2 } from "../utils/time";
 import { getCustomerDisplayName } from "../utils/constants";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
@@ -55,6 +55,8 @@ interface CreditPaymentEntry {
   paymentId?: string;
   amount: number;
   date: string;
+  paymentDate?: string;
+  recordedAt?: string;
   method: string;
   recordedBy: string;
   notes: string;
@@ -62,6 +64,23 @@ interface CreditPaymentEntry {
   confirmedAt?: string;
   confirmedBy?: string;
 }
+
+interface DebtSummary {
+  totalDebtInvoices: number;
+  totalCreditInvoiced: number;
+  totalConfirmedPaid: number;
+  totalOutstanding: number;
+  totalPendingPayments: number;
+  fullyUnpaidCount: number;
+  partiallyPaidCount: number;
+  overdueCount: number;
+}
+
+const EMPTY_DEBT_SUMMARY: DebtSummary = {
+  totalDebtInvoices: 0, totalCreditInvoiced: 0, totalConfirmedPaid: 0,
+  totalOutstanding: 0, totalPendingPayments: 0, fullyUnpaidCount: 0,
+  partiallyPaidCount: 0, overdueCount: 0,
+};
 
 interface CreditDetails {
   amountPaid: number;
@@ -194,6 +213,13 @@ function formatSaleItemQuantity(item: SaleItem) {
   )} bonus)`;
 }
 
+function getDebtStatus(sale: Sale) {
+  const details = sale.creditDetails;
+  if (!details || details.amountDue <= 0.009) return "Payée";
+  if (details.dueDate && new Date(details.dueDate).getTime() < Date.now()) return "En retard";
+  return details.amountPaid > 0.009 ? "Partiellement payée" : "Impayée";
+}
+
 // Helper function to get current month in YYYY-MM format
 const getCurrentMonth = (): string => {
   const today = new Date();
@@ -271,12 +297,19 @@ export default function SalesHistory() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentDate, setPaymentDate] = useState(getTodayDate());
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentRequestId, setPaymentRequestId] = useState("");
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [showUnpaidSales, setShowUnpaidSales] = useState(false);
+  const showUnpaidSalesRef = useRef(false);
+  const [debtSummary, setDebtSummary] = useState<DebtSummary>(EMPTY_DEBT_SUMMARY);
+  const [debtStatus, setDebtStatus] = useState<"all" | "unpaid" | "partial" | "overdue">("all");
+  const [debtDueFrom, setDebtDueFrom] = useState("");
+  const [debtDueTo, setDebtDueTo] = useState("");
 
   useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams, creditFilter]);
+  useEffect(() => { showUnpaidSalesRef.current = showUnpaidSales; }, [showUnpaidSales]);
 
   // Fetch current user on component mount
   useEffect(() => {
@@ -285,7 +318,7 @@ export default function SalesHistory() {
     fetchProducts();
     const handleSalesUpdate = () => {
       // Refresh sales when triggered from other components
-      fetchSales();
+      if (showUnpaidSalesRef.current) fetchUnpaidSales(); else fetchSales();
       fetchProducts();
     };
 
@@ -299,9 +332,9 @@ export default function SalesHistory() {
   // Fetch sales when query params change
   useEffect(() => {
     if (Object.keys(queryParams).length > 0) {
-      fetchSales();
+      if (showUnpaidSales) fetchUnpaidSales(); else fetchSales();
     }
-  }, [queryParams, creditFilter, pagination.page]);
+  }, [queryParams, creditFilter, pagination.page, showUnpaidSales, debtStatus, debtDueFrom, debtDueTo, searchTerm]);
 
   // Fetch current user from API or localStorage
   const fetchCurrentUser = async () => {
@@ -452,7 +485,12 @@ export default function SalesHistory() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/sales/unpaid`, {
+      const params = new URLSearchParams({ page: String(pagination.page), limit: String(pagination.limit) });
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (debtStatus !== "all") params.set("debtStatus", debtStatus);
+      if (debtDueFrom) params.set("dueFrom", debtDueFrom);
+      if (debtDueTo) params.set("dueTo", debtDueTo);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sales/unpaid?${params.toString()}`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -464,6 +502,8 @@ export default function SalesHistory() {
       }
       if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setSales(data.data);
+      setPagination(data.pagination || EMPTY_PAGINATION);
+      setDebtSummary(data.summary || EMPTY_DEBT_SUMMARY);
       setShowUnpaidSales(true);
       setShowEditedSales(false);
       setCreditFilter("all");
@@ -478,7 +518,18 @@ export default function SalesHistory() {
   const returnToTimeframeSales = async () => {
     setShowUnpaidSales(false);
     setCreditFilter("all");
+    setDebtStatus("all");
+    setDebtDueFrom("");
+    setDebtDueTo("");
+    setPagination((current) => ({ ...current, page: 1 }));
     await fetchSales();
+  };
+
+  const openUnpaidView = () => {
+    setShowEditedSales(false);
+    setCreditFilter("all");
+    setPagination((current) => ({ ...current, page: 1 }));
+    setShowUnpaidSales(true);
   };
 
   // Update edited sales when sales change
@@ -635,9 +686,9 @@ export default function SalesHistory() {
     s.customer.phone.includes(searchTerm) ||
     (s.salesPerson && s.salesPerson.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const filteredSales = applyCreditFilter(
-    showEditedSales ? editedSales.filter(textFilter) : sales.filter(textFilter)
-  );
+  const filteredSales = showUnpaidSales
+    ? sales
+    : applyCreditFilter(showEditedSales ? editedSales.filter(textFilter) : sales.filter(textFilter));
 
   const creditStats = {
     totalCredit: sales.filter((s) => s.paymentType === "credit").length,
@@ -1649,6 +1700,7 @@ export default function SalesHistory() {
     setPaymentAmount("");
     setPaymentMethod("cash");
     setPaymentNotes("");
+    setPaymentDate(getTodayDate());
     setPaymentRequestId(createPaymentRequestId());
     setShowPaymentModal(true);
   };
@@ -1658,6 +1710,7 @@ export default function SalesHistory() {
     setPaymentSale(null);
     setPaymentAmount("");
     setPaymentNotes("");
+    setPaymentDate(getTodayDate());
     setPaymentRequestId("");
   };
 
@@ -1688,6 +1741,7 @@ export default function SalesHistory() {
             amount,
             method: paymentMethod,
             notes: paymentNotes,
+            paymentDate,
             paymentId: paymentRequestId,
           }),
         }
@@ -1761,7 +1815,7 @@ export default function SalesHistory() {
           </div>
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={showUnpaidSales ? returnToTimeframeSales : fetchUnpaidSales}
+              onClick={showUnpaidSales ? returnToTimeframeSales : openUnpaidView}
               className={`px-4 py-2 rounded-lg font-semibold text-sm border shadow-sm transition-colors ${
                 showUnpaidSales
                   ? "bg-white text-blue-700 border-blue-300 hover:bg-blue-50"
@@ -1915,8 +1969,27 @@ export default function SalesHistory() {
           </div>
         )}
 
+        {showUnpaidSales && (
+          <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4 shadow-sm">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div><p className="text-xs text-amber-700">Total factures impayées</p><p className="text-xl font-bold">{debtSummary.totalDebtInvoices}</p></div>
+              <div><p className="text-xs text-amber-700">Montant total restant</p><p className="text-xl font-bold text-red-700">{formatCurrency(debtSummary.totalOutstanding)}</p></div>
+              <div><p className="text-xs text-amber-700">Montant déjà encaissé</p><p className="text-xl font-bold text-green-700">{formatCurrency(debtSummary.totalConfirmedPaid)}</p></div>
+              <div><p className="text-xs text-amber-700">Nombre en retard</p><p className="text-xl font-bold text-orange-700">{debtSummary.overdueCount}</p></div>
+            </div>
+            <p className="text-xs text-amber-800">Résumé calculé par le serveur sur toutes les factures correspondant aux filtres, indépendamment de la page affichée.</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <select value={debtStatus} onChange={(e) => { setDebtStatus(e.target.value as typeof debtStatus); setPagination((p) => ({ ...p, page: 1 })); }} className="rounded-lg border border-amber-300 bg-white p-2 text-sm">
+                <option value="all">Toutes les dettes</option><option value="unpaid">Impayées</option><option value="partial">Partiellement payées</option><option value="overdue">En retard</option>
+              </select>
+              <input type="date" value={debtDueFrom} onChange={(e) => { setDebtDueFrom(e.target.value); setPagination((p) => ({ ...p, page: 1 })); }} className="rounded-lg border border-amber-300 bg-white p-2 text-sm" aria-label="Échéance à partir du" />
+              <input type="date" value={debtDueTo} onChange={(e) => { setDebtDueTo(e.target.value); setPagination((p) => ({ ...p, page: 1 })); }} className="rounded-lg border border-amber-300 bg-white p-2 text-sm" aria-label="Échéance jusqu'au" />
+            </div>
+          </div>
+        )}
+
         {/* Credit Sales Summary Banner */}
-        {creditStats.totalCredit > 0 && (
+        {!showUnpaidSales && creditStats.totalCredit > 0 && (
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
@@ -2313,13 +2386,12 @@ export default function SalesHistory() {
                                 💳 CRÉDIT
                               </span>
                               {sale.creditDetails && (
-                                <span className={`text-xs font-medium ${sale.creditDetails.fullyPaid ? "text-green-600" : "text-red-600"}`}>
-                                  {sale.creditDetails.fullyPaid
-                                    ? "✅ Soldé"
-                                    : sale.creditDetails.amountPaid > 0
-                                    ? `Dû: $${sale.creditDetails.amountDue.toFixed(2)}`
-                                    : `Total dû: $${sale.creditDetails.amountDue.toFixed(2)}`}
-                                </span>
+                                <div className="text-xs">
+                                  <p className="font-semibold text-amber-800">{getDebtStatus(sale)}</p>
+                                  <p className="text-green-700">Payé : {formatCurrency(sale.creditDetails.amountPaid)}</p>
+                                  <p className="font-semibold text-red-700">Restant : {formatCurrency(sale.creditDetails.amountDue)}</p>
+                                  <p className="text-gray-500">Échéance : {sale.creditDetails.dueDate ? formatDateGmt2(sale.creditDetails.dueDate) : "Non définie"}</p>
+                                </div>
                               )}
                             </div>
                           ) : (
@@ -2646,9 +2718,15 @@ export default function SalesHistory() {
                       <p className="text-xs font-semibold text-gray-600 mb-2">Historique des paiements:</p>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {selectedSale.creditDetails.payments.map((p, i) => (
-                          <div key={i} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-amber-100">
-                            <span>{new Date(p.date).toLocaleDateString("fr-FR")} — {p.method}</span>
-                            <div className="flex items-center gap-2">
+                          <div key={i} className="text-xs bg-white rounded px-3 py-2 border border-amber-100">
+                            <div className="grid gap-1 sm:grid-cols-2">
+                              <span><strong>Date du paiement :</strong> {formatDateGmt2(p.paymentDate || p.confirmedAt || p.date)}</span>
+                              <span><strong>Enregistré le :</strong> {formatDateTimeGmt2(p.recordedAt || p.date)}</span>
+                              <span><strong>Mode de paiement :</strong> {p.method}</span>
+                              <span><strong>Enregistré par :</strong> {p.recordedBy || "-"}</span>
+                              {p.notes && <span className="sm:col-span-2"><strong>Note :</strong> {p.notes}</span>}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-2">
                               <strong className={p.status === "pending" ? "text-amber-700" : "text-green-700"}>
                                 {formatCurrency(p.amount)}
                               </strong>
@@ -3357,6 +3435,18 @@ export default function SalesHistory() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date du paiement *</label>
+                <input
+                  type="date"
+                  required
+                  max={getTodayDate()}
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">Date comptable à laquelle l'argent a réellement été reçu.</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
                 <input
                   type="text"
@@ -3372,7 +3462,7 @@ export default function SalesHistory() {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleRecordCreditPayment}
-                  disabled={paymentSubmitting || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                  disabled={paymentSubmitting || !paymentDate || !paymentAmount || parseFloat(paymentAmount) <= 0}
                   className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   {paymentSubmitting ? (
