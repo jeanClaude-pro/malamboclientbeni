@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
-import { getCustomerDisplayName } from "../utils/constants";
 import { getActiveBranchId } from "../services/dataSync";
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -58,20 +57,48 @@ interface DailyBalanceData {
   currentBalance: number;
 }
 
+// Populated entirely from GET /api/company-report/summary — one aggregated
+// backend call. CompanyReport no longer downloads raw sales/expenses/entries/
+// transfers/products/customers collections merely to compute report totals.
 interface ReportData {
-  sales: any[];
-  expenses: any[];
-  entries: any[];
-  transfers: any[];
-  products: any[];
-  customers: any[];
   salesSummary?: any;
   expensesSummary?: any;
   entriesSummary?: any;
   transfersSummary?: any;
+  transfersByProduct?: Array<{ name: string; cartonQuantity: number; looseQuantity: number }>;
   customersStats?: any;
   exchangeRate?: any;
   inventorySummary?: any;
+}
+
+// Shape returned by GET /api/company-report/top-products — a dedicated
+// server-side aggregation, independent of the (potentially paginated)
+// /api/sales endpoint. Field names match what the JSX below already renders.
+interface TopProductRow {
+  productId?: string | null;
+  name: string;
+  piecesPerCarton: number;
+  paidQuantity: number;
+  bonusQuantity: number;
+  soldCartons: number;
+  soldPieces: number;
+  bonusCartons: number;
+  bonusPieces: number;
+  revenue: number;
+  remainingStock: number;
+  productActive?: boolean;
+}
+
+interface TopProductsResponse {
+  success: boolean;
+  topByQuantity: TopProductRow[];
+  topByBonus: TopProductRow[];
+  totals: {
+    distinctProducts: number;
+    totalPaidQuantity: number;
+    totalBonusQuantity: number;
+    totalRevenue: number;
+  };
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -153,18 +180,24 @@ export default function CompanyReport() {
   const [fromDate, setFromDate] = useState(todayIso());
   const [toDate, setToDate] = useState(todayIso());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // loadReport() is now a single GET /api/company-report/summary call, so a
+  // failure is one error for that whole aggregation — not per-section. It is
+  // still isolated from loadTopProducts()/loadDailyBalance() below: each of
+  // the three report data sources fails independently and never erases the
+  // other two's already-loaded data.
+  const [reportError, setReportError] = useState<string | null>(null);
   const [dailyBalance, setDailyBalance] = useState<DailyBalanceData | null>(null);
   const [dailyBalanceLoading, setDailyBalanceLoading] = useState(false);
   const [showDailyTable, setShowDailyTable] = useState(false);
-  const [data, setData] = useState<ReportData>({
-    sales: [],
-    expenses: [],
-    entries: [],
-    transfers: [],
-    products: [],
-    customers: [],
-  });
+  const [data, setData] = useState<ReportData>({});
+
+  // "Meilleurs articles vendus" / "Produits en bonus" — fetched independently
+  // from a dedicated backend aggregation (see PHASE 5 fix), never derived from
+  // whatever page of /api/sales happened to load, and unaffected by failures
+  // in the other report sections above.
+  const [topProductsData, setTopProductsData] = useState<TopProductsResponse | null>(null);
+  const [topProductsLoading, setTopProductsLoading] = useState(false);
+  const [topProductsError, setTopProductsError] = useState<string | null>(null);
 
   const reportPeriod = useMemo(() => {
     const year = Number(selectedYear);
@@ -223,32 +256,62 @@ export default function CompanyReport() {
     return payload;
   }
 
+  // Single aggregated call — GET /api/company-report/summary — replacing the
+  // previous approach of fetching raw /sales, /expenses, /entries, /transfers,
+  // /products and /customers/all and reducing them in the browser. The
+  // backend now returns only the numbers this screen actually displays.
   async function loadReport() {
     const requestedBranch = getActiveBranchId();
     setLoading(true);
-    setError(null);
-
+    setReportError(null);
     try {
       const params = new URLSearchParams();
-      params.set("from", reportPeriod.from);
-      params.set("to", reportPeriod.to);
+      if (reportPeriod.from) params.set("from", reportPeriod.from);
+      if (reportPeriod.to) params.set("to", reportPeriod.to);
       const report = await apiGet(`/company-report/summary?${params.toString()}`);
 
       if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
-      setData({
-        sales: [], expenses: [], entries: [], transfers: [], products: [], customers: [],
-        salesSummary: report.salesSummary,
-        expensesSummary: report.expensesSummary,
-        entriesSummary: report.entriesSummary,
-        transfersSummary: report.transfersSummary,
-        customersStats: report.customersStats,
-        exchangeRate: report.exchangeRate,
-        inventorySummary: report.inventorySummary,
-      });
+      if (report?.success) {
+        setData({
+          salesSummary: report.salesSummary,
+          expensesSummary: report.expensesSummary,
+          entriesSummary: report.entriesSummary,
+          transfersSummary: report.transfersSummary,
+          transfersByProduct: Array.isArray(report.transfersByProduct) ? report.transfersByProduct : [],
+          customersStats: report.customersStats,
+          exchangeRate: report.exchangeRate,
+          inventorySummary: report.inventorySummary,
+        });
+      }
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (getActiveBranchId() !== requestedBranch) return;
+      // Previous good data is intentionally left in place — a failed refresh
+      // shows a warning banner instead of blanking out the whole report.
+      setReportError(getErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Independent of loadReport() above and of /api/sales entirely — backed by
+  // GET /api/company-report/top-products, a dedicated MongoDB aggregation.
+  // "Meilleurs articles vendus" / "Produits en bonus" never derive from
+  // whatever raw sales happen to be loaded elsewhere, and an empty result for
+  // a period is authoritative ("no products sold"), not a signal to guess.
+  async function loadTopProducts() {
+    const requestedBranch = getActiveBranchId();
+    setTopProductsLoading(true);
+    setTopProductsError(null);
+    try {
+      const query = timeframeParams ? `?${timeframeParams}` : "";
+      const res = await apiGet(`/company-report/top-products${query}`);
+      if (getActiveBranchId() !== requestedBranch) return; // stale
+      if (res?.success) setTopProductsData(res as TopProductsResponse);
+    } catch (err) {
+      if (getActiveBranchId() !== requestedBranch) return;
+      setTopProductsError(getErrorMessage(err));
+    } finally {
+      setTopProductsLoading(false);
     }
   }
 
@@ -271,11 +334,12 @@ export default function CompanyReport() {
   useEffect(() => {
     loadReport();
     loadDailyBalance();
+    loadTopProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframeParams]);
 
   useEffect(() => {
-    const handleRefresh = () => { loadReport(); loadDailyBalance(); };
+    const handleRefresh = () => { loadReport(); loadDailyBalance(); loadTopProducts(); };
     window.addEventListener("appDataChanged", handleRefresh);
     return () => {
       window.removeEventListener("appDataChanged", handleRefresh);
@@ -283,168 +347,55 @@ export default function CompanyReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Every figure here comes directly from GET /api/company-report/summary —
+  // no client-side reduction over raw collections. `Number(x || 0)` only
+  // guards against the field being briefly undefined before the first
+  // successful load (or absent after a failed one, per `reportError` below).
   const totals = useMemo(() => {
-    const salesRevenue = data.salesSummary?.revenue != null
-      ? Number(data.salesSummary.revenue)
-      : data.sales
-          .filter((sale: any) => sale.paymentType !== "credit")
-          .reduce((sum, sale) => sum + Number(sale.total || 0), 0);
-    const validatedExpenses =
-      Number(data.expensesSummary?.validated?.amount) ||
-      data.expenses
-        .filter((expense) => expense.status === "validated")
-        .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-    const entriesAmount =
-      Number(data.entriesSummary?.active?.amount) ||
-      data.entries
-        .filter((entry) => entry.status !== "deleted")
-        .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-    const lowStock = data.inventorySummary?.lowStock ?? data.products.filter(
-      (product) => Number(product.stock || 0) <= Number(product.minStock || 0)
-    ).length;
-
-    // Credit sale metrics
-    const creditSales = data.sales.filter((s: any) => s.paymentType === "credit");
-    const creditTotal = data.salesSummary?.creditTotal ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.total || 0), 0);
-    const creditCollected = data.salesSummary?.creditCollected ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountPaid || 0), 0);
-    const creditOutstanding = data.salesSummary?.creditOutstanding ?? creditSales.reduce((sum: number, s: any) => sum + Number(s.creditDetails?.amountDue || 0), 0);
-    const creditFullyPaid = data.salesSummary?.creditFullyPaid ?? creditSales.filter((s: any) => s.creditDetails?.fullyPaid).length;
-
-    const transfersPending = data.transfers.filter((t: any) => t.status === "pending").length;
-    const transfersInTransit = data.transfers.filter((t: any) => t.status === "in_transit").length;
-    const transfersDelivered = data.transfers.filter((t: any) => t.status === "delivered").length;
-    const transfersCancelled = data.transfers.filter((t: any) => t.status === "cancelled").length;
-    // Cartons first — loose pieces are tracked separately and only shown when present
-    const transfersCartonsTotal = data.transfers.reduce(
-      (sum: number, t: any) => sum + Number(t.product?.cartonQuantity || 0),
-      0
-    );
-    const transfersLoosePiecesTotal = data.transfers.reduce(
-      (sum: number, t: any) => sum + Number(t.product?.looseQuantity || 0),
-      0
-    );
+    const salesRevenue = Number(data.salesSummary?.revenue || 0);
+    const validatedExpenses = Number(data.expensesSummary?.validated?.amount || 0);
+    const entriesAmount = Number(data.entriesSummary?.active?.amount || 0);
 
     return {
       salesRevenue,
       validatedExpenses,
       entriesAmount,
       netResult: salesRevenue + entriesAmount - validatedExpenses,
-      salesCount: data.salesSummary?.salesCount ?? data.sales.length,
-      expensesCount: data.expensesSummary?.validated?.count ?? data.expenses.length,
-      entriesCount: data.entriesSummary?.active?.count ?? data.entries.length,
-      productsCount: data.inventorySummary?.productsCount ?? data.products.length,
-      customersCount: data.customersStats?.totalCustomers ?? data.customers.length,
-      lowStock,
-      creditSalesCount: data.salesSummary?.creditSalesCount ?? creditSales.length,
-      creditTotal,
-      creditCollected,
-      creditOutstanding,
-      creditFullyPaid,
-      transfersCount: data.transfersSummary?.total ?? data.transfers.length,
-      transfersPending: data.transfersSummary?.pending ?? transfersPending,
-      transfersInTransit: data.transfersSummary?.inTransit ?? transfersInTransit,
-      transfersDelivered: data.transfersSummary?.delivered ?? transfersDelivered,
-      transfersCancelled: data.transfersSummary?.cancelled ?? transfersCancelled,
-      transfersCartonsTotal: data.transfersSummary?.cartons ?? transfersCartonsTotal,
-      transfersLoosePiecesTotal: data.transfersSummary?.loosePieces ?? transfersLoosePiecesTotal,
+      salesCount: Number(data.salesSummary?.salesCount || 0),
+      expensesCount: Number(data.expensesSummary?.validated?.count || 0),
+      entriesCount: Number(data.entriesSummary?.active?.count || 0),
+      productsCount: Number(data.inventorySummary?.productsCount || 0),
+      activeProductsCount: Number(data.inventorySummary?.activeCount || 0),
+      customersCount: Number(data.customersStats?.totalCustomers || 0),
+      lowStock: Number(data.inventorySummary?.lowStock || 0),
+      creditSalesCount: Number(data.salesSummary?.creditSalesCount || 0),
+      creditTotal: Number(data.salesSummary?.creditTotal || 0),
+      creditCollected: Number(data.salesSummary?.creditCollected || 0),
+      creditOutstanding: Number(data.salesSummary?.creditOutstanding || 0),
+      creditFullyPaid: Number(data.salesSummary?.creditFullyPaid || 0),
+      transfersCount: Number(data.transfersSummary?.total || 0),
+      transfersPending: Number(data.transfersSummary?.pending || 0),
+      transfersInTransit: Number(data.transfersSummary?.inTransit || 0),
+      transfersDelivered: Number(data.transfersSummary?.delivered || 0),
+      transfersCancelled: Number(data.transfersSummary?.cancelled || 0),
+      transfersCartonsTotal: Number(data.transfersSummary?.cartons || 0),
+      transfersLoosePiecesTotal: Number(data.transfersSummary?.loosePieces || 0),
     };
   }, [data]);
 
-  // Reports are general, not record-specific: a product can be transferred several times
-  // (to different agencies, on different dates) during the period, so we aggregate by
-  // product and only show what was transferred in total — not per-transfer destination,
-  // receiver or transport details, which belong in TransfertHistory instead.
-  const transferProductSummary = useMemo(() => {
-    const byName = new Map<string, { name: string; cartonQuantity: number; looseQuantity: number }>();
+  // Per-product transfer breakdown (excludes cancelled transfers) — computed
+  // server-side in the same /summary aggregation as everything else above,
+  // NOT from GET /api/transfers, which is paginated and would silently
+  // truncate this table to page 1 for a busy period.
+  const transferProductSummary = data.transfersByProduct ?? [];
 
-    data.transfers
-      .filter((transfer: any) => transfer.status !== "cancelled")
-      .forEach((transfer: any) => {
-        const name = transfer.product?.name || "Article";
-        const current = byName.get(name) || { name, cartonQuantity: 0, looseQuantity: 0 };
-        current.cartonQuantity += Number(transfer.product?.cartonQuantity || 0);
-        current.looseQuantity += Number(transfer.product?.looseQuantity || 0);
-        byName.set(name, current);
-      });
-
-    return Array.from(byName.values()).sort((a, b) => b.cartonQuantity - a.cartonQuantity);
-  }, [data.transfers]);
-
-  const productPerformance = useMemo(() => {
-    const byName = new Map<string, {
-      name: string;
-      paidQuantity: number;
-      soldCartons: number;
-      soldPieces: number;
-      bonusQuantity: number;
-      bonusCartons: number;
-      bonusPieces: number;
-      piecesPerCarton: number;
-      remainingStock: number;
-      revenue: number;
-    }>();
-
-    data.sales.forEach((sale) => {
-      (sale.items || []).forEach((item: any) => {
-        const name = item.name || "Article";
-        const product = data.products.find((candidate) =>
-          String(candidate._id) === String(item.productId || "") || candidate.name === name
-        );
-        const piecesPerCarton = getPiecesPerCarton(item.piecesPerCarton || product?.piecesPerCarton);
-        const bonusQuantity = Math.max(0, Number(item.bonusQuantity || 0));
-        const paidQuantity = Math.max(
-          0,
-          Number(item.paidQuantity ?? Math.max(0, Number(item.quantity || 0) - bonusQuantity))
-        );
-        const hasRecordedPaidParts = Number(item.cartonQuantity || 0) + Number(item.looseQuantity || 0) > 0;
-        const hasRecordedBonusParts = Number(item.bonusCartons || 0) + Number(item.bonusPieces || 0) > 0;
-        const current = byName.get(name) || {
-          name,
-          paidQuantity: 0,
-          soldCartons: 0,
-          soldPieces: 0,
-          bonusQuantity: 0,
-          bonusCartons: 0,
-          bonusPieces: 0,
-          piecesPerCarton,
-          remainingStock: Number(product?.stock || 0),
-          revenue: 0,
-        };
-        current.paidQuantity += paidQuantity;
-        current.soldCartons += hasRecordedPaidParts
-          ? Number(item.cartonQuantity || 0)
-          : Math.floor(paidQuantity / piecesPerCarton);
-        current.soldPieces += hasRecordedPaidParts
-          ? Number(item.looseQuantity || 0)
-          : paidQuantity % piecesPerCarton;
-        current.bonusQuantity += bonusQuantity;
-        current.bonusCartons += hasRecordedBonusParts
-          ? Number(item.bonusCartons || 0)
-          : Math.floor(bonusQuantity / piecesPerCarton);
-        current.bonusPieces += hasRecordedBonusParts
-          ? Number(item.bonusPieces || 0)
-          : bonusQuantity % piecesPerCarton;
-        current.remainingStock = Number(product?.stock ?? current.remainingStock);
-        current.revenue += sale.paymentType === "credit"
-          ? 0
-          : Number(
-              item.total ||
-                (Number(item.price || 0) *
-                  (Number(item.paidQuantity ?? item.quantity ?? 0) /
-                    Math.max(1, Number(item.piecesPerCarton || 1)))) ||
-                0
-            );
-        byName.set(name, current);
-      });
-    });
-
-    return Array.from(byName.values()).sort((a, b) => b.paidQuantity - a.paidQuantity);
-  }, [data.products, data.sales]);
-
-  const topProducts = productPerformance;
-  const bonusProducts = productPerformance
-    .filter((product) => product.bonusQuantity > 0)
-    .sort((a, b) => b.bonusQuantity - a.bonusQuantity);
+  // Authoritative source for "Meilleurs articles vendus" / "Produits en
+  // bonus": the dedicated backend aggregation only. An empty array here means
+  // exactly what it says — no products sold in this period — never a signal
+  // to approximate from some other partially-loaded dataset (there isn't one:
+  // loadReport() no longer fetches raw sales at all).
+  const topProducts: TopProductRow[] = topProductsData?.topByQuantity ?? [];
+  const bonusProducts: TopProductRow[] = topProductsData?.topByBonus ?? [];
 
   function handlePrint() {
     window.print();
@@ -564,58 +515,6 @@ export default function CompanyReport() {
           `${formatNumber(product.bonusCartons)} cartons${product.bonusPieces > 0 ? ` + ${formatNumber(product.bonusPieces)} pièces` : ""}`
         );
       });
-    }
-
-    // Detailed transactions are intentionally omitted from the executive report.
-    const includeDetailedTransactions = false;
-    if (includeDetailedTransactions && data.sales.length > 0) {
-      sectionTitle(`Détail des ventes (${data.sales.length})`);
-      addPageIfNeeded(8);
-      // Table header
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.setFillColor(226, 232, 240);
-      doc.rect(margin, y, pageWidth - margin * 2, 7, "F");
-      doc.text("Référence", margin + 1, y + 5);
-      doc.text("Date", margin + 28, y + 5);
-      doc.text("Client", margin + 58, y + 5);
-      doc.text("Paiement", margin + 110, y + 5);
-      doc.text("Total", pageWidth - margin - 2, y + 5, { align: "right" });
-      y += 8;
-
-      doc.setFont("helvetica", "normal");
-      data.sales.forEach((sale: any, idx: number) => {
-        addPageIfNeeded(7);
-        if (idx % 2 === 0) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, y - 1, pageWidth - margin * 2, 7, "F");
-        }
-        const ref = (sale.saleId || sale.saleNumber || `#${idx + 1}`).toString().slice(-8);
-        const dateStr = sale.createdAt
-          ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(sale.createdAt))
-          : "-";
-        const client = getCustomerDisplayName(sale.customer?.name).slice(0, 22);
-        const payment = sale.paymentType === "credit"
-          ? `Crédit${sale.creditDetails?.fullyPaid ? " ✓" : ` -$${Number(sale.creditDetails?.amountDue || 0).toFixed(0)}`}`
-          : (sale.paymentMethod || "Espèces");
-        doc.text(ref, margin + 1, y + 4);
-        doc.text(dateStr, margin + 28, y + 4);
-        doc.text(client, margin + 58, y + 4);
-        doc.text(payment.slice(0, 24), margin + 110, y + 4);
-        doc.text(formatMoney(Number(sale.total || 0)), pageWidth - margin - 2, y + 4, { align: "right" });
-        y += 7;
-      });
-
-      // Sales total row
-      addPageIfNeeded(9);
-      doc.setFillColor(237, 242, 247);
-      doc.rect(margin, y, pageWidth - margin * 2, 8, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text("TOTAL DES VENTES", margin + 1, y + 5.5);
-      doc.text(formatMoney(totals.salesRevenue), pageWidth - margin - 2, y + 5.5, { align: "right" });
-      doc.setFontSize(10);
-      y += 12;
     }
 
     sectionTitle("Validation");
@@ -828,10 +727,21 @@ export default function CompanyReport() {
             </div>
           </div>
 
-          {error && (
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {reportError && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              {error}
+              <span>
+                Le résumé financier n'a pas pu être actualisé ({reportError}) — les chiffres affichés sont ceux
+                du dernier chargement réussi.
+              </span>
+            </div>
+          )}
+          {topProductsError && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>
+                Le calcul des meilleurs articles n'a pas pu être chargé depuis le serveur ({topProductsError}).
+              </span>
             </div>
           )}
         </div>
@@ -1147,7 +1057,7 @@ export default function CompanyReport() {
                 <div className="flex justify-between gap-4">
                   <dt>Articles actifs</dt>
                   <dd className="font-bold">
-                    {formatNumber(data.products.filter((product) => product.status !== "inactive").length)}
+                    {formatNumber(totals.activeProductsCount)}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -1230,7 +1140,10 @@ export default function CompanyReport() {
 
           <section className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
             <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="font-bold text-slate-900">Meilleurs articles vendus</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900">Meilleurs articles vendus</h3>
+                {topProductsLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+              </div>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
