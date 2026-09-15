@@ -28,13 +28,21 @@ input, select, textarea {
 }
 
 .mobile-app-only { display: none; }
+.mobile-cars-only { display: none; }
+.desktop-cars-only { display: table; }
 
 @media (max-width: 480px) and (max-height: 1000px) {
   .mobile-app-only { display: flex; }
+  .mobile-cars-only { display: block; }
+  .desktop-cars-only { display: none; }
   .desktop-app-only { display: none !important; }
 
   main {
-    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  .mobile-sheet-overlay {
+    padding: max(.5rem, env(safe-area-inset-top)) 0 0;
   }
 
   header > div {

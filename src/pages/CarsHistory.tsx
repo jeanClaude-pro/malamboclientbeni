@@ -183,6 +183,41 @@ const getTripProducts = (trip: CarTrip): TripProduct[] =>
 const getTripTotalPieces = (trip: CarTrip): number =>
   getTripProducts(trip).reduce((sum, product) => sum + product.totalPieces, 0);
 
+const getTripTotalCartons = (trip: CarTrip): number =>
+  getTripProducts(trip).reduce((sum, product) => sum + Number(product.boxesCount || 0), 0);
+
+const splitPieceQuantity = (totalPieces: number, piecesPerCarton: number) => {
+  const safeTotal = Math.max(0, Math.floor(Number(totalPieces || 0)));
+  const safePerCarton = Math.max(1, Math.floor(Number(piecesPerCarton || 1)));
+  return {
+    cartons: Math.floor(safeTotal / safePerCarton),
+    loosePieces: safeTotal % safePerCarton,
+  };
+};
+
+const getArrivalBreakdown = (trip: CarTrip) => {
+  const snapshots = trip.arrivalDetails?.products;
+  if (snapshots && snapshots.length > 0) {
+    return snapshots.map((product) => ({
+      productId: product.productId,
+      productName: product.productName,
+      totalPieces: product.quantity,
+      piecesPerCarton: product.piecesPerCarton,
+      ...splitPieceQuantity(product.quantity, product.piecesPerCarton),
+    }));
+  }
+
+  if (!trip.arrivalDetails) return [];
+  return [{
+    productId: trip.cargo.productId || trip._id,
+    productName: trip.cargo.productName,
+    totalPieces: trip.arrivalDetails.totalReceivedPieces,
+    piecesPerCarton: trip.cargo.piecesPerBox,
+    cartons: trip.arrivalDetails.receivedBoxes,
+    loosePieces: null,
+  }];
+};
+
 export default function CarsHistory() {
   const [trips, setTrips] = useState<CarTrip[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -212,7 +247,7 @@ export default function CarsHistory() {
   const [arrivalTrip, setArrivalTrip] = useState<CarTrip | null>(null);
   const [arrivalForm, setArrivalForm] = useState({
     arrivalDate: new Date().toISOString().slice(0, 10),
-    products: [] as Array<{ productId: string; productName: string; receivedBoxes: number; receivedPieces: number }>,
+    products: [] as Array<{ productId: string; productName: string; receivedCartons: number; receivedLoosePieces: number; piecesPerCarton: number }>,
     notes: "",
   });
   const [arrivalSubmitting, setArrivalSubmitting] = useState(false);
@@ -634,8 +669,9 @@ export default function CarsHistory() {
       products: getTripProducts(trip).map((product) => ({
         productId: product.productId,
         productName: product.productName,
-        receivedBoxes: product.boxesCount,
-        receivedPieces: product.piecesPerBox,
+        receivedCartons: product.boxesCount,
+        receivedLoosePieces: 0,
+        piecesPerCarton: product.piecesPerBox,
       })),
       notes: "",
     });
@@ -645,8 +681,12 @@ export default function CarsHistory() {
   const handleConfirmArrival = async () => {
     if (!arrivalTrip) return;
 
-    if (arrivalForm.products.some((product) => product.receivedBoxes < 0 || product.receivedPieces < 0)) {
+    if (arrivalForm.products.some((product) => product.receivedCartons < 0 || product.receivedLoosePieces < 0)) {
       setError("Les quantités reçues ne peuvent pas être négatives");
+      return;
+    }
+    if (arrivalForm.products.some((product) => product.receivedLoosePieces >= product.piecesPerCarton)) {
+      setError("Les pièces restantes doivent être inférieures au nombre de pièces par carton");
       return;
     }
 
@@ -840,7 +880,37 @@ export default function CarsHistory() {
                 <p>Aucun trajet trouvé</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200">
+              <>
+              <div className="mobile-cars-only space-y-3 p-3">
+                {filteredTrips.map((trip) => (
+                  <article key={trip._id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0"><p className="truncate text-sm font-black text-slate-950">{trip.tripId}</p><p className="mt-1 text-xs text-slate-500">{trip.origin} → {trip.destination}</p></div>
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${statusColors[trip.status]}`}>{getStatusIcon(trip.status)}{statusLabels[trip.status]}</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {getTripProducts(trip).map((product) => (
+                        <div key={`${trip._id}-${product.productId}`} className="rounded-xl bg-slate-50 p-3">
+                          <p className="truncate text-sm font-bold text-slate-800">{product.productName}</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-blue-700 p-2.5 text-white"><p className="text-[10px] font-black uppercase tracking-wider text-blue-100">Cartons</p><p className="text-2xl font-black">{product.boxesCount.toLocaleString()}</p></div>
+                            <div className="rounded-lg border border-slate-200 bg-white p-2.5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pièces restantes</p><p className="text-2xl font-black text-slate-900">0</p></div>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">{product.piecesPerBox} pièces/carton · {product.totalPieces.toLocaleString()} pièces au total</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <div><p className="text-xs font-semibold text-slate-700">{trip.driver.name}</p><p className="text-[11px] text-slate-500">{formatDate(trip.departureTime)}</p></div>
+                      <div className="flex gap-1">
+                        <button onClick={() => viewTripDetails(trip)} className="compact-control flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700" aria-label={`Voir ${trip.tripId}`}><Eye className="h-5 w-5" /></button>
+                        {canValidateArrivals && (trip.status === "en_route" || trip.status === "delayed") && <button onClick={() => openArrivalModal(trip)} className="compact-control flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700" aria-label={`Confirmer l'arrivée ${trip.tripId}`}><PackageCheck className="h-5 w-5" /></button>}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <table className="desktop-cars-only min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Trajet</th>
@@ -878,8 +948,10 @@ export default function CarsHistory() {
                         {getTripProducts(trip).map((product) => product.productName).join(", ")}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        <div className="font-medium">{getTripProducts(trip).length} produit{getTripProducts(trip).length > 1 ? "s" : ""}</div>
-                        <div className="text-xs text-gray-500">{getTripTotalPieces(trip).toLocaleString()} pcs au total</div>
+                        <div className="space-y-1 font-medium">
+                          {getTripProducts(trip).map((product) => <div key={`${trip._id}-${product.productId}`}>{product.boxesCount.toLocaleString()} carton{product.boxesCount !== 1 ? "s" : ""} <span className="font-normal text-gray-500">({product.piecesPerBox} pcs/carton)</span></div>)}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">{getTripTotalCartons(trip).toLocaleString()} cartons · {getTripTotalPieces(trip).toLocaleString()} pièces</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {formatDate(trip.departureTime)}
@@ -938,6 +1010,7 @@ export default function CarsHistory() {
                   ))}
                 </tbody>
               </table>
+              </>
             )}
           </div>
         </div>
@@ -1096,14 +1169,14 @@ export default function CarsHistory() {
               </div>
               
               {/* Arrival Details */}
-              {selectedTrip.status === "arrived" && selectedTrip.arrivalDetails?.confirmedAt && (
+              {["arrived", "completed"].includes(selectedTrip.status) && selectedTrip.arrivalDetails?.confirmedAt && (
                 <div className="border-t pt-4">
                   <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <PackageCheck className="w-4 h-4 text-green-600" />
                     Réception confirmée
                   </h4>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-xs text-gray-500">Confirmé le</p>
                         <p className="font-medium">{formatDate(selectedTrip.arrivalDetails.confirmedAt)}</p>
@@ -1112,14 +1185,18 @@ export default function CarsHistory() {
                         <p className="text-xs text-gray-500">Confirmé par</p>
                         <p className="font-medium">{selectedTrip.arrivalDetails.confirmedBy || "—"}</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Cartons reçus</p>
-                        <p className="font-medium text-green-700">{selectedTrip.arrivalDetails.receivedBoxes}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Pièces reçues/carton</p>
-                        <p className="font-medium text-green-700">{selectedTrip.arrivalDetails.receivedPieces}</p>
-                      </div>
+                    </div>
+                    <div className="space-y-2 border-t border-green-200 pt-3">
+                      {getArrivalBreakdown(selectedTrip).map((product) => (
+                        <div key={product.productId} className="rounded-xl border border-green-200 bg-white p-3">
+                          <p className="text-sm font-bold text-slate-800">{product.productName}</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div><p className="text-[10px] font-black uppercase tracking-wider text-green-700">Cartons</p><p className="text-xl font-black text-green-900">{product.cartons.toLocaleString()}</p></div>
+                            <div><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pièces restantes</p><p className="text-xl font-black text-slate-900">{product.loosePieces === null ? "—" : product.loosePieces.toLocaleString()}</p></div>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">{product.totalPieces.toLocaleString()} pièces au total · {product.piecesPerCarton} pièces/carton</p>
+                        </div>
+                      ))}
                     </div>
                     <div className="flex items-center justify-between text-sm border-t border-green-200 pt-3">
                       <span className="text-gray-600">Total pièces reçues:</span>
@@ -1127,16 +1204,6 @@ export default function CarsHistory() {
                         {selectedTrip.arrivalDetails.totalReceivedPieces.toLocaleString()}
                       </span>
                     </div>
-                    {selectedTrip.arrivalDetails.products && selectedTrip.arrivalDetails.products.length > 1 && (
-                      <div className="border-t border-green-200 pt-3 space-y-1 text-sm">
-                        {selectedTrip.arrivalDetails.products.map((product) => (
-                          <div key={product.productId} className="flex justify-between">
-                            <span>{product.productName}</span>
-                            <strong>{product.quantity.toLocaleString()} pièces</strong>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     {selectedTrip.arrivalDetails.totalReceivedPieces !== getTripTotalPieces(selectedTrip) && (
                       <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                         Différence: {(selectedTrip.arrivalDetails.totalReceivedPieces - getTripTotalPieces(selectedTrip)).toLocaleString()} pièces
@@ -1326,11 +1393,12 @@ export default function CarsHistory() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Cartons reçus *</label>
-                      <input type="number" value={product.receivedBoxes} onChange={(e) => setArrivalForm((form) => ({ ...form, products: form.products.map((item, itemIndex) => itemIndex === index ? { ...item, receivedBoxes: parseInt(e.target.value) || 0 } : item) }))} min="0" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                      <input type="number" inputMode="numeric" value={product.receivedCartons} onChange={(e) => setArrivalForm((form) => ({ ...form, products: form.products.map((item, itemIndex) => itemIndex === index ? { ...item, receivedCartons: parseInt(e.target.value) || 0 } : item) }))} min="0" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pièces/carton reçues *</label>
-                      <input type="number" value={product.receivedPieces} onChange={(e) => setArrivalForm((form) => ({ ...form, products: form.products.map((item, itemIndex) => itemIndex === index ? { ...item, receivedPieces: parseInt(e.target.value) || 0 } : item) }))} min="0" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pièces restantes *</label>
+                      <input type="number" inputMode="numeric" value={product.receivedLoosePieces} onChange={(e) => setArrivalForm((form) => ({ ...form, products: form.products.map((item, itemIndex) => itemIndex === index ? { ...item, receivedLoosePieces: parseInt(e.target.value) || 0 } : item) }))} min="0" max={product.piecesPerCarton - 1} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent" />
+                      <p className="mt-1 text-xs text-gray-500">0 à {product.piecesPerCarton - 1} pièces</p>
                     </div>
                   </div>
                 </div>
@@ -1339,13 +1407,13 @@ export default function CarsHistory() {
               <div className="bg-gray-50 rounded-lg p-3 text-sm flex justify-between items-center">
                 <span className="text-gray-600">Total pièces reçues:</span>
                 <span className="font-bold text-lg text-gray-900">
-                  {arrivalForm.products.reduce((sum, product) => sum + product.receivedBoxes * product.receivedPieces, 0).toLocaleString()}
+                  {arrivalForm.products.reduce((sum, product) => sum + product.receivedCartons * product.piecesPerCarton + product.receivedLoosePieces, 0).toLocaleString()}
                 </span>
               </div>
 
-              {arrivalForm.products.reduce((sum, product) => sum + product.receivedBoxes * product.receivedPieces, 0) !== getTripTotalPieces(arrivalTrip) && (
+              {arrivalForm.products.reduce((sum, product) => sum + product.receivedCartons * product.piecesPerCarton + product.receivedLoosePieces, 0) !== getTripTotalPieces(arrivalTrip) && (
                 <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  Différence vs envoi: {(arrivalForm.products.reduce((sum, product) => sum + product.receivedBoxes * product.receivedPieces, 0) - getTripTotalPieces(arrivalTrip)).toLocaleString()} pièces
+                  Différence vs envoi: {(arrivalForm.products.reduce((sum, product) => sum + product.receivedCartons * product.piecesPerCarton + product.receivedLoosePieces, 0) - getTripTotalPieces(arrivalTrip)).toLocaleString()} pièces
                 </div>
               )}
 

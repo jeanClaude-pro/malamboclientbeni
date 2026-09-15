@@ -78,7 +78,7 @@ export default function Navbar() {
 
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {location.pathname !== "/" && (
-              <Link to="/" className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700">
+              <Link to="/" className="desktop-app-only inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700">
                 <Home className="h-4 w-4" /> <span className="hidden md:inline">Modules</span>
               </Link>
             )}
@@ -87,7 +87,7 @@ export default function Navbar() {
               <Clock3 className="h-4 w-4 text-blue-600" /> {formattedTime}
             </div>
 
-            <div className="flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
+            <div className="desktop-app-only flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2.5 text-sm font-bold text-blue-800">
               <Building2 className="h-4 w-4 shrink-0" />
               <span className="hidden sm:inline">{branchName}</span>
               {canSwitch && !onWorkspacePage && (
@@ -117,7 +117,7 @@ export default function Navbar() {
                 clearAuth();
                 window.location.href = "/login";
               }}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white shadow-md transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="desktop-app-only inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white shadow-md transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               title="Se déconnecter"
             >
               <LogOut className="h-4 w-4" />
