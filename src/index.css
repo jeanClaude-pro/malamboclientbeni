@@ -1,5 +1,78 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+body {
+  overscroll-behavior-y: none;
+  text-rendering: optimizeLegibility;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+input, select, textarea {
+  max-width: 100%;
+  font-size: 16px;
+}
+
+.mobile-app-only { display: none; }
+
+@media (max-width: 480px) and (max-height: 1000px) {
+  .mobile-app-only { display: flex; }
+  .desktop-app-only { display: none !important; }
+
+  main {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  }
+
+  header > div {
+    min-height: 3.5rem;
+  }
+
+  button:not(.compact-control),
+  a[role="button"] {
+    min-height: 2.75rem;
+  }
+
+  [class*="fixed inset-0"] {
+    padding: max(.75rem, env(safe-area-inset-top)) .75rem calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  [class*="max-h-[90vh]"], [class*="max-h-[92vh]"], [class*="max-h-[95vh]"] {
+    max-height: calc(100dvh - 6rem - env(safe-area-inset-bottom));
+  }
+
+  table th, table td {
+    padding-left: .75rem !important;
+    padding-right: .75rem !important;
+  }
+
+  .Toastify__toast-container {
+    width: calc(100% - 1rem);
+    left: .5rem;
+    right: .5rem;
+    top: max(.5rem, env(safe-area-inset-top));
+  }
+}
+
+@media (max-width: 360px) {
+  [class~="grid-cols-2"] { grid-template-columns: minmax(0, 1fr); }
+  [class~="p-6"] { padding: 1rem; }
+  [class~="px-6"] { padding-left: 1rem; padding-right: 1rem; }
+}
+
 /* Page-media behavior remains CSS because @page has no Tailwind utility. */
 @media print {
   @page {

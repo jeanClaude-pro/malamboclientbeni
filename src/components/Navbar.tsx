@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeftRight, Building2, Clock3, Home, LogOut, ShieldCheck, Store } from "lucide-react";
+import { ArrowLeftRight, Building2, Clock3, Home, LogOut, ShieldCheck } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MODULES, canSwitchBranch, isSuperAdmin, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
@@ -67,8 +67,8 @@ export default function Navbar() {
       <header className="no-print sticky top-0 z-40 border-b border-white/70 bg-white/80 shadow-sm shadow-slate-200/50 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-300">
-              <Store className="h-5 w-5" />
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-lg shadow-slate-300">
+              <img src="/logorenove.png" alt="" className="h-full w-full object-contain" />
             </span>
             <span className="hidden min-w-0 sm:block">
               <span className="block truncate text-sm font-black uppercase tracking-wide text-slate-950">Entre Nous Renove</span>

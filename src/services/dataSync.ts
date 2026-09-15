@@ -97,6 +97,10 @@ export function installDataSynchronization() {
     const branchId = localStorage.getItem("activeBranchId");
     const isBranchScoped = Boolean(token && branchId && BRANCH_SCOPED_ENDPOINT.test(url));
     const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+    if (MUTATING_METHODS.has(method) && !navigator.onLine) {
+      window.dispatchEvent(new CustomEvent("offlineMutationBlocked"));
+      throw new TypeError("Connexion requise pour enregistrer cette opération.");
+    }
     if (isBranchScoped) headers.set("X-Branch-Id", branchId as string);
 
     if (isBranchScoped) beginBranchRequest();

@@ -33,6 +33,8 @@ import TransferReceptionHistory from "./pages/TransferReceptionHistory";
 import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
 import SuperadminLanding from "./pages/SuperadminLanding";
+import MobileNavigation from "./components/MobileNavigation";
+import PwaStatus from "./components/PwaStatus";
 
 // Reactive counterpart to RequireAuth: reads from AuthContext (not a one-off
 // localStorage snapshot) so it stays correct across login/logout without
@@ -52,6 +54,7 @@ export default function App() {
       <Router>
         <div className="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900">
           <Navbar />
+          <PwaStatus />
 
           {/* Main content */}
           <main className="min-h-dvh min-w-0 overflow-x-hidden">
@@ -215,6 +218,7 @@ export default function App() {
               </Routes>
             </div>
           </main>
+          <MobileNavigation />
         </div>
       </Router>
     </AuthProvider>

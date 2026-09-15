@@ -2469,15 +2469,17 @@ export default function SalesHistory() {
                                 </button>
                                 <button
                                   onClick={() => generateReceiptPDF(sale)}
-                                  className="text-green-600 hover:text-green-900 p-1 rounded transition-colors"
-                                  title="Download PDF Receipt"
+                                  className="compact-control inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-green-700 transition-colors hover:bg-green-50 hover:text-green-900"
+                                  title="Télécharger le reçu PDF"
+                                  aria-label={`Télécharger le reçu ${sale.saleId}`}
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => printESC_POSReceipt(sale)}
-                                  className="text-purple-600 hover:text-purple-900 p-1 rounded transition-colors"
-                                  title="Print ESC/POS Receipt"
+                                  className="compact-control inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg text-purple-700 transition-colors hover:bg-purple-50 hover:text-purple-900"
+                                  title="Réimprimer le reçu"
+                                  aria-label={`Réimprimer le reçu ${sale.saleId}`}
                                 >
                                   <Printer className="w-4 h-4" />
                                 </button>
