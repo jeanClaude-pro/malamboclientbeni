@@ -20,6 +20,8 @@ export type OperationalRole = Exclude<Role, "admin" | "superadmin">;
 export interface ModuleAccess {
   id: string;
   label: string;
+  // Compact label for tight spots such as the mobile tab bar.
+  shortLabel?: string;
   description: string;
   path: string;
   section: "Opérations" | "Stock & logistique" | "Suivi & rapports" | "Administration";
@@ -30,22 +32,29 @@ export interface ModuleAccess {
 
 export const MODULES: ModuleAccess[] = [
   { id: "rate", label: "Taux de change", description: "Configurer le taux monétaire utilisé par l'entreprise.", path: "/rate", section: "Administration", icon: TrendingUp, roles: [] },
-  { id: "pos", label: "Point de vente", description: "Enregistrer les ventes, crédits et réservations.", path: "/new-sale", section: "Opérations", icon: ShoppingCart, roles: ["cashier_supervisor", "inventory_manager"], featured: true },
+  { id: "pos", label: "Point de vente", shortLabel: "Vente", description: "Enregistrer les ventes, crédits et réservations.", path: "/new-sale", section: "Opérations", icon: ShoppingCart, roles: ["cashier_supervisor", "inventory_manager"], featured: true },
   { id: "entry", label: "Entrée de caisse", description: "Enregistrer les recettes et autres entrées de caisse.", path: "/entry", section: "Opérations", icon: WalletCards, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "sortie", label: "Sortie de caisse", description: "Soumettre les dépenses et décaissements.", path: "/sortie", section: "Opérations", icon: ReceiptText, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "cars", label: "Camions", description: "Planifier un trajet et son chargement multi-articles.", path: "/cars", section: "Stock & logistique", icon: CalendarDays, roles: ["cashier_supervisor", "inventory_manager"] },
-  { id: "transfert", label: "Transfert", description: "Préparer les transferts de marchandises.", path: "/transfert", section: "Stock & logistique", icon: ArrowLeftRight, roles: ["cashier_supervisor", "inventory_manager"] },
-  { id: "transfer-reception", label: "Réception", description: "Réceptionner les marchandises et mettre le stock à jour.", path: "/transfer-reception", section: "Stock & logistique", icon: ClipboardList, roles: ["cashier_supervisor", "inventory_manager"] },
-  { id: "products", label: "Articles & stock", description: "Consulter les articles, niveaux de stock et fiches d'audit.", path: "/products", section: "Stock & logistique", icon: Package, roles: ["manager", "inventory_manager"], featured: true },
-  { id: "sales", label: "Historique des ventes", description: "Suivre les ventes, réservations et paiements.", path: "/sales", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
+  { id: "transfert", label: "Transfert", shortLabel: "Transfert", description: "Préparer les transferts de marchandises.", path: "/transfert", section: "Stock & logistique", icon: ArrowLeftRight, roles: ["cashier_supervisor", "inventory_manager"] },
+  { id: "transfer-reception", label: "Réception", shortLabel: "Réception", description: "Réceptionner les marchandises et mettre le stock à jour.", path: "/transfer-reception", section: "Stock & logistique", icon: ClipboardList, roles: ["cashier_supervisor", "inventory_manager"] },
+  { id: "products", label: "Articles & stock", shortLabel: "Stock", description: "Consulter les articles, niveaux de stock et fiches d'audit.", path: "/products", section: "Stock & logistique", icon: Package, roles: ["manager", "inventory_manager"], featured: true },
+  { id: "sales", label: "Historique des ventes", shortLabel: "Ventes", description: "Suivre les ventes, réservations et paiements.", path: "/sales", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "carshistory", label: "Historique des camions", description: "Contrôler les arrivées et corrections de trajets.", path: "/carshistory", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "entryhistory", label: "Historique des entrées", description: "Consulter les recettes enregistrées.", path: "/entryhistory", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
-  { id: "historicsortie", label: "Historique des sorties", description: "Contrôler et, selon le rôle, valider les dépenses.", path: "/sortiehistory", section: "Suivi & rapports", icon: History, roles: ["manager", "cashier_supervisor", "inventory_manager"] },
+  { id: "historicsortie", label: "Historique des sorties", shortLabel: "Sorties", description: "Contrôler et, selon le rôle, valider les dépenses.", path: "/sortiehistory", section: "Suivi & rapports", icon: History, roles: ["manager", "cashier_supervisor", "inventory_manager"] },
   { id: "historictransfert", label: "Historique des transferts", description: "Suivre les transferts enregistrés.", path: "/transferthistory", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "historicreception", label: "Historique des réceptions", description: "Auditer les réceptions et annulations de stock.", path: "/transfer-reception-history", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
-  { id: "reports", label: "Rapports", description: "Analyser les résultats de l'agence et produire les PDF.", path: "/reports", section: "Suivi & rapports", icon: BarChart3, roles: ["manager"], featured: true },
+  { id: "reports", label: "Rapports", shortLabel: "Rapports", description: "Analyser les résultats de l'agence et produire les PDF.", path: "/reports", section: "Suivi & rapports", icon: BarChart3, roles: ["manager"], featured: true },
   { id: "customers", label: "Clients", description: "Consulter les clients et leur historique dans l'agence.", path: "/customers", section: "Suivi & rapports", icon: Users, roles: ["cashier_supervisor"] },
   { id: "users", label: "Personnel & agences", description: "Approuver les comptes, attribuer les rôles et affecter les agences.", path: "/users", section: "Administration", icon: UserRoundCog, roles: [], featured: true },
+];
+
+export const MODULE_SECTIONS: ModuleAccess["section"][] = [
+  "Opérations",
+  "Stock & logistique",
+  "Suivi & rapports",
+  "Administration",
 ];
 
 export const ROLE_DEFINITIONS: Record<Role, { label: string; summary: string; access: string[] }> = {
@@ -112,4 +121,11 @@ export function canAccessPath(user: Pick<User, "role" | "isSuperAdmin"> | null |
   if (path === "/workspace") return canSwitchBranch(user as Pick<User, "role">);
   const module = MODULES.find((item) => item.path.toLowerCase() === path.toLowerCase());
   return module ? canAccessModule(user, module) : false;
+}
+
+// Navigation order: grouped by section, keeping MODULES order within each section.
+export function navigableModules(user: Pick<User, "role" | "isSuperAdmin"> | null | undefined): ModuleAccess[] {
+  return MODULE_SECTIONS.flatMap((section) =>
+    MODULES.filter((module) => module.section === section && canAccessModule(user, module))
+  );
 }

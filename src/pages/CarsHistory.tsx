@@ -1,7 +1,8 @@
 // components/CarsHistory.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../services/authService";
 import {
   Truck,
@@ -144,6 +145,7 @@ interface EditFormData {
   products?: EditCargo[];
   departureTime?: string;
   expectedArrivalTime?: string;
+  actualArrivalTime?: string;
   fuelCost?: number;
   tollCost?: number;
   otherCosts?: number;
@@ -218,7 +220,21 @@ const getArrivalBreakdown = (trip: CarTrip) => {
   }];
 };
 
+const toLocalInput = (value: string | null | undefined) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 export default function CarsHistory() {
+  const requestId = useRef(0);
+  const mutationPending = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+  const isSuperadmin = user?.role === "superadmin";
+  const isAdmin = isSuperadmin || user?.role === "admin";
+  const canValidateArrivals = isAdmin || user?.role === "manager";
   const [trips, setTrips] = useState<CarTrip[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,8 +247,6 @@ export default function CarsHistory() {
   const [statusUpdate, setStatusUpdate] = useState<StatusUpdate>({ status: "", reason: "", currentLocation: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [canValidateArrivals, setCanValidateArrivals] = useState(false);
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
   
   const [statusFilter, setStatusFilter] = useState("");
@@ -255,7 +269,6 @@ export default function CarsHistory() {
   useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, plateFilter, timeframe.from, timeframe.to]);
 
   useEffect(() => {
-    fetchCurrentUser();
     fetchTrips();
     apiFetch<ProductOption[]>("/products")
       .then((data) => setProducts(Array.isArray(data) ? data.filter((product) => product.status !== "inactive") : []))
@@ -269,20 +282,8 @@ export default function CarsHistory() {
     };
   }, [statusFilter, plateFilter, timeframe, pagination.page]);
 
-  const fetchCurrentUser = async () => {
-    try {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const userData = JSON.parse(storedUser) as { role?: string };
-        setIsAdmin(userData.role === "admin" || userData.role === "superadmin");
-        setCanValidateArrivals(userData.role === "admin" || userData.role === "superadmin" || userData.role === "manager");
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  };
-
   const fetchTrips = async () => {
+    const currentRequest = ++requestId.current;
     const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
@@ -299,15 +300,15 @@ export default function CarsHistory() {
 
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      const data = await apiFetch<{ data: CarTrip[]; pagination?: PaginationState }>(`/car-trips${query}`);
-      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
+      const data = await apiFetch<{ data: CarTrip[]; pagination?: PaginationState }>(`/car-trips${query}`, { signal: AbortSignal.timeout(30000) });
+      if (currentRequest !== requestId.current || getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
       setTrips(data.data || []);
       setPagination(data.pagination || EMPTY_PAGINATION);
     } catch (error) {
       console.error("Error fetching trips:", error);
-      setError("Erreur lors du chargement des trajets");
+      if (currentRequest === requestId.current) setError("Erreur lors du chargement des trajets");
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
 
@@ -350,6 +351,12 @@ export default function CarsHistory() {
   };
 
   const openEditModal = (trip: CarTrip) => {
+    if (["arrived", "completed"].includes(trip.status) && !isSuperadmin) {
+      setError("Seul le superadmin peut modifier un trajet confirmé");
+      return;
+    }
+    setShowModal(false);
+    setError(null);
     setEditingTrip(trip);
     setEditForm({
       origin: trip.origin,
@@ -374,10 +381,9 @@ export default function CarsHistory() {
         value: trip.cargo.value,
       },
       products: getTripProducts(trip).map((product) => ({ ...product })),
-      departureTime: trip.departureTime.split('T')[0] + 'T' + (trip.departureTime.split('T')[1]?.slice(0, 5) || "00:00"),
-      expectedArrivalTime: trip.expectedArrivalTime
-        ? trip.expectedArrivalTime.split('T')[0] + 'T' + (trip.expectedArrivalTime.split('T')[1]?.slice(0, 5) || "00:00")
-        : "",
+      departureTime: toLocalInput(trip.departureTime),
+      expectedArrivalTime: toLocalInput(trip.expectedArrivalTime),
+      actualArrivalTime: toLocalInput(trip.actualArrivalTime),
       fuelCost: trip.fuelCost,
       tollCost: trip.tollCost,
       otherCosts: trip.otherCosts,
@@ -388,6 +394,8 @@ export default function CarsHistory() {
   };
 
   const openStatusModal = (trip: CarTrip) => {
+    setShowModal(false);
+    setError(null);
     setEditingTrip(trip);
     setStatusUpdate({
       status: trip.status,
@@ -398,11 +406,15 @@ export default function CarsHistory() {
   };
 
   const handleStatusUpdate = async () => {
-    if (!editingTrip) return;
+    if (!editingTrip || mutationPending.current) return;
     
     try {
+      mutationPending.current = true;
+      setSubmitting(true);
+      setError(null);
       await apiFetch(`/car-trips/${editingTrip._id}/status`, {
         method: "PATCH",
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({
           status: statusUpdate.status,
           reason: statusUpdate.reason,
@@ -417,13 +429,16 @@ export default function CarsHistory() {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Erreur lors de la mise à jour du statut";
       setError(msg);
+    } finally {
+      mutationPending.current = false;
+      setSubmitting(false);
     }
   };
 
   const handleEditTrip = async () => {
-    if (!editingTrip) return;
+    if (!editingTrip || mutationPending.current) return;
     
-    if (!editReason) {
+    if (!editReason.trim()) {
       setError("Veuillez fournir une raison pour la modification");
       return;
     }
@@ -435,7 +450,7 @@ export default function CarsHistory() {
       if (editForm.destination !== undefined) updatePayload.destination = editForm.destination;
       if (editForm.driver) updatePayload.driver = editForm.driver;
       if (editForm.vehicle) updatePayload.vehicle = editForm.vehicle;
-      if (editForm.products) {
+      if (editForm.products && JSON.stringify(editForm.products) !== JSON.stringify(getTripProducts(editingTrip))) {
         if (editForm.products.length === 0) {
           setError("Veuillez conserver au moins un produit dans le trajet");
           return;
@@ -460,27 +475,34 @@ export default function CarsHistory() {
           updatePayload.products = editForm.products;
         }
       }
-      if (editForm.departureTime !== undefined) updatePayload.departureTime = editForm.departureTime;
-      if (editForm.expectedArrivalTime !== undefined) updatePayload.expectedArrivalTime = editForm.expectedArrivalTime;
+      if (editForm.departureTime !== undefined) updatePayload.departureTime = new Date(editForm.departureTime).toISOString();
+      if (editForm.expectedArrivalTime !== undefined) updatePayload.expectedArrivalTime = editForm.expectedArrivalTime ? new Date(editForm.expectedArrivalTime).toISOString() : null;
+      if (isSuperadmin && editForm.actualArrivalTime) updatePayload.actualArrivalTime = new Date(editForm.actualArrivalTime).toISOString();
       if (editForm.fuelCost !== undefined) updatePayload.fuelCost = editForm.fuelCost;
       if (editForm.tollCost !== undefined) updatePayload.tollCost = editForm.tollCost;
       if (editForm.otherCosts !== undefined) updatePayload.otherCosts = editForm.otherCosts;
       if (editForm.notes !== undefined) updatePayload.notes = editForm.notes;
       
+      mutationPending.current = true;
+      setSubmitting(true);
+      setError(null);
       await apiFetch(`/car-trips/${editingTrip._id}`, {
         method: "PUT",
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify(updatePayload),
       });
 
       setMessage("✅ Trajet mis à jour avec succès");
       fetchTrips();
-      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
       setShowEditModal(false);
       setEditingTrip(null);
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Erreur lors de la mise à jour du trajet";
       setError(msg);
+    } finally {
+      mutationPending.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -502,7 +524,6 @@ export default function CarsHistory() {
 
       setMessage("✅ Trajet supprimé avec succès");
       fetchTrips();
-      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
       if (showModal) setShowModal(false);
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
@@ -679,7 +700,7 @@ export default function CarsHistory() {
   };
 
   const handleConfirmArrival = async () => {
-    if (!arrivalTrip) return;
+    if (!arrivalTrip || mutationPending.current || !arrivalForm.arrivalDate) return;
 
     if (arrivalForm.products.some((product) => product.receivedCartons < 0 || product.receivedLoosePieces < 0)) {
       setError("Les quantités reçues ne peuvent pas être négatives");
@@ -690,14 +711,16 @@ export default function CarsHistory() {
       return;
     }
 
+    mutationPending.current = true;
     setArrivalSubmitting(true);
     setError(null);
 
     try {
       await apiFetch(`/car-trips/${arrivalTrip._id}/confirm-arrival`, {
         method: "PATCH",
+        signal: AbortSignal.timeout(30000),
         body: JSON.stringify({
-          actualArrivalTime: `${arrivalForm.arrivalDate}T12:00:00`,
+          actualArrivalTime: `${arrivalForm.arrivalDate}T12:00:00+02:00`,
           receivedProducts: arrivalForm.products,
           notes: arrivalForm.notes.trim(),
         }),
@@ -708,11 +731,11 @@ export default function CarsHistory() {
       setArrivalTrip(null);
       if (showModal && selectedTrip?._id === arrivalTrip._id) setShowModal(false);
       fetchTrips();
-      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
       setTimeout(() => setMessage(null), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors de la confirmation d'arrivée");
     } finally {
+      mutationPending.current = false;
       setArrivalSubmitting(false);
     }
   };
@@ -869,7 +892,7 @@ export default function CarsHistory() {
           </div>
           
           <div className="overflow-x-auto">
-            {loading ? (
+            {loading && trips.length === 0 ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="text-gray-500 mt-2">Chargement...</p>
@@ -974,6 +997,7 @@ export default function CarsHistory() {
                           </button>
                           <button
                             onClick={() => openEditModal(trip)}
+                            disabled={["arrived", "completed"].includes(trip.status) && !isSuperadmin}
                             className="text-yellow-600 hover:text-yellow-900"
                             title="Modifier"
                           >
@@ -1262,6 +1286,7 @@ export default function CarsHistory() {
                 </button>
                 <button
                   onClick={() => openEditModal(selectedTrip)}
+                  disabled={["arrived", "completed"].includes(selectedTrip.status) && !isSuperadmin}
                   className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
                 >
                   <Edit className="w-4 h-4" />
@@ -1292,7 +1317,7 @@ export default function CarsHistory() {
       {/* Status Update Modal */}
       {showStatusModal && editingTrip && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6 max-h-[90dvh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Mettre à jour le statut</h3>
             
             <div className="space-y-4">
@@ -1335,9 +1360,11 @@ export default function CarsHistory() {
               </div>
             </div>
             
+            {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleStatusUpdate}
+                disabled={submitting}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Mettre à jour
@@ -1429,6 +1456,7 @@ export default function CarsHistory() {
               </div>
             </div>
 
+            {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleConfirmArrival}
@@ -1573,6 +1601,12 @@ export default function CarsHistory() {
                 </div>
               </div>
               
+              {isSuperadmin && ["arrived", "completed"].includes(editingTrip.status) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date d'arrivée confirmée</label>
+                  <input type="datetime-local" value={editForm.actualArrivalTime || ""} onChange={(e) => updateEditForm("actualArrivalTime", e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg" />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Raison de modification *</label>
                 <textarea
@@ -1586,9 +1620,11 @@ export default function CarsHistory() {
               </div>
             </div>
             
+            {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleEditTrip}
+                disabled={submitting}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Enregistrer

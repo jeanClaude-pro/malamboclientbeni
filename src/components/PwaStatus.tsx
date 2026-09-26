@@ -35,7 +35,7 @@ export default function PwaStatus() {
 
   if (online && !restored && !needRefresh && !installPrompt) return null;
   return (
-    <div className="no-print fixed inset-x-3 top-[4.5rem] z-[45] mx-auto flex max-w-xl flex-col gap-2" aria-live="polite">
+    <div className="no-print fixed inset-x-3 top-[calc(var(--app-header-h,4rem)+.5rem)] z-[45] mx-auto flex max-w-xl flex-col gap-2" aria-live="polite">
       {!online && <div className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-xl"><WifiOff className="h-4 w-4" /> Hors connexion — les enregistrements sont désactivés.</div>}
       {restored && <div className="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-xl">Connexion rétablie.</div>}
       {needRefresh && <div className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm text-slate-800 shadow-xl ring-1 ring-slate-200"><span className="flex-1 font-semibold">Une mise à jour est prête.</span><button type="button" onClick={() => updateServiceWorker(true)} className="compact-control inline-flex h-10 items-center gap-2 rounded-lg bg-blue-700 px-3 font-bold text-white"><RefreshCw className="h-4 w-4" /> Actualiser</button><button type="button" onClick={() => setNeedRefresh(false)} className="compact-control h-10 px-2 text-slate-500">Plus tard</button></div>}

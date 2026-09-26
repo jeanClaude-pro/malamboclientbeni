@@ -57,8 +57,8 @@ export default function App() {
           <PwaStatus />
 
           {/* Main content */}
-          <main className="min-h-dvh min-w-0 overflow-x-hidden">
-            <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900 [&_table]:min-w-[720px] [&_table]:bg-white [&_table]:text-slate-700 [&_thead]:bg-slate-950 [&_thead]:text-white [&_.overflow-x-auto]:max-w-full [&_.overflow-auto]:max-w-full max-sm:[&_.p-6]:p-4">
+          <main className="min-h-dvh min-w-0 overflow-x-clip">
+            <div className="min-h-dvh w-full min-w-0 overflow-x-clip bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 text-slate-900 [&_table]:min-w-[720px] [&_table]:bg-white [&_table]:text-slate-700 [&_thead]:bg-slate-950 [&_thead]:text-white [&_.overflow-x-auto]:max-w-full [&_.overflow-auto]:max-w-full max-sm:[&_.p-6]:p-4">
               <Routes>
                 <Route
                   path="/products"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
 import {
@@ -125,6 +125,8 @@ const getCurrentYear = (): number => {
 };
 
 export default function SortieHistory() {
+  const requestId = useRef(0);
+  const mutationPending = useRef(false);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [allExpenses, setAllExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,21 +236,20 @@ export default function SortieHistory() {
   useEffect(() => {
     fetchCurrentUser();
     fetchUserPermissions();
-    fetchExpenses();
   }, []);
 
   useEffect(() => {
     const handleDataChange = () => { void fetchExpenses(); };
     window.addEventListener("appDataChanged", handleDataChange);
     return () => window.removeEventListener("appDataChanged", handleDataChange);
-  }, []);
+  }, [queryParams, timeframeType, pagination.page]);
 
   // Fetch data when query params change
   useEffect(() => {
     if (Object.keys(queryParams).length > 0) {
       fetchExpenses();
     }
-  }, [queryParams, pagination.page]);
+  }, [queryParams, timeframeType, pagination.page]);
 
   // Effect to automatically set to today's date when timeframe changes to "day"
   useEffect(() => {
@@ -327,6 +328,7 @@ export default function SortieHistory() {
   };
 
   const fetchExpenses = async () => {
+    const currentRequest = ++requestId.current;
     const requestedBranch = getActiveBranchId();
     try {
       setLoading(true);
@@ -338,14 +340,17 @@ export default function SortieHistory() {
       console.log("Fetching expenses from:", url);
       
       const res = await fetch(url, {
+        signal: AbortSignal.timeout(30000),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
       });
 
+      if (currentRequest !== requestId.current || getActiveBranchId() !== requestedBranch) return;
       if (res.ok) {
         const data: ExpensesResponse = await res.json();
+        if (currentRequest !== requestId.current) return;
         
         if (data.success && data.data && Array.isArray(data.data)) {
           const fetchedExpenses = data.data;
@@ -365,8 +370,8 @@ export default function SortieHistory() {
           setAllExpenses(sortedExpenses);
           
           // Update metadata
-          setTimeframeDescription(data.timeframe.description);
-          setSummaryStats(data.summary);
+          setTimeframeDescription(data.timeframe?.description || "");
+          setSummaryStats(data.summary ? { ...data.summary, validated: data.summary.validated || { count: 0, amount: 0 }, pending: data.summary.pending || { count: 0, amount: 0 } } : null);
           setAppliedFilters(data.filtersApplied);
           setPagination(data.pagination || EMPTY_PAGINATION);
           
@@ -381,9 +386,9 @@ export default function SortieHistory() {
       }
     } catch (error) {
       console.error("Error loading expenses:", error);
-      setError("Failed to load expenses. Please check your connection.");
+      if (currentRequest === requestId.current) setError("Failed to load expenses. Please check your connection.");
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
 
@@ -500,13 +505,9 @@ export default function SortieHistory() {
     }).format(amount);
   };
 
-  const filteredExpenses = expenses.filter(
-    (expense) =>
-      expense.expenseId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.recipientPhone.includes(searchTerm) ||
-      expense.recordedBy.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredExpenses = expenses.filter((expense) =>
+    [expense.expenseId, expense.reason, expense.recipientName, expense.recipientPhone, expense.recordedBy]
+      .some((value) => String(value ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const viewExpenseDetails = (expense: ExpenseItem) => {
@@ -516,6 +517,7 @@ export default function SortieHistory() {
   };
 
   const openValidationModal = (expense: ExpenseItem) => {
+    setShowModal(false);
     setValidatingExpense(expense);
     setShowValidationModal(true);
     setError(null);
@@ -605,67 +607,39 @@ export default function SortieHistory() {
   };
 
   const validateExpense = async (isValid: boolean) => {
-    if (!validatingExpense) return;
-
+    if (!validatingExpense || mutationPending.current) return;
+    mutationPending.current = true;
     setActionLoading(`validating-${validatingExpense._id}`);
     setError(null);
-
     try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/expenses/${validatingExpense._id}/${isValid ? "validate" : "reject"}`,
+        {
+          method: "PATCH",
+          signal: AbortSignal.timeout(30000),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+          body: JSON.stringify(isValid ? {} : { reason: "Rejet depuis la confirmation des dépenses" }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Échec de confirmation (${response.status})`);
       if (!isValid) {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/expenses/${validatingExpense._id}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          setMessage("❌ Dépense rejetée et suppression en cours...");
-          closeValidationModal();
-
-          // Wait 3 seconds before refreshing
-          setTimeout(() => {
-            fetchExpenses();
-            setMessage(null);
-          }, 3000);
-        } else {
-          const errorData = await response.json();
-          setError(errorData.error || "Failed to delete expense");
-        }
-      } else {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/expenses/${
-            validatingExpense._id
-          }/validate`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-            },
-            body: JSON.stringify({
-              validatedBy: userPermissions.userName || "admin",
-            }),
-          }
-        );
-
-        if (response.ok) {
-          setMessage("✅ Dépense validée avec succès !");
-          closeValidationModal();
-          fetchExpenses();
-        } else {
-          const errorData = await response.json();
-          setError(errorData.error || "Failed to validate expense");
-        }
+        const deletedId = validatingExpense._id;
+        setExpenses((items) => items.filter((item) => item._id !== deletedId));
+        setAllExpenses((items) => items.filter((item) => item._id !== deletedId));
+        setSelectedExpense((item) => item?._id === deletedId ? null : item);
+      } else if (data._id) {
+        setExpenses((items) => items.map((item) => item._id === data._id ? data : item));
+        setAllExpenses((items) => items.map((item) => item._id === data._id ? data : item));
+        setSelectedExpense((item) => item?._id === data._id ? data : item);
       }
+      closeValidationModal();
+      setMessage(isValid ? "Dépense validée avec succès" : "Dépense rejetée et supprimée");
+      await fetchExpenses();
     } catch (error) {
-      console.error("Error processing expense:", error);
-      setError("Failed to process expense");
+      setError(error instanceof Error ? error.message : "Échec de confirmation");
     } finally {
+      mutationPending.current = false;
       setActionLoading(null);
     }
   };
@@ -1604,7 +1578,7 @@ export default function SortieHistory() {
           </div>
 
           <div className="overflow-x-auto">
-            {loading ? (
+            {loading && expenses.length === 0 ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
                 <p className="text-slate-500 mt-2">Chargement des dépenses...</p>
@@ -1989,7 +1963,8 @@ export default function SortieHistory() {
         {/* Validation Modal */}
         {showValidationModal && validatingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl max-w-md w-full mx-4 border border-slate-200 shadow-2xl">
+            <div className="bg-white rounded-xl max-w-md w-full mx-4 max-h-[90dvh] overflow-y-auto border border-slate-200 shadow-2xl">
+              {error && <p role="alert" className="px-6 py-2 text-rose-700">{error}</p>}
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -2259,7 +2234,7 @@ export default function SortieHistory() {
         {/* Delete Expense Modal */}
         {showDeleteModal && deletingExpense && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl max-w-md w-full mx-4 border border-slate-200 shadow-2xl">
+            <div className="bg-white rounded-xl max-w-md w-full mx-4 max-h-[90dvh] overflow-y-auto border border-slate-200 shadow-2xl">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
                   <Trash2 className="w-5 h-5 text-rose-600" />
