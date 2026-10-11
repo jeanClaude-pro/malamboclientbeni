@@ -1202,7 +1202,7 @@ export default function SortieHistory() {
                 className="px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg flex items-center gap-2 border border-blue-200"
               >
                 <Filter className="w-4 h-4" />
-                {showFilters ? "Hide Filters" : "Show Filters"}
+                {showFilters ? "Hide Filters" : "Calendar"}
                 <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
               </button>
               

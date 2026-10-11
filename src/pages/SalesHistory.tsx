@@ -2013,7 +2013,7 @@ export default function SalesHistory() {
                   className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 transition-colors"
                 >
                   <Filter className="w-4 h-4" />
-                  {showFilters ? "Hide Filters" : "Show Filters"}
+                  {showFilters ? "Hide Filters" : "Calendar"}
                   <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
                 </button>
                 
