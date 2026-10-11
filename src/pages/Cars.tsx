@@ -231,8 +231,8 @@ export default function Cars() {
   const labelCls = "block mb-2 font-medium text-slate-600";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack max-w-5xl">
         {/* Header */}
         <div className="mb-2">
           <div className="flex items-center gap-3 mb-1">

@@ -19,14 +19,14 @@ export default function PaginationControls({ value, onPageChange }: {
 }) {
   if (value.totalRecords === 0) return null;
   return (
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <nav className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:px-4" aria-label="Pagination">
       <span className="text-sm text-slate-600">
         Page {value.page} sur {value.totalPages} · {value.totalRecords.toLocaleString("fr-FR")} résultat(s)
       </span>
-      <div className="flex gap-2">
-        <button type="button" disabled={!value.hasPreviousPage} onClick={() => onPageChange(value.page - 1)} className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">Précédent</button>
-        <button type="button" disabled={!value.hasNextPage} onClick={() => onPageChange(value.page + 1)} className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Suivant</button>
+      <div className="flex gap-2 max-sm:w-full">
+        <button type="button" disabled={!value.hasPreviousPage} onClick={() => onPageChange(value.page - 1)} className="min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 max-sm:flex-1">Précédent</button>
+        <button type="button" disabled={!value.hasNextPage} onClick={() => onPageChange(value.page + 1)} className="min-h-11 rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 max-sm:flex-1">Suivant</button>
       </div>
-    </div>
+    </nav>
   );
 }

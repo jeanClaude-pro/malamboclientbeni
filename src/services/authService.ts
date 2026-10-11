@@ -18,8 +18,13 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}) {
     throw new Error("Session expirée. Veuillez vous reconnecter.");
   }
 
+  // Always materialize the method before the global fetch interceptor sees
+  // the request. In particular, authentication must never degrade to the
+  // browser/fetch default GET when another wrapper clones the options object.
+  const method = (options.method || "GET").toUpperCase();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),

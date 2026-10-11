@@ -159,8 +159,8 @@ export default function TransferReception() {
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack max-w-4xl">
 
         {/* Header */}
         <div className="flex items-start justify-between flex-wrap gap-3">

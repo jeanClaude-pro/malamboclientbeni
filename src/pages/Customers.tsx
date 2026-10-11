@@ -17,6 +17,10 @@ import {
   FileText,
 } from "lucide-react";
 import { getActiveBranchId } from "../services/dataSync";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { downloadTableReportPdf, formatMoneyPdf } from "../utils/reportPdf";
+import { formatDateTimeGmt2 } from "../utils/time";
+import { todayYMD } from "../utils/businessDate";
 
 interface Customer {
   _id: string;
@@ -181,8 +185,8 @@ export default function Customers() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+      <div className="app-page-inner app-page-stack max-w-6xl">
 
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -330,8 +334,42 @@ function FicheModal({ data, onClose }: { data: FicheData; onClose: () => void })
     return true;
   });
 
+  // The fiche endpoint returns the customer's COMPLETE history (no paging),
+  // so the PDF contains every sale of the selected tab.
+  const exportPdf = async () => {
+    const tabLabel = activeTab === "credit" ? "Ventes à crédit" : activeTab === "cash" ? "Ventes au comptant" : "Toutes les ventes";
+    const rows = [...filteredSales].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    downloadTableReportPdf<Sale>({
+      title: `Fiche client - ${customer.name || customer.phone}`,
+      branchName: localStorage.getItem("activeBranchId") === "beni" ? "Beni" : "Butembo",
+      periodLabel: "Historique complet",
+      orientation: "landscape",
+      fileName: `fiche-client-${customer.phone}-${todayYMD()}`,
+      recordLabel: ["vente", "ventes"],
+      filters: [["Client", `${customer.name || "-"} (${customer.phone})`], ["Vue", tabLabel]],
+      columns: [
+        { header: "Date", width: 1.2, value: (sale) => formatDateTimeGmt2(sale.createdAt) },
+        { header: "Réf.", width: 1.6, value: (sale) => sale.saleId },
+        { header: "Articles", width: 3, value: (sale) => (sale.items || []).map((item) => `${item.name} x${item.quantity}`).join("; ") || "-" },
+        { header: "Paiement", width: 0.9, value: (sale) => (sale.paymentType === "credit" ? "Crédit" : sale.paymentMethod) },
+        { header: "Payé", width: 1, align: "right", value: (sale) => (sale.paymentType === "credit" ? formatMoneyPdf(sale.creditDetails?.amountPaid ?? 0) : formatMoneyPdf(sale.total)) },
+        { header: "Reste dû", width: 1, align: "right", value: (sale) => formatMoneyPdf(sale.paymentType === "credit" ? sale.creditDetails?.amountDue ?? 0 : 0) },
+        { header: "Total", width: 1, align: "right", value: (sale) => formatMoneyPdf(sale.total) },
+      ],
+      rows,
+      totals: [
+        ["Achats (toutes ventes)", String(summary.totalSales)],
+        ["Total dépensé", formatMoneyPdf(summary.totalSpent)],
+        ["Crédits pris", formatMoneyPdf(summary.totalCreditTaken)],
+        ["Crédits payés (confirmés)", formatMoneyPdf(summary.totalCreditPaid)],
+        ["Reste dû", formatMoneyPdf(summary.totalCreditDue)],
+      ],
+    });
+    return rows.length;
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto" role="dialog" aria-modal="true">
       <div className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl my-4 shadow-2xl">
 
         {/* Modal Header */}
@@ -354,9 +392,12 @@ function FicheModal({ data, onClose }: { data: FicheData; onClose: () => void })
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportPdfButton onExport={exportPdf} />
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1" aria-label="Fermer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Summary Cards */}

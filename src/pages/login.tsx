@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { useAuth } from "../hooks/useAuth";
@@ -12,7 +12,7 @@ import {
   register as registerApi,
 } from "../services/authService";
 
-import { Store, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
+import { Store, Mail, Lock, User, LogIn, UserPlus, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { canSwitchBranch } from "../config/access";
 
 type Mode = "login" | "register";
@@ -33,6 +33,8 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    if (loading) return;
     setError("");
     setLoading(true);
 
@@ -109,6 +111,7 @@ const LoginPage = () => {
                   <input
                     id="username"
                     type="text"
+                    autoComplete="username"
                     placeholder="Entrez votre nom d'utilisateur"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -132,6 +135,7 @@ const LoginPage = () => {
                 <input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="Entrez votre email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -154,6 +158,7 @@ const LoginPage = () => {
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
                   placeholder="Entrez votre mot de passe"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -186,6 +191,7 @@ const LoginPage = () => {
                   <input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
                     placeholder="Confirmez votre mot de passe"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -215,43 +221,18 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-2.5 sm:py-3 px-4 rounded-lg text-sm sm:text-base font-medium hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-blue-500 transition disabled:opacity-50 border border-blue-400/30 shadow-lg shadow-blue-900/50"
             >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 sm:h-5 sm:w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Traitement...
-                </span>
-              ) : mode === "login" ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Se connecter
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  S'inscrire
-                </span>
-              )}
+              {/* Keep every icon mounted while state changes. This stable DOM
+                  avoids SVG placement failures when password managers or
+                  browser translation features annotate the login form. */}
+              <span className="flex items-center justify-center gap-2">
+                <LoaderCircle className={`${loading ? "block animate-spin" : "hidden"} h-4 w-4 sm:h-5 sm:w-5`} aria-hidden="true" />
+                <LogIn className={`${!loading && mode === "login" ? "block" : "hidden"} h-4 w-4 sm:h-5 sm:w-5`} aria-hidden="true" />
+                <UserPlus className={`${!loading && mode === "register" ? "block" : "hidden"} h-4 w-4 sm:h-5 sm:w-5`} aria-hidden="true" />
+                <span>{loading ? "Traitementâ€¦" : mode === "login" ? "Se connecter" : "S'inscrire"}</span>
+              </span>
             </button>
           </form>
 
@@ -290,23 +271,6 @@ const LoginPage = () => {
         )}
       </div>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="dark"
-        toastStyle={{
-          backgroundColor: '#1f2937',
-          color: '#f3f4f6',
-          border: '1px solid #1e3a8a',
-        }}
-      />
     </div>
   );
 };

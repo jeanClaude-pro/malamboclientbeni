@@ -13,8 +13,6 @@ import {
   RefreshCw,
   Printer,
   Calendar,
-  ChevronLeft,
-  ChevronRight,
   History,
   Filter,
   Shield
@@ -22,11 +20,20 @@ import {
 import jsPDF from "jspdf";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
+import { formatDateTimeGmt2 } from "../utils/time";
+
+// One audited field change: { from, to } as stored by the API.
+type FieldChange = { from?: unknown; to?: unknown };
 
 interface EditHistoryEntry {
   editedBy: string;
   editedAt: string;
-  changes: any;
+  changes: Record<string, FieldChange>;
   reason: string;
   _id?: string;
 }
@@ -58,6 +65,28 @@ interface Entry {
   editHistory?: EditHistoryEntry[];
 }
 
+// Amount breakdowns of GET /api/entries summary. The API sends plain totals
+// per key; older responses sent { count, amount } objects — accept both.
+type BreakdownValue = number | { count?: number; amount?: number };
+
+interface EntrySummary {
+  totalRecords: number;
+  totalAmount: number;
+  active?: { count: number; amount: number };
+  deleted?: { count: number; amount: number };
+  categories?: Record<string, BreakdownValue>;
+  paymentMethods?: Record<string, BreakdownValue>;
+  sources?: Record<string, BreakdownValue>;
+}
+
+function breakdownAmount(value: BreakdownValue) {
+  return typeof value === "number" ? value : Number(value?.amount || 0);
+}
+
+function breakdownCount(value: BreakdownValue) {
+  return typeof value === "number" ? "-" : Number(value?.count || 0);
+}
+
 // User interface for role checking
 interface User {
   _id: string;
@@ -67,52 +96,6 @@ interface User {
   username?: string;
   permissions?: string[];
 }
-
-// Helper function to get today's date in correct format
-const getTodayDate = (): string => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-// Helper function to get date range for different timeframes
-const getTimeframeParams = (
-  timeframe: "day" | "week" | "month" | "year", 
-  selectedYear?: number, 
-  selectedDate?: string
-) => {
-  const params = new URLSearchParams();
-  const today = new Date();
-  
-  switch (timeframe) {
-    case "day":
-      params.set("date", selectedDate || getTodayDate());
-      break;
-      
-    case "week":
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      params.set("from", weekAgo.toISOString().split('T')[0]);
-      params.set("to", today.toISOString().split('T')[0]);
-      break;
-      
-    case "month":
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      params.set("from", firstDayOfMonth.toISOString().split('T')[0]);
-      params.set("to", lastDayOfMonth.toISOString().split('T')[0]);
-      break;
-      
-    case "year":
-      const year = selectedYear || today.getFullYear();
-      params.set("year", year.toString());
-      break;
-  }
-  
-  return params.toString();
-};
 
 export default function EntryHistory() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -138,22 +121,25 @@ export default function EntryHistory() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Timeframe state
-  const [timeframe, setTimeframe] = useState<"day" | "week" | "month" | "year">("day");
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayDate());
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [timeframeDescription, setTimeframeDescription] = useState<string>("");
+  // GMT+2 calendar period (default: today) and server-side search, shared by
+  // the paginated list and the complete PDF export.
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Edited entries filter state
   const [showEditedEntries, setShowEditedEntries] = useState(false);
   const [editedEntries, setEditedEntries] = useState<Entry[]>([]);
   const [selectedEditedEntry, setSelectedEditedEntry] = useState<Entry | null>(null);
   const [showEditedDetailsModal, setShowEditedDetailsModal] = useState(false);
-  const [summary, setSummary] = useState<any>(null);
+  const [summary, setSummary] = useState<EntrySummary | null>(null);
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframe, selectedYear, selectedDate, showEditedEntries]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [period, debouncedSearch, showEditedEntries]);
 
   // Sources and categories (same as Entry.tsx)
   const sources = [
@@ -177,14 +163,6 @@ export default function EntryHistory() {
     "Autre Catégorie"
   ];
 
-  // Effect to automatically set to today's date when timeframe changes to "day"
-  useEffect(() => {
-    if (!initialLoad && timeframe === "day") {
-      const today = getTodayDate();
-      setSelectedDate(today);
-    }
-  }, [timeframe, initialLoad]);
-
   // Fetch current user on component mount
   useEffect(() => {
     fetchCurrentUser();
@@ -202,7 +180,7 @@ export default function EntryHistory() {
     if (currentUser !== null) { // Only fetch entries after user data is loaded
       fetchEntries();
     }
-  }, [timeframe, selectedYear, selectedDate, showEditedEntries, currentUser, pagination.page]);
+  }, [period, debouncedSearch, showEditedEntries, currentUser, pagination.page]);
 
   // Update edited entries when entries change
   useEffect(() => {
@@ -262,13 +240,13 @@ export default function EntryHistory() {
     try {
       setLoading(true);
       
-      // Build query parameters based on timeframe
-      const timeframeParams = getTimeframeParams(timeframe, selectedYear, selectedDate);
-      
-      // Add status filter for edited entries view
-      const statusParam = showEditedEntries ? "&status=all" : "&status=active";
-      
-      const url = `${import.meta.env.VITE_API_URL}/entries?${timeframeParams}${statusParam}&page=${pagination.page}&limit=${pagination.limit}`;
+      const params = new URLSearchParams();
+      Object.entries(filterParams()).forEach(([key, value]) => {
+        if (value) params.append(key, String(value));
+      });
+      params.set("page", String(pagination.page));
+      params.set("limit", String(pagination.limit));
+      const url = `${import.meta.env.VITE_API_URL}/entries?${params.toString()}`;
       
       console.log("Fetching entries from:", url);
       
@@ -290,9 +268,6 @@ export default function EntryHistory() {
           // Set entries
           const fetchedEntries: Entry[] = data.data;
           setEntries(fetchedEntries);
-          
-          // Set timeframe description
-          setTimeframeDescription(data.timeframe?.description || "");
           
           // Set summary data
           if (data.summary) {
@@ -319,75 +294,60 @@ export default function EntryHistory() {
       setEntries([]);
     } finally {
       setLoading(false);
-      setInitialLoad(false);
     }
   };
 
-  // Get available years from API or default
-  const getAvailableYears = (): number[] => {
-    // Start with current year
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear];
-    
-    // Add previous years (up to 5 years back)
-    for (let i = 1; i <= 5; i++) {
-      years.push(currentYear - i);
-    }
-    
-    return years.sort((a, b) => b - a);
+  // Filters of the list, reused verbatim by the PDF export. The "Entrées
+  // modifiées" view asks the server for edited entries of every status.
+  function filterParams() {
+    return {
+      ...rangeParams(period),
+      status: showEditedEntries ? "all" : "active",
+      edited: showEditedEntries ? "true" : "",
+      search: debouncedSearch,
+    };
+  }
+
+  const getTimeframeLabel = () => periodLabel(period);
+
+  const exportPdf = async () => {
+    const data = await fetchExport<Entry, { totalAmount: number; activeAmount: number; byCategory: Record<string, number>; byPaymentMethod: Record<string, number> }>("/entries/export", filterParams());
+    const { from, to } = rangeParams(period);
+    downloadTableReportPdf<Entry>({
+      title: showEditedEntries ? "Historique des entrées modifiées" : "Historique des entrées de caisse",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(period),
+      orientation: "landscape",
+      fileName: `historique-entrees-${pdfFileStamp(from, to)}`,
+      recordLabel: ["entrée", "entrées"],
+      filters: [
+        ["Statut", showEditedEntries ? "Toutes (entrées modifiées)" : "Actives"],
+        ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+      ],
+      columns: [
+        { header: "Date", width: 1.2, value: (entry) => formatDateTimeGmt2(entry.createdAt) },
+        { header: "Réf.", width: 1.3, value: (entry) => entry.entryId },
+        { header: "Source", width: 1.4, value: (entry) => entry.source },
+        { header: "Catégorie", width: 1.3, value: (entry) => entry.category },
+        { header: "Reçu de", width: 1.6, value: (entry) => [entry.receivedFrom?.name, entry.receivedFrom?.phone].filter(Boolean).join(" - ") || "-" },
+        { header: "Paiement", width: 0.9, value: (entry) => entry.paymentMethod },
+        { header: "Description", width: 2, value: (entry) => entry.description || "-" },
+        { header: "Statut", width: 0.8, value: (entry) => (entry.status === "deleted" ? "Supprimée" : "Active") },
+        { header: "Montant", width: 1.1, align: "right", value: (entry) => formatMoneyPdf(entry.amount) },
+      ],
+      rows: data.records,
+      totals: [
+        ["Entrées exportées", String(data.count)],
+        ...Object.entries(data.totals.byCategory).map(([category, amount]) => [`Catégorie : ${category}`, formatMoneyPdf(amount)] as [string, string]),
+        ["Total des entrées actives", formatMoneyPdf(data.totals.activeAmount)],
+        ["Total exporté", formatMoneyPdf(data.totals.totalAmount)],
+      ],
+    });
+    return data.count;
   };
 
-  const navigateYear = (direction: 'prev' | 'next') => {
-    const years = getAvailableYears();
-    const currentIndex = years.indexOf(selectedYear);
-    
-    if (direction === 'prev' && currentIndex < years.length - 1) {
-      setSelectedYear(years[currentIndex + 1]);
-    } else if (direction === 'next' && currentIndex > 0) {
-      setSelectedYear(years[currentIndex - 1]);
-    }
-  };
-
-  const getTimeframeLabel = () => {
-    if (timeframeDescription) {
-      return timeframeDescription;
-    }
-    
-    switch (timeframe) {
-      case "day":
-        if (selectedDate) {
-          const date = new Date(selectedDate);
-          return date.toLocaleDateString("fr-FR", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        }
-        return "Aujourd'hui";
-      case "week":
-        return "Cette Semaine";
-      case "month":
-        return "Ce Mois";
-      case "year":
-        return `Année ${selectedYear}`;
-      default:
-        return "Cette Semaine";
-    }
-  };
-
-  const handleTimeframeChange = (period: "day" | "week" | "month" | "year") => {
-    setTimeframe(period);
-    
-    if (period === "year") {
-      const years = getAvailableYears();
-      setSelectedYear(years[0] || new Date().getFullYear());
-    }
-  };
-
-  // Filter entries based on search term
-  const filteredEntries = (showEditedEntries ? editedEntries : entries).filter(entry =>
-    entry.entryId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.receivedFrom.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.receivedFrom.phone.includes(searchTerm) ||
-    entry.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (entry.createdBy?.username && entry.createdBy.username.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Search runs on the server (all pages), so the loaded page already matches.
+  const filteredEntries = showEditedEntries ? editedEntries : entries;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("fr-FR", {
@@ -445,7 +405,7 @@ export default function EntryHistory() {
           {changes && Object.keys(changes).length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-200">
               <h5 className="font-medium text-blue-600 mb-2">Changements:</h5>
-              {Object.entries(changes).map(([field, changeData]: [string, any]) => (
+              {Object.entries(changes as Record<string, FieldChange>).map(([field, changeData]) => (
                 <div key={field} className="mb-3 last:mb-0">
                   <div className="font-medium text-slate-500 mb-1 capitalize">
                     {field.replace(/([A-Z])/g, ' $1').toLowerCase()}:
@@ -865,14 +825,14 @@ export default function EntryHistory() {
           <div className="mt-4 pt-4 border-t border-slate-200">
             <h4 className="font-medium text-blue-600 mb-3">Détails par méthode de paiement:</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {Object.entries(summary.paymentMethods).map(([method, data]: [string, any]) => (
+              {Object.entries(summary.paymentMethods).map(([method, data]) => (
                 <div key={method} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-slate-500 capitalize">{method}:</span>
-                    <span className="font-semibold text-emerald-600">{data.count}</span>
+                    <span className="font-semibold text-emerald-600">{breakdownCount(data)}</span>
                   </div>
                   <div className="text-sm text-slate-500 mt-1">
-                    Total: {formatCurrency(data.amount)}
+                    Total: {formatCurrency(breakdownAmount(data))}
                   </div>
                 </div>
               ))}
@@ -886,14 +846,14 @@ export default function EntryHistory() {
             <h4 className="font-medium text-blue-600 mb-3">Sources principales:</h4>
             <div className="space-y-2">
               {Object.entries(summary.sources)
-                .sort(([, a], [, b]) => (b as any).amount - (a as any).amount)
+                .sort(([, a], [, b]) => breakdownAmount(b) - breakdownAmount(a))
                 .slice(0, 3)
-                .map(([source, data]: [string, any]) => (
+                .map(([source, data]) => (
                   <div key={source} className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200">
                     <span className="text-slate-500">{source}</span>
                     <div className="text-right">
-                      <div className="font-semibold text-slate-950">{data.count} entrées</div>
-                      <div className="text-sm text-emerald-600">{formatCurrency(data.amount)}</div>
+                      <div className="font-semibold text-slate-950">{breakdownCount(data)} entrées</div>
+                      <div className="text-sm text-emerald-600">{formatCurrency(breakdownAmount(data))}</div>
                     </div>
                   </div>
                 ))}
@@ -905,12 +865,12 @@ export default function EntryHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-slate-100">
+      <div className="app-page-inner app-page-stack">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-950 flex items-center gap-2">
+        <div className="app-page-header">
+          <div className="min-w-0">
+            <h1 className="app-page-title flex items-center gap-2">
               <History className="w-8 h-8 text-blue-600" />
               Historique des Entrées d'Argent
             </h1>
@@ -918,7 +878,7 @@ export default function EntryHistory() {
               Voir toutes les entrées d'argent enregistrées
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="app-toolbar">
             {/* Edited Entries Filter Button */}
             <button
               onClick={() => setShowEditedEntries(!showEditedEntries)}
@@ -937,12 +897,12 @@ export default function EntryHistory() {
               )}
             </button>
 
-            <div className="relative">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Rechercher des entrées..."
-                className="pl-10 w-64 px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 placeholder-slate-400"
+                className="w-full bg-white py-2 pl-10 pr-3 text-slate-900 placeholder-slate-400 sm:w-64 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -958,62 +918,7 @@ export default function EntryHistory() {
               {showEditedEntries ? "Entrées modifiées" : "Toutes les entrées"} - {getTimeframeLabel()}
             </h3>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Date Picker for Day View */}
-              {timeframe === "day" && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-lg border border-slate-200 px-3 py-2 shadow-sm w-full sm:w-auto">
-                  <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <label htmlFor="date-picker" className="text-xs sm:text-sm font-medium text-slate-500 whitespace-nowrap">
-                    Date:
-                  </label>
-                  <input
-                    id="date-picker"
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="ml-2 px-2 py-1 border-none bg-transparent text-xs sm:text-sm focus:outline-none focus:ring-0 text-slate-900 font-medium w-full"
-                  />
-                </div>
-              )}
-              
-              {timeframe === "year" && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-lg border border-slate-200 px-3 py-2 shadow-sm w-full sm:w-auto">
-                  <button
-                    onClick={() => navigateYear('prev')}
-                    disabled={getAvailableYears().indexOf(selectedYear) === getAvailableYears().length - 1}
-                    className="p-1 rounded hover:bg-slate-100 text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
-                  </button>
-                  <span className="text-xs sm:text-sm font-medium text-slate-900 px-2 min-w-[60px] sm:min-w-[80px] text-center">{selectedYear}</span>
-                  <button
-                    onClick={() => navigateYear('next')}
-                    disabled={getAvailableYears().indexOf(selectedYear) === 0}
-                    className="p-1 rounded hover:bg-slate-100 text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                  </button>
-                </div>
-              )}
-              
-              <div className="flex gap-1 bg-slate-50 p-1 rounded-lg w-full sm:w-auto border border-slate-200">
-                {(["day", "week", "month", "year"] as const).map((period) => (
-                  <button
-                    key={period}
-                    onClick={() => handleTimeframeChange(period)}
-                    className={`px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 flex-1 sm:flex-none ${
-                      timeframe === period
-                        ? "bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                    }`}
-                  >
-                    {period === "day" && "Jour"}
-                    {period === "week" && "Semaine"}
-                    {period === "month" && "Mois"}
-                    {period === "year" && "Année"}
-                  </button>
-                ))}
-              </div>
-              
+              <ExportPdfButton onExport={exportPdf} />
               {/* Refresh Button */}
               <button
                 onClick={fetchEntries}
@@ -1025,6 +930,8 @@ export default function EntryHistory() {
             </div>
           </div>
           
+          <PeriodSelector value={period} onChange={setPeriod} className="mb-4" />
+
           {/* Show summary statistics - Admin only */}
           <SummaryStats />
         </div>
@@ -1061,7 +968,7 @@ export default function EntryHistory() {
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
@@ -1237,7 +1144,7 @@ export default function EntryHistory() {
 
       {/* Entry Details Modal */}
       {showModal && selectedEntry && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -1434,7 +1341,7 @@ export default function EntryHistory() {
 
       {/* Edited Entry Details Modal */}
       {showEditedDetailsModal && selectedEditedEntry && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -1524,7 +1431,7 @@ export default function EntryHistory() {
                         {edit.changes && Object.keys(edit.changes).length > 0 && (
                           <div className="space-y-3">
                             <h6 className="font-medium text-blue-600 text-sm">Changements détaillés:</h6>
-                            {Object.entries(edit.changes).map(([field, changeData]: [string, any]) => (
+                            {Object.entries(edit.changes).map(([field, changeData]) => (
                               <div key={field} className="border-l-4 border-blue-600 pl-3">
                                 <div className="font-medium text-slate-500 text-sm capitalize mb-2">
                                   {field.replace(/([A-Z])/g, ' $1').toLowerCase()}:
@@ -1582,7 +1489,7 @@ export default function EntryHistory() {
       <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
       {showEditModal && editingEntry && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">

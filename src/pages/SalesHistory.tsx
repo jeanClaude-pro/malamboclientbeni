@@ -25,6 +25,11 @@ import { formatDateGmt2, formatDateTimeGmt2 } from "../utils/time";
 import { getCustomerDisplayName } from "../utils/constants";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport, type QueryValue } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, todayYMD, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
 
 interface SaleItem {
   productId: string;
@@ -45,7 +50,7 @@ interface SaleItem {
 interface EditHistoryEntry {
   editedBy: string;
   editedAt: string;
-  changes: any;
+  changes: Record<string, FieldChange>;
   reason: string;
   _id?: string;
 }
@@ -90,6 +95,9 @@ interface CreditDetails {
   fullyPaid: boolean;
   payments: CreditPaymentEntry[];
 }
+
+// One audited field change: { from, to } as stored by the API.
+type FieldChange = { from?: unknown; to?: unknown };
 
 interface Sale {
   _id: string;
@@ -170,14 +178,8 @@ interface SalesResponse {
   performanceNote: string | null;
 }
 
-// Helper function to get today's date in correct format
-const getTodayDate = (): string => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+// Today's business date (GMT+2), independent of the browser's timezone.
+const getTodayDate = (): string => todayYMD();
 
 const createPaymentRequestId = (): string => {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -220,19 +222,6 @@ function getDebtStatus(sale: Sale) {
   return details.amountPaid > 0.009 ? "Partiellement payée" : "Impayée";
 }
 
-// Helper function to get current month in YYYY-MM format
-const getCurrentMonth = (): string => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-};
-
-// Helper function to get current year
-const getCurrentYear = (): number => {
-  return new Date().getFullYear();
-};
-
 export default function SalesHistory() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -256,22 +245,15 @@ export default function SalesHistory() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Timeframe state - Updated to match backend query parameters
-  const [timeframeType, setTimeframeType] = useState<
-    "custom" | "day" | "month" | "year" | "today"
-  >("today");
-  
-  // Query parameters for timeframe
+  // GMT+2 calendar period (default: today) + business filters, shared by the
+  // paginated list and the complete exports (PDF/CSV/JSON).
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
   const [queryParams, setQueryParams] = useState({
-    from: "",
-    to: "",
-    date: getTodayDate(),
-    year: getCurrentYear().toString(),
-    month: getCurrentMonth().split('-')[1],
     type: "",
     status: "",
     customerPhone: ""
   });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // NEW: Edited sales filter state
   const [showEditedSales, setShowEditedSales] = useState(false);
@@ -281,10 +263,10 @@ export default function SalesHistory() {
 
   // Timeframe metadata
   const [timeframeMetadata, setTimeframeMetadata] = useState<TimeframeMetadata | null>(null);
-  const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [summaryStats, setSummaryStats] = useState<SalesResponse["summary"] | null>(null);
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
 
-  const [appliedFilters, setAppliedFilters] = useState<any>(null);
+  const [appliedFilters, setAppliedFilters] = useState<SalesResponse["filtersApplied"] | null>(null);
 
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -308,7 +290,12 @@ export default function SalesHistory() {
   const [debtDueFrom, setDebtDueFrom] = useState("");
   const [debtDueTo, setDebtDueTo] = useState("");
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams, creditFilter]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [period, queryParams, creditFilter, debouncedSearch, showEditedSales]);
   useEffect(() => { showUnpaidSalesRef.current = showUnpaidSales; }, [showUnpaidSales]);
 
   // Fetch current user on component mount
@@ -329,12 +316,10 @@ export default function SalesHistory() {
     };
   }, []);
 
-  // Fetch sales when query params change
+  // Fetch sales when filters change
   useEffect(() => {
-    if (Object.keys(queryParams).length > 0) {
-      if (showUnpaidSales) fetchUnpaidSales(); else fetchSales();
-    }
-  }, [queryParams, creditFilter, pagination.page, showUnpaidSales, debtStatus, debtDueFrom, debtDueTo, searchTerm]);
+    if (showUnpaidSales) fetchUnpaidSales(); else fetchSales();
+  }, [period, queryParams, creditFilter, pagination.page, showUnpaidSales, showEditedSales, debtStatus, debtDueFrom, debtDueTo, debouncedSearch]);
 
   // Fetch current user from API or localStorage
   const fetchCurrentUser = async () => {
@@ -382,40 +367,112 @@ export default function SalesHistory() {
     });
   };
 
-  // Build query string from queryParams
+  // Filters of the current view, reused verbatim by every export.
+  function filterParams(): Record<string, QueryValue> {
+    if (showUnpaidSales) {
+      return { view: "unpaid", search: debouncedSearch, debtStatus, dueFrom: debtDueFrom, dueTo: debtDueTo };
+    }
+    return {
+      view: "sales",
+      ...rangeParams(period),
+      type: queryParams.type,
+      status: queryParams.status,
+      customerPhone: queryParams.customerPhone,
+      creditFilter,
+      search: debouncedSearch,
+      edited: showEditedSales ? "true" : "",
+    };
+  }
+
+  // Build query string from the filters
   const buildQueryString = () => {
     const params = new URLSearchParams();
-    
-    // Add timeframe parameters based on timeframeType
-    switch(timeframeType) {
-      case "custom":
-        if (queryParams.from) params.append("from", queryParams.from);
-        if (queryParams.to) params.append("to", queryParams.to);
-        break;
-      case "day":
-        if (queryParams.date) params.append("date", queryParams.date);
-        break;
-      case "month":
-        if (queryParams.year) params.append("year", queryParams.year);
-        if (queryParams.month) params.append("month", queryParams.month);
-        break;
-      case "year":
-        if (queryParams.year) params.append("year", queryParams.year);
-        break;
-      case "today":
-        // No parameters needed - backend defaults to today
-        break;
-    }
-    
-    // Add additional filters
-    if (queryParams.type) params.append("type", queryParams.type);
-    if (queryParams.status) params.append("status", queryParams.status);
-    if (queryParams.customerPhone) params.append("customerPhone", queryParams.customerPhone);
-    if (creditFilter !== "all") params.set("creditFilter", creditFilter);
+    Object.entries(filterParams()).forEach(([key, value]) => {
+      if (key !== "view" && value && value !== "all") params.append(key, String(value));
+    });
     params.set("page", String(pagination.page));
     params.set("limit", String(pagination.limit));
-    
     return params.toString();
+  };
+
+  // Every sale matching the filters (all pages) from the server export.
+  const fetchAllSalesForExport = async (): Promise<Sale[]> => (await fetchExport<Sale>("/sales/export", filterParams())).records;
+
+  const exportPdf = async () => {
+    if (showUnpaidSales) {
+      type DebtRow = Sale & { confirmedPaid?: number; pendingPaid?: number; outstanding?: number };
+      const data = await fetchExport<DebtRow, { invoiced: number; confirmedPaid: number; pendingPaid: number; outstanding: number; overdueCount: number }>("/sales/export", filterParams());
+      downloadTableReportPdf<DebtRow>({
+        title: "Créances clients (ventes à crédit non soldées)",
+        branchName: data.branch?.name || "",
+        periodLabel: debtDueFrom || debtDueTo ? `Échéance ${debtDueFrom || "..."} au ${debtDueTo || "..."}` : "Toutes les créances en cours",
+        orientation: "landscape",
+        fileName: `creances-${todayYMD()}`,
+        recordLabel: ["créance", "créances"],
+        filters: [
+          ["Statut de la dette", debtStatus === "all" ? "Toutes" : debtStatus],
+          ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+        ],
+        columns: [
+          { header: "Date vente", width: 1.1, value: (sale) => formatDateGmt2(sale.createdAt) },
+          { header: "Réf.", width: 1.6, value: (sale) => sale.saleId },
+          { header: "Client", width: 1.6, value: (sale) => getCustomerDisplayName(sale.customer?.name) },
+          { header: "Téléphone", width: 1.1, value: (sale) => sale.customer?.phone || "-" },
+          { header: "Échéance", width: 1, value: (sale) => (sale.creditDetails?.dueDate ? formatDateGmt2(sale.creditDetails.dueDate) : "-") },
+          { header: "Total", width: 1, align: "right", value: (sale) => formatMoneyPdf(sale.total) },
+          { header: "Payé (confirmé)", width: 1.1, align: "right", value: (sale) => formatMoneyPdf(sale.confirmedPaid ?? 0) },
+          { header: "En attente", width: 1, align: "right", value: (sale) => formatMoneyPdf(sale.pendingPaid ?? 0) },
+          { header: "Reste dû", width: 1.1, align: "right", value: (sale) => formatMoneyPdf(sale.outstanding ?? 0) },
+        ],
+        rows: data.records,
+        totals: [
+          ["Créances exportées", String(data.count)],
+          ["Total facturé", formatMoneyPdf(data.totals.invoiced)],
+          ["Paiements confirmés", formatMoneyPdf(data.totals.confirmedPaid)],
+          ["Paiements en attente de confirmation", formatMoneyPdf(data.totals.pendingPaid)],
+          ["Reste dû", formatMoneyPdf(data.totals.outstanding)],
+          ["Créances en retard", String(data.totals.overdueCount)],
+        ],
+      });
+      return data.count;
+    }
+
+    const data = await fetchExport<Sale, { invoiced: number; expenses: number; saleCount: number; expenseCount: number; revenue: number; cashSalesRevenue: number; confirmedCreditPayments: number }>("/sales/export", filterParams());
+    const { from, to } = rangeParams(period);
+    const typeLabels: Record<string, string> = { sale: "Vente", reservation: "Réservation", expense: "Dépense" };
+    downloadTableReportPdf<Sale>({
+      title: showEditedSales ? "Historique des ventes modifiées" : "Historique des ventes",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(period),
+      orientation: "landscape",
+      fileName: `historique-ventes-${pdfFileStamp(from, to)}`,
+      recordLabel: ["vente", "ventes"],
+      filters: [
+        ["Type", queryParams.type ? typeLabels[queryParams.type] || queryParams.type : "Tous"],
+        ["Statut", queryParams.status || "Terminées, en attente et dépenses"],
+        ["Crédit", creditFilter === "all" ? "Tous" : creditFilter],
+        ...(queryParams.customerPhone ? [["Téléphone client", queryParams.customerPhone] as [string, string]] : []),
+        ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+      ],
+      columns: [
+        { header: "Date", width: 1.2, value: (sale) => formatDateTimeGmt2(sale.createdAt) },
+        { header: "Réf.", width: 1.6, value: (sale) => sale.saleId },
+        { header: "Client", width: 1.5, value: (sale) => getCustomerDisplayName(sale.customer?.name) },
+        { header: "Articles", width: 3, value: (sale) => (sale.items || []).map((item) => `${item.name}: ${formatSaleItemQuantity(item)}`).join("; ") || "-" },
+        { header: "Vendeur", width: 1, value: (sale) => sale.salesPerson || "-" },
+        { header: "Type / paiement", width: 1.1, value: (sale) => `${typeLabels[sale.type || "sale"] || sale.type}${sale.paymentType === "credit" ? " (crédit)" : ""}` },
+        { header: "Statut", width: 0.9, value: (sale) => sale.status },
+        { header: "Total", width: 1, align: "right", value: (sale) => formatMoneyPdf(sale.total) },
+      ],
+      rows: data.records,
+      totals: [
+        ["Enregistrements exportés", String(data.count)],
+        ["Ventes / réservations", `${data.totals.saleCount} - ${formatMoneyPdf(data.totals.invoiced)} facturés`],
+        ["Dépenses", `${data.totals.expenseCount} - ${formatMoneyPdf(data.totals.expenses)}`],
+        ["Encaissé (ventes comptant + paiements de crédit confirmés)", formatMoneyPdf(data.totals.revenue)],
+      ],
+    });
+    return data.count;
   };
 
   const fetchSales = async () => {
@@ -486,7 +543,7 @@ export default function SalesHistory() {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams({ page: String(pagination.page), limit: String(pagination.limit) });
-      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (debtStatus !== "all") params.set("debtStatus", debtStatus);
       if (debtDueFrom) params.set("dueFrom", debtDueFrom);
       if (debtDueTo) params.set("dueTo", debtDueTo);
@@ -549,61 +606,6 @@ export default function SalesHistory() {
     setEditedSales(sortedEditedSales);
   };
 
-  // Handle timeframe type change
-  const handleTimeframeTypeChange = (type: "custom" | "day" | "month" | "year" | "today") => {
-    setTimeframeType(type);
-    
-    // Reset specific query params based on type
-    const newParams = { ...queryParams };
-    
-    switch(type) {
-      case "today":
-        // Reset all specific date params
-        newParams.date = getTodayDate();
-        newParams.from = "";
-        newParams.to = "";
-        newParams.year = getCurrentYear().toString();
-        newParams.month = getCurrentMonth().split('-')[1];
-        break;
-      case "day":
-        newParams.date = getTodayDate();
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "month":
-        newParams.year = getCurrentYear().toString();
-        newParams.month = getCurrentMonth().split('-')[1];
-        newParams.date = "";
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "year":
-        newParams.year = getCurrentYear().toString();
-        newParams.month = "";
-        newParams.date = "";
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "custom":
-        // Keep existing values or set defaults
-        if (!newParams.from) {
-          const today = new Date();
-          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-          newParams.from = firstDay.toISOString().split('T')[0];
-        }
-        if (!newParams.to) {
-          newParams.to = new Date().toISOString().split('T')[0];
-        }
-        newParams.date = "";
-        newParams.year = "";
-        newParams.month = "";
-        break;
-    }
-    
-    setQueryParams(newParams);
-    setPagination((value) => ({ ...value, page: 1 }));
-  };
-
   // Handle query parameter changes
   const handleQueryParamChange = (key: keyof typeof queryParams, value: string) => {
     setPagination((current) => ({ ...current, page: 1 }));
@@ -615,17 +617,8 @@ export default function SalesHistory() {
 
   // Clear all filters
   const clearAllFilters = () => {
-    setQueryParams({
-      from: "",
-      to: "",
-      date: getTodayDate(),
-      year: getCurrentYear().toString(),
-      month: getCurrentMonth().split('-')[1],
-      type: "",
-      status: "",
-      customerPhone: ""
-    });
-    setTimeframeType("today");
+    setQueryParams({ type: "", status: "", customerPhone: "" });
+    setPeriod(defaultPeriod("day"));
     setShowEditedSales(false);
     setSearchTerm("");
   };
@@ -680,15 +673,10 @@ export default function SalesHistory() {
     });
   };
 
-  const textFilter = (s: Sale) =>
-    s.saleId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.customer.phone.includes(searchTerm) ||
-    (s.salesPerson && s.salesPerson.toLowerCase().includes(searchTerm.toLowerCase()));
-
+  // Search and the edited-sales view run on the server (all pages).
   const filteredSales = showUnpaidSales
     ? sales
-    : applyCreditFilter(showEditedSales ? editedSales.filter(textFilter) : sales.filter(textFilter));
+    : applyCreditFilter(showEditedSales ? editedSales : sales);
 
   const creditStats = {
     totalCredit: sales.filter((s) => s.paymentType === "credit").length,
@@ -717,29 +705,7 @@ export default function SalesHistory() {
       return timeframeMetadata.description;
     }
     
-    switch(timeframeType) {
-      case "today":
-        return "Today";
-      case "day":
-        return queryParams.date ? `Day: ${queryParams.date}` : "Today";
-      case "month":
-        return queryParams.year && queryParams.month 
-          ? `Month: ${queryParams.year}-${queryParams.month.padStart(2, '0')}`
-          : "This month";
-      case "year":
-        return queryParams.year ? `Year: ${queryParams.year}` : "This year";
-      case "custom":
-        if (queryParams.from && queryParams.to) {
-          return `Range: ${queryParams.from} to ${queryParams.to}`;
-        } else if (queryParams.from) {
-          return `From: ${queryParams.from}`;
-        } else if (queryParams.to) {
-          return `Until: ${queryParams.to}`;
-        }
-        return "Custom range";
-      default:
-        return "Today";
-    }
+    return periodLabel(period);
   };
 
   // NEW: Function to view edited sale details
@@ -781,7 +747,7 @@ export default function SalesHistory() {
           {changes && Object.keys(changes).length > 0 && (
             <div className="mt-3 pt-3 border-t border-blue-200">
               <h5 className="font-medium text-blue-800 mb-2">Changements:</h5>
-              {Object.entries(changes).map(([field, changeData]: [string, any]) => (
+              {Object.entries(changes as Record<string, FieldChange>).map(([field, changeData]) => (
                 <div key={field} className="mb-2 last:mb-0">
                   <div className="font-medium text-blue-700 capitalize">
                     {field.replace(/([A-Z])/g, ' $1').toLowerCase()}:
@@ -807,9 +773,9 @@ export default function SalesHistory() {
 
   // EXPORT FUNCTIONS
 
-  const exportDetailedSalesToCSV = () => {
+  const exportDetailedSalesToCSV = async () => {
     try {
-      const dataToExport = showEditedSales ? editedSales : filteredSales;
+      const dataToExport = await fetchAllSalesForExport();
       
       if (dataToExport.length === 0) {
         setError("No data to export");
@@ -910,9 +876,9 @@ export default function SalesHistory() {
     }
   };
 
-  const exportToJSON = () => {
+  const exportToJSON = async () => {
     try {
-      const dataToExport = showEditedSales ? editedSales : filteredSales;
+      const dataToExport = await fetchAllSalesForExport();
       
       if (dataToExport.length === 0) {
         setError("No data to export");
@@ -1801,8 +1767,8 @@ export default function SalesHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -1841,6 +1807,8 @@ export default function SalesHistory() {
                 </span>
               )}
             </button>
+
+            <ExportPdfButton onExport={exportPdf} />
 
             {/* Export Button */}
             <button
@@ -2063,127 +2031,7 @@ export default function SalesHistory() {
           {/* Timeframe Selection */}
           {showFilters && (
             <div className="p-4 sm:p-6 space-y-4 border-t border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Timeframe Type
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {(["today", "day", "month", "year", "custom"] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => handleTimeframeTypeChange(type)}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                        timeframeType === type
-                          ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {type === "today" && "Today"}
-                      {type === "day" && "Specific Day"}
-                      {type === "month" && "Specific Month"}
-                      {type === "year" && "Specific Year"}
-                      {type === "custom" && "Custom Range"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Specific timeframe inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {timeframeType === "day" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={queryParams.date}
-                      onChange={(e) => handleQueryParamChange("date", e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                )}
-
-                {timeframeType === "month" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Year
-                      </label>
-                      <input
-                        type="number"
-                        value={queryParams.year}
-                        onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                        min="2000"
-                        max="2100"
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Month
-                      </label>
-                      <select
-                        value={queryParams.month}
-                        onChange={(e) => handleQueryParamChange("month", e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const monthNum = (i + 1).toString().padStart(2, '0');
-                          return (
-                            <option key={monthNum} value={monthNum}>
-                              {new Date(2000, i).toLocaleString('default', { timeZone: 'Africa/Johannesburg', month: 'long' })} ({monthNum})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {timeframeType === "year" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Year
-                    </label>
-                    <input
-                      type="number"
-                      value={queryParams.year}
-                      onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                      min="2000"
-                      max="2100"
-                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                )}
-
-                {timeframeType === "custom" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        From Date
-                      </label>
-                      <input
-                        type="date"
-                        value={queryParams.from}
-                        onChange={(e) => handleQueryParamChange("from", e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        To Date
-                      </label>
-                      <input
-                        type="date"
-                        value={queryParams.to}
-                        onChange={(e) => handleQueryParamChange("to", e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
+              <PeriodSelector value={period} onChange={setPeriod} />
 
               {/* Advanced Filters */}
               <div>
@@ -2293,7 +2141,7 @@ export default function SalesHistory() {
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -2520,7 +2368,7 @@ export default function SalesHistory() {
 
       {/* Sale Details Modal */}
       {showModal && selectedSale && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-blue-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -2851,7 +2699,7 @@ export default function SalesHistory() {
 
       {/* NEW: Edited Sale Details Modal */}
       {showEditedDetailsModal && selectedEditedSale && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-blue-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -2952,7 +2800,7 @@ export default function SalesHistory() {
                         {edit.changes && Object.keys(edit.changes).length > 0 && (
                           <div className="space-y-3">
                             <h6 className="font-medium text-gray-700 text-sm">Changements détaillés:</h6>
-                            {Object.entries(edit.changes).map(([field, changeData]: [string, any]) => (
+                            {Object.entries(edit.changes).map(([field, changeData]) => (
                               <div key={field} className="border-l-4 border-blue-500 pl-3">
                                 <div className="font-medium text-gray-700 text-sm capitalize mb-2">
                                   {field.replace(/([A-Z])/g, ' $1').toLowerCase()}:
@@ -3010,7 +2858,7 @@ export default function SalesHistory() {
       <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
       {showEditModal && editingSale && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-blue-200">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -3370,7 +3218,7 @@ export default function SalesHistory() {
       )}
       {/* Credit Payment Modal */}
       {showPaymentModal && paymentSale && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-md w-full mx-4 shadow-2xl border border-amber-200">
             <div className="px-6 py-4 border-b border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-amber-900 flex items-center gap-2">

@@ -23,11 +23,13 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { GMT_PLUS_2_TIME_ZONE } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { defaultPeriod, formatDayFr, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const COMPANY_NAME = "Entre Nous Renove";
-
-type ReportRange = "today" | "day" | "month" | "year" | "custom";
 
 interface DayBalance {
   date: string;
@@ -101,8 +103,6 @@ interface TopProductsResponse {
   };
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 function formatDate(value?: string | Date) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("fr-FR", {
@@ -171,14 +171,9 @@ export default function CompanyReport() {
   const reportRef = useRef<HTMLDivElement>(null);
   const { user, activeBranchId } = useAuth();
 
-  const [range, setRange] = useState<ReportRange>("today");
-  const [selectedDate, setSelectedDate] = useState(todayIso());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState(
-    String(new Date().getMonth() + 1).padStart(2, "0")
-  );
-  const [fromDate, setFromDate] = useState(todayIso());
-  const [toDate, setToDate] = useState(todayIso());
+  // GMT+2 calendar period (default: today) — real month lengths and leap
+  // years (utils/businessDate.ts), never the browser's UTC/local date.
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
   const [loading, setLoading] = useState(false);
   // loadReport() is now a single GET /api/company-report/summary call, so a
   // failure is one error for that whole aggregation — not per-section. It is
@@ -199,45 +194,41 @@ export default function CompanyReport() {
   const [topProductsLoading, setTopProductsLoading] = useState(false);
   const [topProductsError, setTopProductsError] = useState<string | null>(null);
 
-  const reportPeriod = useMemo(() => {
-    const year = Number(selectedYear);
-    const month = Number(selectedMonth);
-    const labels: Record<ReportRange, string> = {
-      today: `Aujourd'hui — ${formatDate(new Date())}`,
-      day: `Jour du ${formatDate(selectedDate)}`,
-      month: new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1)),
-      year: `Année ${selectedYear}`,
-      custom: "Période personnalisée",
-    };
-    if (range === "today") return { from: todayIso(), to: todayIso(), label: labels[range] };
-    if (range === "day") return { from: selectedDate, to: selectedDate, label: labels[range] };
-    if (range === "month") {
-      return {
-        from: `${selectedYear}-${selectedMonth}-01`,
-        to: new Date(year, month, 0).toISOString().slice(0, 10),
-        label: labels[range],
-      };
-    }
-    if (range === "year") {
-      return { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31`, label: labels[range] };
-    }
-    return { from: fromDate, to: toDate, label: labels[range] };
-  }, [fromDate, range, selectedDate, selectedMonth, selectedYear, toDate]);
+  const reportPeriod = useMemo(() => ({ ...rangeParams(period), label: periodLabel(period) }), [period]);
 
-  const timeframeParams = useMemo(() => {
-    const params = new URLSearchParams();
-    if (range === "day") params.set("date", selectedDate);
-    if (range === "month") {
-      params.set("year", selectedYear);
-      params.set("month", selectedMonth);
-    }
-    if (range === "year") params.set("year", selectedYear);
-    if (range === "custom") {
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
-    }
-    return params.toString();
-  }, [fromDate, range, selectedDate, selectedMonth, selectedYear, toDate]);
+  // Every report endpoint receives the same inclusive from/to range.
+  const timeframeParams = useMemo(() => new URLSearchParams(rangeParams(period)).toString(), [period]);
+
+  // Daily cash balance of the period (every day, including quiet days) as a
+  // tabular PDF with the shared report layout.
+  const exportDailyBalancePdf = async () => {
+    if (!dailyBalance) throw new Error("Le solde journalier n'est pas encore chargé");
+    downloadTableReportPdf<DayBalance>({
+      title: "Solde journalier de caisse",
+      branchName: activeBranchId === "beni" ? "Beni" : "Butembo",
+      periodLabel: reportPeriod.label,
+      orientation: "landscape",
+      fileName: `solde-journalier-${pdfFileStamp(reportPeriod.from, reportPeriod.to)}`,
+      recordLabel: ["jour", "jours"],
+      columns: [
+        { header: "Date", width: 1.1, value: (day) => (/^\d{4}-\d{2}-\d{2}$/.test(day.date) ? formatDayFr(day.date) : formatDate(day.date)) },
+        { header: "Solde d'ouverture", width: 1.3, align: "right", value: (day) => formatMoneyPdf(day.openingBalance) },
+        { header: "Ventes encaissées", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.salesRevenue)} (${day.salesCount})` },
+        { header: "Entrées de caisse", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.entriesAmount)} (${day.entriesCount})` },
+        { header: "Sorties validées", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.expensesAmount)} (${day.expensesCount})` },
+        { header: "Solde de clôture", width: 1.3, align: "right", value: (day) => formatMoneyPdf(day.closingBalance) },
+      ],
+      rows: dailyBalance.days,
+      totals: [
+        ["Solde d'ouverture de la période", formatMoneyPdf(dailyBalance.periodSummary.openingBalance)],
+        ["Ventes encaissées", formatMoneyPdf(dailyBalance.periodSummary.totalSales)],
+        ["Entrées de caisse", formatMoneyPdf(dailyBalance.periodSummary.totalEntries)],
+        ["Sorties validées", formatMoneyPdf(dailyBalance.periodSummary.totalExpenses)],
+        ["Solde de clôture de la période", formatMoneyPdf(dailyBalance.periodSummary.closingBalance)],
+      ],
+    });
+    return dailyBalance.days.length;
+  };
 
   const authHeaders = () => {
     const token = localStorage.getItem("token");
@@ -572,7 +563,7 @@ export default function CompanyReport() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 sm:p-6">
+    <div className="app-page bg-slate-100">
       <style>{`
         @media print {
           body { background: white !important; }
@@ -582,10 +573,10 @@ export default function CompanyReport() {
           tr { page-break-inside: avoid; }
         }
       `}</style>
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div className="no-print rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+      <div className="app-page-inner app-page-stack">
+        <div className="no-print min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="shrink-0">
               <p className="text-sm font-medium uppercase tracking-wide text-blue-700">
                 Rapport d'entreprise
               </p>
@@ -600,117 +591,23 @@ export default function CompanyReport() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-              <div className="sm:col-span-2 lg:col-span-6">
-                <p className="text-sm font-medium text-slate-700">Période</p>
-                <div className="mt-1 flex flex-wrap gap-2 rounded-lg bg-slate-100 p-1">
-                  {([
-                    ["today", "Aujourd'hui"],
-                    ["day", "Jour spécifique"],
-                    ["month", "Mois spécifique"],
-                    ["year", "Année spécifique"],
-                    ["custom", "Période personnalisée"],
-                  ] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setRange(value)}
-                      className={`rounded-md px-3 py-2 text-xs font-semibold transition sm:text-sm ${
-                        range === value
-                          ? "bg-blue-700 text-white shadow-sm"
-                          : "bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {range === "day" && <label className="text-sm font-medium text-slate-700">
-                Date
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>}
-
-              {range === "month" && <>
-                <label className="text-sm font-medium text-slate-700">
-                  Année
-                  <input
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    value={selectedYear}
-                    onChange={(event) => setSelectedYear(event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
-                </label>
-                <label className="text-sm font-medium text-slate-700">
-                  Mois
-                  <select
-                    value={selectedMonth}
-                    onChange={(event) => setSelectedMonth(event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    {Array.from({ length: 12 }, (_, index) => {
-                      const value = String(index + 1).padStart(2, "0");
-                      return <option key={value} value={value}>{new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(new Date(2000, index, 1))}</option>;
-                    })}
-                  </select>
-                </label>
-              </>}
-
-              {range === "year" && <label className="text-sm font-medium text-slate-700">
-                Année
-                <input
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  value={selectedYear}
-                  onChange={(event) => setSelectedYear(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>}
-
-              {range === "custom" && <label className="text-sm font-medium text-slate-700">
-                Du
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(event) => setFromDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>}
-
-              {range === "custom" && <label className="text-sm font-medium text-slate-700">
-                Au
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>}
-
+            <div className="w-full min-w-0 xl:max-w-4xl">
+              <PeriodSelector value={period} onChange={setPeriod} />
+              <div className="mt-3 grid grid-cols-2 items-stretch gap-2 sm:flex sm:flex-wrap">
               <button
                 type="button"
                 onClick={loadReport}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Actualiser
               </button>
 
-              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                  className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                 >
                   <Printer className="h-4 w-4" />
                   Imprimer
@@ -718,11 +615,12 @@ export default function CompanyReport() {
                 <button
                   type="button"
                   onClick={downloadPdf}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                  className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
                 >
                   <Download className="h-4 w-4" />
                   PDF
                 </button>
+              <ExportPdfButton className="min-h-11 min-w-0 px-2" onExport={exportDailyBalancePdf} disabled={!dailyBalance} label="PDF solde journalier" />
               </div>
             </div>
           </div>

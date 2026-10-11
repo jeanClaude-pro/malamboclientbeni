@@ -1,4 +1,15 @@
-# React + TypeScript + Vite
+# Entre Nous Renove — client (React + TypeScript + Vite)
+
+## Documentation métier
+
+- Fiche de stock (globale et par article), classification des mouvements, calendrier
+  GMT+2, exports PDF (50 enregistrements par page), pagination, autorisations et isolation
+  des agences : [`server/docs/STOCK_AND_REPORTING.md`](../server/docs/STOCK_AND_REPORTING.md).
+- Tests des utilitaires purs (calendrier, quantités, pagination PDF) : `npm test`
+  (runner intégré de Node, aucune dépendance supplémentaire). Vérifications : `npx tsc -b`,
+  `npm run lint`, `npm run build`.
+
+## Vite template notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

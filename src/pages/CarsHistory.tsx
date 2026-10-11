@@ -30,6 +30,13 @@ import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
+import { formatCartonsPieces } from "../utils/quantity";
+import { downloadCsv } from "../utils/csvExport";
 
 interface TripProduct {
   productId: string;
@@ -252,7 +259,10 @@ export default function CarsHistory() {
   const [statusFilter, setStatusFilter] = useState("");
   const [plateFilter, setPlateFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [timeframe, setTimeframe] = useState({ from: "", to: "" });
+  // GMT+2 calendar period (default: this month) and server-side search, shared
+  // by the paginated list and the complete exports.
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   
   const [editForm, setEditForm] = useState<EditFormData>({});
   const [editReason, setEditReason] = useState("");
@@ -266,7 +276,12 @@ export default function CarsHistory() {
   });
   const [arrivalSubmitting, setArrivalSubmitting] = useState(false);
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, plateFilter, timeframe.from, timeframe.to]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, plateFilter, period, debouncedSearch]);
 
   useEffect(() => {
     fetchTrips();
@@ -280,7 +295,7 @@ export default function CarsHistory() {
     return () => {
       window.removeEventListener("appDataChanged", handleTripUpdate);
     };
-  }, [statusFilter, plateFilter, timeframe, pagination.page]);
+  }, [statusFilter, plateFilter, period, debouncedSearch, pagination.page]);
 
   const fetchTrips = async () => {
     const currentRequest = ++requestId.current;
@@ -291,10 +306,9 @@ export default function CarsHistory() {
 
       const params = new URLSearchParams();
 
-      if (statusFilter) params.append("status", statusFilter);
-      if (plateFilter) params.append("plateNumber", plateFilter);
-      if (timeframe.from) params.append("from", timeframe.from);
-      if (timeframe.to) params.append("to", timeframe.to);
+      Object.entries(filterParams()).forEach(([key, value]) => {
+        if (value) params.append(key, String(value));
+      });
       params.set("page", String(pagination.page));
       params.set("limit", String(pagination.limit));
 
@@ -312,15 +326,58 @@ export default function CarsHistory() {
     }
   };
 
-  const filteredTrips = trips.filter(trip =>
-    trip.tripId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    trip.driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    trip.driver.phone.includes(searchTerm) ||
-    trip.vehicle.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    trip.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    trip.destination.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getTripProducts(trip).some((product) => product.productName.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Search runs on the server (all pages), so the loaded page already matches.
+  const filteredTrips = trips;
+
+  // Filters of the list, reused verbatim by the PDF/CSV exports.
+  function filterParams() {
+    return {
+      ...rangeParams(period),
+      status: statusFilter,
+      plateNumber: plateFilter,
+      search: debouncedSearch,
+    };
+  }
+
+  const fetchAllTrips = () =>
+    fetchExport<CarTrip, { totalPieces: number; totalCost: number; byStatus: Record<string, number> }>("/car-trips/export", filterParams());
+
+  const exportPdf = async () => {
+    const data = await fetchAllTrips();
+    const { from, to } = rangeParams(period);
+    downloadTableReportPdf<CarTrip>({
+      title: "Historique des camions",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(period),
+      orientation: "landscape",
+      fileName: `historique-camions-${pdfFileStamp(from, to)}`,
+      recordLabel: ["trajet", "trajets"],
+      filters: [
+        ["Statut", statusFilter ? statusLabels[statusFilter] || statusFilter : "Tous"],
+        ...(plateFilter ? [["Plaque", plateFilter] as [string, string]] : []),
+        ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+        ["Date filtrée", "date d'enregistrement du trajet"],
+      ],
+      columns: [
+        { header: "Date", width: 1.2, value: (trip) => formatDateTimeGmt2(trip.createdAt) },
+        { header: "Réf.", width: 1.4, value: (trip) => trip.tripId },
+        { header: "Trajet", width: 1.6, value: (trip) => `${trip.origin} -> ${trip.destination}` },
+        { header: "Chauffeur / Plaque", width: 1.5, value: (trip) => `${trip.driver.name} / ${trip.vehicle.plateNumber}` },
+        { header: "Articles", width: 2.4, value: (trip) => getTripProducts(trip).map((product) => `${product.productName}: ${formatCartonsPieces(product.totalPieces, product.piecesPerBox)}`).join("; ") },
+        { header: "Arrivée", width: 1.2, value: (trip) => (trip.actualArrivalTime ? formatDateTimeGmt2(trip.actualArrivalTime) : "-") },
+        { header: "Statut", width: 0.9, value: (trip) => statusLabels[trip.status] || trip.status },
+        { header: "Coût", width: 1, align: "right", value: (trip) => formatMoneyPdf(trip.totalCost) },
+      ],
+      rows: data.records,
+      totals: [
+        ["Trajets exportés", String(data.count)],
+        ...Object.entries(data.totals.byStatus).map(([status, count]) => [statusLabels[status] || status, String(count)] as [string, string]),
+        ["Total des pièces transportées", data.totals.totalPieces.toLocaleString("fr-FR")],
+        ["Coût total", formatMoneyPdf(data.totals.totalCost)],
+      ],
+    });
+    return data.count;
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -595,14 +652,21 @@ export default function CarsHistory() {
     doc.save(`trip-${trip.tripId}.pdf`);
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
+    let allTrips: CarTrip[];
+    try {
+      allTrips = (await fetchAllTrips()).records;
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "Échec de l'export CSV");
+      return;
+    }
     const headers = [
       "Trip ID", "Status", "Origin", "Destination", "Driver Name", "Driver Phone",
       "Plate Number", "Product", "Boxes", "Pieces/Box", "Total Pieces",
       "Departure Time", "Arrival Time", "Total Cost", "Created By"
     ];
     
-    const rows = filteredTrips.map(trip => [
+    const rows = allTrips.map(trip => [
       trip.tripId,
       statusLabels[trip.status] || trip.status,
       trip.origin,
@@ -620,16 +684,10 @@ export default function CarsHistory() {
       trip.createdByName,
     ]);
     
-    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trips_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    setMessage("✅ Export CSV réussi");
+    const { from, to } = rangeParams(period);
+    downloadCsv(`trajets_${pdfFileStamp(from, to)}`, headers, rows);
+
+    setMessage(`✅ Export CSV réussi (${rows.length} trajet${rows.length > 1 ? "s" : ""})`);
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -741,8 +799,8 @@ export default function CarsHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -755,7 +813,8 @@ export default function CarsHistory() {
             </p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <ExportPdfButton onExport={exportPdf} />
             <button
               onClick={exportToCSV}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
@@ -802,7 +861,7 @@ export default function CarsHistory() {
           
           {showFilters && (
             <div className="p-4 space-y-4 bg-gray-50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
                   <select
@@ -831,25 +890,6 @@ export default function CarsHistory() {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Du</label>
-                  <input
-                    type="date"
-                    value={timeframe.from}
-                    onChange={(e) => setTimeframe({ ...timeframe, from: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Au</label>
-                  <input
-                    type="date"
-                    value={timeframe.to}
-                    onChange={(e) => setTimeframe({ ...timeframe, to: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
               </div>
               
               <div className="flex justify-end">
@@ -857,7 +897,7 @@ export default function CarsHistory() {
                   onClick={() => {
                     setStatusFilter("");
                     setPlateFilter("");
-                    setTimeframe({ from: "", to: "" });
+                    setPeriod(defaultPeriod("month"));
                   }}
                   className="px-3 py-1 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
                 >
@@ -867,6 +907,8 @@ export default function CarsHistory() {
             </div>
           )}
         </div>
+
+        <PeriodSelector value={period} onChange={setPeriod} />
         
         {/* Search Bar */}
         <div className="relative">
@@ -891,7 +933,7 @@ export default function CarsHistory() {
             </h2>
           </div>
           
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             {loading && trips.length === 0 ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -1044,7 +1086,7 @@ export default function CarsHistory() {
       <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
       {showModal && selectedTrip && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
               <h3 className="text-xl font-semibold text-gray-900">Détails du Trajet</h3>
@@ -1316,7 +1358,7 @@ export default function CarsHistory() {
       
       {/* Status Update Modal */}
       {showStatusModal && editingTrip && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6 max-h-[90dvh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Mettre à jour le statut</h3>
             
@@ -1382,7 +1424,7 @@ export default function CarsHistory() {
       
       {/* Arrival Confirmation Modal */}
       {showArrivalModal && arrivalTrip && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-lg w-full mx-4 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -1482,7 +1524,7 @@ export default function CarsHistory() {
 
       {/* Edit Modal */}
       {showEditModal && editingTrip && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto p-6">
             <h3 className="text-lg font-semibold mb-4">Modifier le trajet</h3>
             

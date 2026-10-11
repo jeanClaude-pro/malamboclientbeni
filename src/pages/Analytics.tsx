@@ -13,21 +13,21 @@ export default function Analytics() {
   const branchName = activeBranchId === "beni" ? "Beni" : "Butembo";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 px-4 py-6 sm:px-7 sm:py-8">
-      <div className="mx-auto max-w-7xl space-y-8">
+    <div className="app-page bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+      <div className="app-page-inner app-page-stack">
         <motion.header
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/60 backdrop-blur-xl sm:p-9"
+          className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/80 p-4 shadow-lg shadow-slate-200/60 backdrop-blur-xl sm:p-6"
         >
           <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-blue-300/35 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-indigo-200/40 blur-3xl" />
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-blue-700">
                 <Sparkles className="h-4 w-4" /> Entre Nous Renove
               </p>
-              <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 Bonjour, {user?.username || "Utilisateur"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
@@ -47,7 +47,7 @@ export default function Analytics() {
         </motion.header>
 
         {accessibleModules.length === 0 ? (
-          <section className="rounded-3xl border border-slate-200/90 bg-white/90 p-8 text-center shadow-xl shadow-slate-200/50 backdrop-blur-xl">
+          <section className="rounded-2xl border border-slate-200/90 bg-white/90 p-5 text-center shadow-lg shadow-slate-200/50 backdrop-blur-xl">
             <ShieldCheck className="mx-auto h-10 w-10 text-blue-700" />
             <h2 className="mt-4 text-xl font-bold text-slate-950">Compte sans module opérationnel</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
@@ -69,7 +69,7 @@ export default function Analytics() {
                     <span className="hidden text-xs font-bold uppercase tracking-[0.16em] text-slate-400 sm:block">Accès intégral</span>
                   )}
                 </div>
-                <div className="grid auto-rows-[minmax(168px,auto)] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid auto-rows-[minmax(136px,auto)] grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {modules.map((module, index) => {
                     const Icon = module.icon;
                     return (

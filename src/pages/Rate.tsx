@@ -168,9 +168,9 @@ export default function TauxChange() {
       } else {
         setError(data.error || `Échec de la mise à jour: ${response.status}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la mise à jour du taux:', error);
-      setError(error?.message || 'Échec de la mise à jour du taux de change');
+      setError(error instanceof Error ? error.message : 'Échec de la mise à jour du taux de change');
     } finally {
       setSubmitting(false);
     }
@@ -185,7 +185,7 @@ export default function TauxChange() {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (error) {
+    } catch {
       return 'Date invalide';
     }
   };
@@ -209,8 +209,8 @@ export default function TauxChange() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="app-page bg-slate-50">
+      <div className="app-page-inner max-w-7xl">
         {/* En-tête */}
         <div className="mb-8">
           <div className="flex items-center justify-between">

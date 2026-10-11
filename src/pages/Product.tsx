@@ -30,7 +30,10 @@ import { toast } from "react-toastify";
 import type { Product } from "../types";
 import { serverUrl } from "../utils/constants";
 import CategoriesDropdown from "../components/CategoriesDropdown";
+import ProductStockSheet from "../components/stock/ProductStockSheet";
 import { getActiveBranchId } from "../services/dataSync";
+import { fetchExport } from "../services/reportApi";
+import { todayYMD } from "../utils/businessDate";
 
 interface User {
   _id: string;
@@ -70,52 +73,6 @@ interface FicheSale {
     dueDate?: string;
   };
   recordedBy?: string;
-}
-
-type FicheRange = "today" | "week" | "month" | "custom";
-
-interface LedgerAction {
-  id: string;
-  date: string;
-  type: string;
-  label: string;
-  source: string;
-  boxes: number; // signed — positive increases stock, negative decreases it
-  pieces: number; // signed, same convention as boxes
-  previousStock: number;
-  change: number; // signed — positive increases stock, negative decreases it
-  newStock: number;
-  performedBy: string;
-  performedByRole?: string;
-  branchId: "butembo" | "beni";
-  reason: string;
-}
-
-interface StockLedger {
-  branch: { id: "butembo" | "beni"; name: string };
-  product: {
-    _id: string;
-    name: string;
-    status: "active" | "inactive";
-    category: string;
-    piecesPerCarton: number;
-    currentStock: number;
-  };
-  period: { range: string; start: string; end: string };
-  summary: {
-    startingStock: number;
-    added: number;
-    removed: number;
-    endingStock: number;
-    currentStock: number;
-    actionsCount: number;
-    soldCartons: number;
-    soldPieces: number;
-    soldTransactionsCount: number;
-    bonusCartons: number;
-    bonusPieces: number;
-  };
-  actions: LedgerAction[];
 }
 
 interface FormData {
@@ -215,11 +172,6 @@ export default function Products() {
   const [showFicheModal, setShowFicheModal] = useState(false);
   const [ficheProduct, setFicheProduct] = useState<Product | null>(null);
   const [ficheSales, setFicheSales] = useState<FicheSale[]>([]);
-  const [ficheLedger, setFicheLedger] = useState<StockLedger | null>(null);
-  const [ficheLedgerLoading, setFicheLedgerLoading] = useState(false);
-  const [ficheRange, setFicheRange] = useState<FicheRange>("month");
-  const [ficheCustomFrom, setFicheCustomFrom] = useState("");
-  const [ficheCustomTo, setFicheCustomTo] = useState("");
   const [ficheLoading, setFicheLoading] = useState(false);
   const [ficheTab, setFicheTab] = useState<"summary" | "bonus" | "credit">("summary");
 
@@ -248,9 +200,10 @@ export default function Products() {
   }, []);
 
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-  // Advanced Fiche de Stock is superadmin-only — deliberately narrower than
-  // isAdmin, which also allows role "admin".
-  const isSuperadminStrict = currentUser?.role === "superadmin";
+  // Fiche de stock (read-only report): superadmin, admin and manager — the
+  // same policy the backend enforces on /api/stock-reports.
+  const canViewStockSheet =
+    currentUser?.role === "superadmin" || currentUser?.role === "admin" || currentUser?.role === "manager";
 
   // API Functions
   const fetchProducts = async () => {
@@ -303,7 +256,7 @@ export default function Products() {
     }
   };
 
-  const updateProduct = async (id: string, productData: FormData & { reason?: string }) => {
+  const updateProduct = async (id: string, productData: FormData & { reason?: string; expectedStock?: number }) => {
     try {
       const response = await fetch(`${serverUrl}/products/${id}`, {
         method: "PUT",
@@ -382,91 +335,28 @@ export default function Products() {
     }
   };
 
+  // Every sale containing this product (whole history, all pages) from the
+  // server export — the paginated list only returns 50 rows per call.
   const fetchFicheSales = async (product: Product) => {
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const res = await fetch(
-        `${serverUrl}/sales?from=1970-01-01&to=${today}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
-      );
-      if (res.ok) {
-        const json = await res.json();
-        const allSales: FicheSale[] = Array.isArray(json?.data) ? json.data : [];
-        const related = allSales.filter((sale) =>
-          (sale.items || []).some(
-            (item) => item.productId === product._id || item.name === product.name
-          )
-        );
-        setFicheSales(related.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      } else {
-        toast.error("Impossible de charger l'historique des ventes");
-      }
-    } catch {
-      toast.error("Erreur réseau lors du chargement");
-    }
-  };
-
-  const fetchFicheLedger = async (
-    product: Product,
-    range: FicheRange,
-    from?: string,
-    to?: string
-  ) => {
-    if (range === "custom" && (!from || !to)) {
-      toast.error("Veuillez sélectionner une période personnalisée valide");
-      return;
-    }
     const requestedBranch = getActiveBranchId();
     try {
-      setFicheLedgerLoading(true);
-      const params = new URLSearchParams({ range });
-      if (range === "custom" && from && to) {
-        params.set("from", from);
-        params.set("to", to);
-      }
-      const res = await fetch(
-        `${serverUrl}/stock-movements/ledger/${product._id}?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } }
-      );
-      if (getActiveBranchId() !== requestedBranch) return; // stale — branch changed mid-flight
-      if (res.ok) {
-        const json = await res.json();
-        setFicheLedger(json);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Impossible de charger la fiche de stock");
-        setFicheLedger(null);
-      }
-    } catch {
-      toast.error("Erreur réseau lors du chargement de la fiche de stock");
-      setFicheLedger(null);
-    } finally {
-      setFicheLedgerLoading(false);
+      const data = await fetchExport<FicheSale>("/sales/export", {
+        view: "sales",
+        productId: product._id,
+        from: "2000-01-01",
+        to: todayYMD(),
+      });
+      if (getActiveBranchId() !== requestedBranch) return;
+      setFicheSales([...data.records].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Impossible de charger l'historique des ventes");
     }
   };
 
-  const applyFicheRange = async (product: Product, range: "today" | "week" | "month") => {
-    setFicheRange(range);
-    await fetchFicheLedger(product, range);
-  };
-
-  const applyFicheCustomRange = async (product: Product) => {
-    if (!ficheCustomFrom || !ficheCustomTo) {
-      toast.error("Veuillez sélectionner une date de début et une date de fin");
-      return;
-    }
-    if (ficheCustomFrom > ficheCustomTo) {
-      toast.error("La date de début doit précéder la date de fin");
-      return;
-    }
-    setFicheRange("custom");
-    await fetchFicheLedger(product, "custom", ficheCustomFrom, ficheCustomTo);
-  };
-
-  const loadFicheData = async (product: Product, range: FicheRange = ficheRange) => {
+  const loadFicheData = async (product: Product) => {
     setFicheLoading(true);
     try {
-      await Promise.all([fetchFicheSales(product), fetchFicheLedger(product, range)]);
+      await fetchFicheSales(product);
     } finally {
       setFicheLoading(false);
     }
@@ -475,20 +365,15 @@ export default function Products() {
   const openFicheModal = async (product: Product) => {
     setFicheProduct(product);
     setFicheTab("summary");
-    setFicheRange("month");
-    setFicheCustomFrom("");
-    setFicheCustomTo("");
     setShowFicheModal(true);
     setFicheSales([]);
-    setFicheLedger(null);
-    await loadFicheData(product, "month");
+    await loadFicheData(product);
   };
 
   const closeFicheModal = () => {
     setShowFicheModal(false);
     setFicheProduct(null);
     setFicheSales([]);
-    setFicheLedger(null);
     setFicheTab("summary");
   };
 
@@ -544,7 +429,8 @@ export default function Products() {
       if (res.ok) {
         toast.success("Stock mis à jour");
         setShowStockUpdateModal(false);
-        await Promise.all([loadFicheData(ficheProduct, ficheRange), fetchProducts()]);
+        // The Fiche de stock refreshes itself (appDataChanged after the POST).
+        await Promise.all([loadFicheData(ficheProduct), fetchProducts()]);
       } else {
         toast.error(data.error || "Échec de la mise à jour du stock");
       }
@@ -557,13 +443,6 @@ export default function Products() {
 
   const COMPANY_NAME = "Entre Nous Renove";
   const activeBranchName = localStorage.getItem("activeBranchId") === "beni" ? "Beni" : "Butembo";
-
-  const FICHE_RANGE_LABELS: Record<FicheRange, string> = {
-    today: "Aujourd'hui",
-    week: "Cette semaine",
-    month: "Ce mois",
-    custom: "Période personnalisée",
-  };
 
   const buildFichePDF = (
     doc: jsPDF,
@@ -714,250 +593,19 @@ export default function Products() {
     return y + 8;
   };
 
-  // Renders the professional Fiche de Stock PDF straight from the ledger response
-  // already displayed in the "Résumé du stock" tab — same numbers, same source,
-  // so the PDF can never disagree with what's on screen.
-  const downloadFichePDF = () => {
-    if (!ficheProduct || !ficheLedger) {
-      toast.error("Les données de la fiche de stock ne sont pas encore chargées");
-      return;
-    }
-    const ledger = ficheLedger;
-    const ppc = getPiecesPerCarton({ piecesPerCarton: ledger.product.piecesPerCarton });
-    const doc = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const left = 14;
-    let y = 16;
-
-    const checkPage = (needed = 10) => {
-      if (y + needed > pageH - 18) { doc.addPage(); y = 20; }
-    };
-
-    // Header
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 60, 140);
-    doc.text(COMPANY_NAME, pageW / 2, y, { align: "center" });
-    y += 7;
-    doc.setFontSize(12);
-    doc.text("FICHE DE STOCK", pageW / 2, y, { align: "center" });
-    y += 5;
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(90, 90, 90);
-    doc.text("Mouvement de Stock & Audit d'Inventaire", pageW / 2, y, { align: "center" });
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "normal");
-    y += 9;
-
-    // Product & period info
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Agence: ${ledger.branch?.name || "Butembo"}`, left, y);
-    y += 5;
-    doc.text(`Article: ${ledger.product.name}`, left, y);
-    doc.text(`Statut: ${getProductStatus(ledger.product.status)}`, pageW - left, y, { align: "right" });
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(`Catégorie: ${ledger.product.category || "—"}`, left, y);
-    y += 5;
-    doc.text(
-      `Période (${FICHE_RANGE_LABELS[ficheRange]}): ${new Date(ledger.period.start).toLocaleDateString("fr-FR")} — ${new Date(ledger.period.end).toLocaleDateString("fr-FR")}`,
-      left, y
-    );
-    y += 5;
-    doc.text(`Généré le: ${new Date().toLocaleString("fr-FR")}`, left, y);
-    y += 5;
-    doc.text(`Généré par: ${currentUser?.username || "Utilisateur inconnu"}`, left, y);
-    y += 8;
-
-    // Summary block
-    checkPage(30);
-    doc.setDrawColor(30, 60, 140);
-    doc.setLineWidth(0.3);
-    doc.line(left, y, pageW - left, y);
-    y += 6;
-    // sub = raw total pieces, kept visible for reconciliation against the
-    // carton-formatted primary value.
-    const summaryCols: { label: string; value: string; sub: string; color: [number, number, number] }[] = [
-      { label: "STOCK DE DÉPART", value: formatCartonStock(ledger.summary.startingStock, ppc, true), sub: `${formatCartonStock(ledger.summary.startingStock, 1, true)} au total`, color: [0, 0, 0] },
-      { label: "STOCK AJOUTÉ", value: `+${formatCartonStock(ledger.summary.added, ppc, true)}`, sub: `${formatCartonStock(ledger.summary.added, 1, true)} au total`, color: [20, 130, 60] },
-      { label: "STOCK RÉDUIT", value: `-${formatCartonStock(ledger.summary.removed, ppc, true)}`, sub: `${formatCartonStock(ledger.summary.removed, 1, true)} au total`, color: [180, 40, 40] },
-      { label: "STOCK FINAL", value: formatCartonStock(ledger.summary.endingStock, ppc, true), sub: `${formatCartonStock(ledger.summary.endingStock, 1, true)} au total`, color: [30, 60, 140] },
-    ];
-    const colW4 = (pageW - left * 2) / 4;
-    summaryCols.forEach((col, i) => {
-      const x = left + i * colW4;
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(100, 100, 100);
-      doc.text(col.label, x, y);
-      doc.setFontSize(10.5);
-      doc.setTextColor(col.color[0], col.color[1], col.color[2]);
-      // Carton-formatted text can be longer than the old plain number, so wrap
-      // it instead of letting it overrun into the next column.
-      const valueLines = doc.splitTextToSize(col.value, colW4 - 4) as string[];
-      doc.text(valueLines, x, y + 6.5);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(120, 120, 120);
-      doc.text(col.sub, x, y + 6.5 + valueLines.length * 4.2);
-    });
-    doc.setTextColor(0, 0, 0);
-    y += 24;
-    doc.line(left, y, pageW - left, y);
-    y += 8;
-
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      `Stock actuel: ${formatCartonStock(ledger.product.currentStock, ppc)}   |   ${ledger.summary.actionsCount} action(s) de stock sur la période`,
-      left, y
-    );
-    y += 5;
-    if (ledger.summary.soldTransactionsCount > 0 || ledger.summary.bonusCartons > 0 || ledger.summary.bonusPieces > 0) {
-      doc.text(
-        `Total vendu: -${formatCartonStock(ledger.summary.soldCartons * ppc + ledger.summary.soldPieces, ppc, true)} (${ledger.summary.soldTransactionsCount} vente${ledger.summary.soldTransactionsCount > 1 ? "s" : ""})   |   Total bonus: -${formatCartonStock(ledger.summary.bonusCartons * ppc + ledger.summary.bonusPieces, ppc, true)}`,
-        left, y
-      );
-      y += 5;
-    }
-    y += 3;
-
-    // Actions table
-    checkPage(14);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text("Journal des mouvements de stock", left, y);
-    y += 6;
-
-    // Numeric columns are labeled "(pièces)" so they can't be mistaken for the
-    // carton-formatted summary cards above — widened accordingly, compensated
-    // by trimming the other columns (row total width is unchanged).
-    const headers = ["Date", "Opération", "Source", "Boxes", "Pieces", "Préc. (pièces)", "Nouv. (pièces)", "Par", "Raison"];
-    const colWidths = [18, 20, 18, 20, 22, 22, 22, 18, 22];
-
-    const drawTableHeader = () => {
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "bold");
-      doc.setFillColor(40, 70, 130);
-      doc.rect(left, y - 4, pageW - left * 2, 6, "F");
-      doc.setTextColor(255, 255, 255);
-      let headerX = left;
-      headers.forEach((header, index) => {
-        doc.text(header, headerX + 1, y);
-        headerX += colWidths[index];
-      });
-      doc.setTextColor(0, 0, 0);
-      doc.setFont("helvetica", "normal");
-      y += 4;
-    };
-
-    const drawContinuationHeader = () => {
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 60, 140);
-      doc.text(COMPANY_NAME, pageW / 2, 14, { align: "center" });
-      doc.setFontSize(8);
-      doc.setTextColor(70, 70, 70);
-      doc.text(
-        `FICHE DE STOCK · Agence: ${ledger.branch?.name || "Butembo"} · Article: ${ledger.product.name}`,
-        pageW / 2,
-        20,
-        { align: "center", maxWidth: pageW - left * 2 }
-      );
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      doc.text("Journal des mouvements de stock (suite)", left, 28);
-      y = 35;
-      drawTableHeader();
-    };
-
-    checkPage(8);
-    drawTableHeader();
-
-    doc.setFont("helvetica", "normal");
-    if (ledger.actions.length === 0) {
-      checkPage(8);
-      doc.setFontSize(8);
-      doc.text("Aucune action de stock enregistrée pour cette période.", left, y);
-      y += 6;
-    } else {
-      ledger.actions.forEach((action, i) => {
-        const values = [
-          new Date(action.date).toLocaleDateString("fr-FR"),
-          action.label,
-          action.source,
-          `${action.boxes >= 0 ? "+" : ""}${action.boxes}`,
-          `${action.pieces >= 0 ? "+" : ""}${action.pieces}`,
-          `${action.previousStock}`,
-          `${action.newStock}`,
-          action.performedBy || "—",
-          action.reason || "—",
-        ];
-        const wrappedValues = values.map((value, index) =>
-          doc.splitTextToSize(value, Math.max(5, colWidths[index] - 2)) as string[]
-        );
-        const lineCount = Math.max(...wrappedValues.map((lines) => lines.length), 1);
-        const rowHeight = Math.max(6, lineCount * 3.2 + 1.5);
-        if (y + rowHeight > pageH - 18) {
-          doc.addPage();
-          drawContinuationHeader();
-        }
-        if (i % 2 === 0) {
-          doc.setFillColor(235, 242, 255);
-          doc.rect(left, y - 4, pageW - left * 2, rowHeight, "F");
-        }
-        let x = left;
-        doc.setFontSize(7);
-        wrappedValues.forEach((lines, index) => {
-          if (index === 3) {
-            doc.setTextColor(action.boxes >= 0 ? 20 : 180, action.boxes >= 0 ? 130 : 40, action.boxes >= 0 ? 60 : 40);
-          } else if (index === 4) {
-            doc.setTextColor(action.pieces >= 0 ? 20 : 180, action.pieces >= 0 ? 130 : 40, action.pieces >= 0 ? 60 : 40);
-          } else {
-            doc.setTextColor(0, 0, 0);
-          }
-          doc.text(lines, x + 1, y);
-          x += colWidths[index];
-        });
-        y += rowHeight;
-      });
-    }
-
-    // Footer with page numbers on every page
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(90, 90, 90);
-      doc.text("Généré par le Système de Gestion d'Inventaire", left, pageH - 8);
-      doc.text(`Page ${i}/${totalPages}`, pageW - left, pageH - 8, { align: "right" });
-    }
-
-    doc.save(`fiche-de-stock-${ficheProduct.name.replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
   const downloadAllFichesPDF = async () => {
     if (products.length === 0) return;
     toast.info("Génération du PDF en cours...");
 
     const requestedBranch = getActiveBranchId();
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const res = await fetch(`${serverUrl}/sales?from=1970-01-01&to=${today}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
-      });
-      if (!res.ok) { toast.error("Impossible de charger les ventes"); return; }
+      // Complete sales history from the server export (not just one page).
+      const exported = await fetchExport<FicheSale>("/sales/export", { view: "sales", from: "2000-01-01", to: todayYMD() });
       if (getActiveBranchId() !== requestedBranch) {
         toast.error("L'agence a changé pendant le chargement — veuillez réessayer");
         return;
       }
-
-      const json = await res.json();
-      const allSales: FicheSale[] = Array.isArray(json?.data) ? json.data : [];
+      const allSales: FicheSale[] = exported.records;
 
       const doc = new jsPDF();
       const pageW = doc.internal.pageSize.getWidth();
@@ -1007,8 +655,8 @@ export default function Products() {
 
       doc.save(`fiches-stock-${new Date().toISOString().slice(0, 10)}.pdf`);
       toast.success("PDF téléchargé avec succès");
-    } catch {
-      toast.error("Erreur lors de la génération du PDF");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la génération du PDF");
     }
   };
 
@@ -1065,7 +713,10 @@ export default function Products() {
     };
 
     if (showEditModal && selectedProduct) {
-      updateProduct(selectedProduct._id, { ...productData, reason: editReason.trim() });
+      // expectedStock = the stock shown when the form was opened: the server
+      // keeps a stock changed meanwhile (sale, arrival) instead of writing
+      // this older number back, and refuses a stock edit based on it.
+      updateProduct(selectedProduct._id, { ...productData, reason: editReason.trim(), expectedStock: selectedProduct.stock || 0 });
     } else {
       createProduct(productData);
     }
@@ -1214,7 +865,7 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 min-h-screen">
+    <div className="app-page app-page-stack bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1288,7 +939,7 @@ export default function Products() {
             <p className="text-slate-600">Aucun article trouvé</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -1356,11 +1007,12 @@ export default function Products() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {isSuperadminStrict && (
+                        {canViewStockSheet && (
                           <button
                             onClick={() => openFicheModal(product)}
                             className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
-                            title="Fiche de stocks"
+                            title="Voir la fiche de stock"
+                            aria-label={`Voir la fiche de stock de ${product.name}`}
                           >
                             <ClipboardList className="w-4 h-4" />
                           </button>
@@ -1405,7 +1057,7 @@ export default function Products() {
 
       {/* Add/Edit Product Modal - Only for Admin */}
       {(showAddModal || showEditModal) && isAdmin && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6 border-b border-slate-200">
               <div className="flex items-center justify-between">
@@ -1759,21 +1411,19 @@ export default function Products() {
           .reduce((s, sale) => s + Number(sale.creditDetails?.amountDue || 0), 0);
 
         return (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
+            <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-6xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
               {/* Sticky header */}
               <div className="p-6 border-b border-slate-200 sticky top-0 bg-white/95 backdrop-blur z-10">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold text-slate-950 flex items-center gap-2">
                       <ClipboardList className="w-5 h-5 text-purple-600" />
-                      Fiche de stocks — {ficheProduct.name}
+                      Fiche de stock — {ficheProduct.name}
                     </h2>
-                    {ficheLedger?.branch && (
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Agence de {ficheLedger.branch.name}
-                      </p>
-                    )}
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Agence de {activeBranchName}
+                    </p>
                     <p className="text-sm text-slate-500 mt-1">
                       Stock actuel:{" "}
                       <span className="font-semibold text-slate-950">
@@ -1802,15 +1452,7 @@ export default function Products() {
                       title="Mettre à jour le stock"
                     >
                       <Box className="w-4 h-4" />
-                      Update Stock
-                    </button>
-                    <button
-                      onClick={downloadFichePDF}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors"
-                      title="Télécharger la fiche en PDF"
-                    >
-                      <Download className="w-4 h-4" />
-                      PDF
+                      Mettre à jour le stock
                     </button>
                     <button onClick={closeFicheModal} className="text-purple-600 hover:text-purple-700 transition-colors">
                       <X className="w-6 h-6" />
@@ -1821,8 +1463,8 @@ export default function Products() {
                 {/* Summary cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                   {[
-                    { label: "Cartons vendus", value: totalSoldCartons, icon: <TrendingDown className="w-4 h-4" />, color: "blue" },
-                    { label: "Bonus donnés", value: totalBonus, icon: <TrendingDown className="w-4 h-4" />, color: "green" },
+                    { label: "Cartons vendus (historique)", value: totalSoldCartons, icon: <TrendingDown className="w-4 h-4" />, color: "blue" },
+                    { label: "Bonus donnés (historique)", value: formatCartonStock(totalBonus, ppc), icon: <TrendingDown className="w-4 h-4" />, color: "green" },
                     { label: "Ventes à crédit", value: creditSales.length, icon: <CreditCard className="w-4 h-4" />, color: "amber" },
                     {
                       label: "Créances impayées",
@@ -1859,7 +1501,7 @@ export default function Products() {
                 <div className="flex gap-1 mt-4 bg-slate-50 rounded-lg p-1 flex-wrap">
                   {(
                     [
-                      { key: "summary" as const, label: "Résumé du stock", icon: <History className="w-3.5 h-3.5" /> },
+                      { key: "summary" as const, label: "Fiche de stock", icon: <History className="w-3.5 h-3.5" /> },
                       { key: "bonus" as const, label: "Bonus donnés", icon: <TrendingDown className="w-3.5 h-3.5" /> },
                       { key: "credit" as const, label: "Crédit / Prêts", icon: <CreditCard className="w-3.5 h-3.5" /> },
                     ]
@@ -2023,199 +1665,10 @@ export default function Products() {
                       </div>
                     )}
 
-                    {/* Stock summary tab — starting/ending inventory + audit trail for the selected period */}
+                    {/* Fiche de stock tab — summarized period figures from the shared
+                        backend service (same numbers as the global report). */}
                     {ficheTab === "summary" && (
-                      <div>
-                        {/* Period selector */}
-                        <div className="flex flex-wrap items-center gap-2 mb-4">
-                          {(["today", "week", "month"] as const).map((r) => (
-                            <button
-                              key={r}
-                              onClick={() => ficheProduct && applyFicheRange(ficheProduct, r)}
-                              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                                ficheRange === r
-                                  ? "bg-purple-700 text-white"
-                                  : "bg-slate-50 text-purple-600 hover:bg-purple-50"
-                              }`}
-                            >
-                              {FICHE_RANGE_LABELS[r]}
-                            </button>
-                          ))}
-                          <button
-                            onClick={() => setFicheRange("custom")}
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                              ficheRange === "custom"
-                                ? "bg-purple-700 text-white"
-                                : "bg-slate-50 text-purple-600 hover:bg-purple-50"
-                            }`}
-                          >
-                            Personnalisé
-                          </button>
-                          {ficheRange === "custom" && (
-                            <div className="flex items-center gap-2 ml-1">
-                              <input
-                                type="date"
-                                value={ficheCustomFrom}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomFrom(e.target.value)}
-                                className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
-                              />
-                              <span className="text-slate-500 text-sm">à</span>
-                              <input
-                                type="date"
-                                value={ficheCustomTo}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFicheCustomTo(e.target.value)}
-                                className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900"
-                              />
-                              <button
-                                onClick={() => ficheProduct && applyFicheCustomRange(ficheProduct)}
-                                className="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-sm font-medium"
-                              >
-                                Appliquer
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {ficheLedgerLoading ? (
-                          <div className="text-center py-10">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto" />
-                          </div>
-                        ) : !ficheLedger ? (
-                          <p className="text-slate-500 text-sm py-10 text-center">
-                            Impossible de charger la fiche de stock pour cette période.
-                          </p>
-                        ) : (
-                          <>
-                            {/* Summary cards */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-                              <div className="rounded-lg p-3 border border-blue-200 bg-slate-50">
-                                <div className="text-xs text-blue-600 mb-1">Stock de départ</div>
-                                <div className="text-xl font-bold text-slate-950">{formatCartonStock(ficheLedger.summary.startingStock, ppc, true)}</div>
-                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.startingStock, 1, true)} au total</div>
-                              </div>
-                              <div className="rounded-lg p-3 border border-emerald-200 bg-slate-50">
-                                <div className="text-xs text-emerald-600 mb-1">Stock ajouté</div>
-                                <div className="text-xl font-bold text-slate-950">+{formatCartonStock(ficheLedger.summary.added, ppc, true)}</div>
-                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.added, 1, true)} au total</div>
-                              </div>
-                              <div className="rounded-lg p-3 border border-rose-200 bg-slate-50">
-                                <div className="text-xs text-rose-600 mb-1">Stock réduit</div>
-                                <div className="text-xl font-bold text-slate-950">-{formatCartonStock(ficheLedger.summary.removed, ppc, true)}</div>
-                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.removed, 1, true)} au total</div>
-                              </div>
-                              <div className="rounded-lg p-3 border border-purple-200 bg-slate-50">
-                                <div className="text-xs text-purple-600 mb-1">Stock final</div>
-                                <div className="text-xl font-bold text-slate-950">{formatCartonStock(ficheLedger.summary.endingStock, ppc, true)}</div>
-                                <div className="text-[11px] text-slate-500 mt-0.5">{formatCartonStock(ficheLedger.summary.endingStock, 1, true)} au total</div>
-                              </div>
-                            </div>
-
-                            {/* Sales/bonus totals for the period — aggregated, not one row per transaction */}
-                            {(ficheLedger.summary.soldTransactionsCount > 0 ||
-                              ficheLedger.summary.bonusCartons > 0 ||
-                              ficheLedger.summary.bonusPieces > 0) && (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                                <div className="rounded-lg p-3 border border-slate-200 bg-white flex items-center justify-between">
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Total vendu sur la période</div>
-                                    <div className="text-lg font-bold text-slate-950">
-                                      -{formatCartonStock(
-                                        ficheLedger.summary.soldCartons * ppc + ficheLedger.summary.soldPieces,
-                                        ppc,
-                                        true
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-slate-500 text-right">
-                                    {ficheLedger.summary.soldTransactionsCount} vente
-                                    {ficheLedger.summary.soldTransactionsCount > 1 ? "s" : ""}
-                                  </div>
-                                </div>
-                                <div className="rounded-lg p-3 border border-slate-200 bg-white">
-                                  <div className="text-xs text-slate-500 mb-1">Total bonus donné</div>
-                                  <div className="text-lg font-bold text-slate-950">
-                                    -{formatCartonStock(
-                                      ficheLedger.summary.bonusCartons * ppc + ficheLedger.summary.bonusPieces,
-                                      ppc,
-                                      true
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            <p className="text-xs text-slate-500 mb-4">
-                              Stock actuel:{" "}
-                              <span className="text-slate-950 font-medium">
-                                {formatCartonStock(ficheLedger.product.currentStock, ppc)}
-                              </span>
-                              {" · "}Agence: {ficheLedger.branch?.name || "Butembo"}
-                              {" · "}Statut:{" "}
-                              <span className="text-slate-950 font-medium">
-                                {getProductStatus(ficheLedger.product.status)}
-                              </span>
-                              {" · "}
-                              {ficheLedger.summary.actionsCount} action{ficheLedger.summary.actionsCount > 1 ? "s" : ""} de stock sur la période
-                            </p>
-
-                            {/* Audit trail */}
-                            {ficheLedger.actions.length === 0 ? (
-                              <p className="text-slate-500 text-sm py-10 text-center">
-                                Aucune action de stock enregistrée pour cette période.
-                              </p>
-                            ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                  <thead className="border-b border-slate-200">
-                                    <tr>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Date</th>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Opération</th>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Source</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Boxes</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Pieces</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Précédent (pièces)</th>
-                                      <th className="text-right py-2 pr-3 text-slate-500 font-medium">Nouveau stock (pièces)</th>
-                                      <th className="text-left py-2 pr-3 text-slate-500 font-medium">Effectué par</th>
-                                      <th className="text-left py-2 text-slate-500 font-medium">Raison</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {ficheLedger.actions.map((action) => (
-                                      <tr key={action.id} className="hover:bg-slate-50">
-                                        <td className="py-2.5 pr-3 text-slate-600 whitespace-nowrap">
-                                          {new Date(action.date).toLocaleString("fr-FR")}
-                                        </td>
-                                        <td className="py-2.5 pr-3 text-slate-950 font-medium">{action.label}</td>
-                                        <td className="py-2.5 pr-3 text-slate-600">{action.source}</td>
-                                        <td
-                                          className={`py-2.5 pr-3 text-right font-semibold ${
-                                            action.boxes >= 0 ? "text-emerald-600" : "text-rose-600"
-                                          }`}
-                                        >
-                                          {action.boxes >= 0 ? "+" : ""}
-                                          {action.boxes}
-                                        </td>
-                                        <td
-                                          className={`py-2.5 pr-3 text-right font-semibold ${
-                                            action.pieces >= 0 ? "text-emerald-600" : "text-rose-600"
-                                          }`}
-                                        >
-                                          {action.pieces >= 0 ? "+" : ""}
-                                          {action.pieces}
-                                        </td>
-                                        <td className="py-2.5 pr-3 text-right text-slate-600">{action.previousStock}</td>
-                                        <td className="py-2.5 pr-3 text-right text-slate-950 font-medium">{action.newStock}</td>
-                                        <td className="py-2.5 pr-3 text-slate-600">{action.performedBy || "—"}</td>
-                                        <td className="py-2.5 text-slate-600">{action.reason || "—"}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      <ProductStockSheet productId={ficheProduct._id} productName={ficheProduct.name} />
                     )}
                   </>
                 )}
@@ -2227,7 +1680,7 @@ export default function Products() {
 
       {/* Update Stock Modal — manual add/reduce adjustment from inside Fiche de Stock */}
       {showStockUpdateModal && ficheProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" role="dialog" aria-modal="true">
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-md w-full shadow-2xl">
             <div className="p-5 border-b border-slate-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -2332,7 +1785,7 @@ export default function Products() {
 
       {/* Quick View Modal */}
       {showViewModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6 border-b border-slate-200">
               <div className="flex items-center justify-between">

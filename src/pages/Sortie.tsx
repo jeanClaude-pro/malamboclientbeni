@@ -232,8 +232,8 @@ export default function Sortie() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+      <div className="app-page-inner app-page-stack max-w-5xl">
         {/* Header with Exchange Rate */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

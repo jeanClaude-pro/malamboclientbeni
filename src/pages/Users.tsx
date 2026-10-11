@@ -113,14 +113,14 @@ export default function Users() {
   ];
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-7 sm:py-8">
-      <div className="mx-auto max-w-7xl space-y-7">
-        <header className="relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/60 backdrop-blur-xl sm:p-8">
+    <div className="app-page">
+      <div className="app-page-inner app-page-stack">
+        <header className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/80 p-4 shadow-lg shadow-slate-200/60 backdrop-blur-xl sm:p-6">
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-300/35 blur-3xl" />
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-700"><ShieldCheck className="h-4 w-4" /> Super Admin</p>
-              <h1 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">Personnel & agences</h1>
+              <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">Personnel & agences</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Approuvez les nouveaux comptes, choisissez leur rôle, puis affectez-les à Butembo ou Beni.</p>
             </div>
             {counts.pending > 0 && (

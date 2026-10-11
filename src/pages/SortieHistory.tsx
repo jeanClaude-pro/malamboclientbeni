@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
+import { formatDateTimeGmt2 } from "../utils/time";
 import {
   Search,
   FileText,
@@ -41,6 +47,13 @@ interface ExpenseItem {
   notes?: string;
   validatedBy?: string;
   validatedAt?: string;
+}
+
+// One line of GET /api/expenses/:id/history.
+interface ExpenseHistoryItem {
+  action: string;
+  formattedDate: string;
+  timestamp: string;
 }
 
 interface ExpensesResponse {
@@ -102,28 +115,6 @@ interface User {
   permissions?: string[];
 }
 
-// Helper function to get today's date in correct format
-const getTodayDate = (): string => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-// Helper function to get current month in YYYY-MM format
-const getCurrentMonth = (): string => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-};
-
-// Helper function to get current year
-const getCurrentYear = (): number => {
-  return new Date().getFullYear();
-};
-
 export default function SortieHistory() {
   const requestId = useRef(0);
   const mutationPending = useRef(false);
@@ -153,35 +144,26 @@ export default function SortieHistory() {
     updateReason: "",
   });
   const [deleteReason, setDeleteReason] = useState("");
-  const [expenseHistory, setExpenseHistory] = useState<any[]>([]);
+  const [expenseHistory, setExpenseHistory] = useState<ExpenseHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   // User state for role checking
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // Timeframe state - Updated to match backend query parameters
-  const [timeframeType, setTimeframeType] = useState<
-    "custom" | "day" | "month" | "year" | "today"
-  >("today");
-  
+  // GMT+2 calendar period (default: today). Non-admin users are restricted to
+  // today's expenses — enforced by the API too (routes/expenses.js).
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
   const [queryParams, setQueryParams] = useState({
-    from: "",
-    to: "",
-    date: getTodayDate(),
-    year: getCurrentYear().toString(),
-    month: getCurrentMonth().split('-')[1],
     status: "",
     paymentMethod: "",
     recordedBy: "",
-    search: ""
   });
-
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [summaryStats, setSummaryStats] = useState<any>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [summaryStats, setSummaryStats] = useState<ExpensesResponse["summary"] | null>(null);
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams]);
-  const [appliedFilters, setAppliedFilters] = useState<any>(null);
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [period, queryParams, debouncedSearch]);
+  const [appliedFilters, setAppliedFilters] = useState<ExpensesResponse["filtersApplied"] | null>(null);
   const [timeframeDescription, setTimeframeDescription] = useState<string>("Today");
   const [showFilters, setShowFilters] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -196,39 +178,25 @@ export default function SortieHistory() {
     userName: "",
   });
 
-  // Build query string from queryParams
+  // Filters of the list, reused verbatim by the PDF export.
+  function filterParams() {
+    return {
+      ...(userPermissions.isAdmin ? rangeParams(period) : {}),
+      status: queryParams.status,
+      paymentMethod: queryParams.paymentMethod,
+      recordedBy: queryParams.recordedBy,
+      search: debouncedSearch,
+    };
+  }
+
+  // Build query string from the filters
   const buildQueryString = () => {
     const params = new URLSearchParams();
-    
-    // Add timeframe parameters based on timeframeType
-    switch(timeframeType) {
-      case "custom":
-        if (queryParams.from) params.append("from", queryParams.from);
-        if (queryParams.to) params.append("to", queryParams.to);
-        break;
-      case "day":
-        if (queryParams.date) params.append("date", queryParams.date);
-        break;
-      case "month":
-        if (queryParams.year) params.append("year", queryParams.year);
-        if (queryParams.month) params.append("month", queryParams.month);
-        break;
-      case "year":
-        if (queryParams.year) params.append("year", queryParams.year);
-        break;
-      case "today":
-        // No parameters needed - backend defaults to today
-        break;
-    }
-    
-    // Add additional filters
-    if (queryParams.status) params.append("status", queryParams.status);
-    if (queryParams.paymentMethod) params.append("paymentMethod", queryParams.paymentMethod);
-    if (queryParams.recordedBy) params.append("recordedBy", queryParams.recordedBy);
-    if (queryParams.search) params.append("search", queryParams.search);
+    Object.entries(filterParams()).forEach(([key, value]) => {
+      if (value) params.append(key, String(value));
+    });
     params.set("page", String(pagination.page));
     params.set("limit", String(pagination.limit));
-    
     return params.toString();
   };
 
@@ -242,44 +210,17 @@ export default function SortieHistory() {
     const handleDataChange = () => { void fetchExpenses(); };
     window.addEventListener("appDataChanged", handleDataChange);
     return () => window.removeEventListener("appDataChanged", handleDataChange);
-  }, [queryParams, timeframeType, pagination.page]);
+  }, [queryParams, period, debouncedSearch, userPermissions.isAdmin, pagination.page]);
 
-  // Fetch data when query params change
   useEffect(() => {
-    if (Object.keys(queryParams).length > 0) {
-      fetchExpenses();
-    }
-  }, [queryParams, timeframeType, pagination.page]);
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Effect to automatically set to today's date when timeframe changes to "day"
+  // Fetch data when filters change
   useEffect(() => {
-    if (!initialLoad && timeframeType === "day") {
-      const today = getTodayDate();
-      setSelectedDate(today);
-    }
-  }, [timeframeType, initialLoad]);
-
-  // Effect to enforce day-only view for non-admin users
-  useEffect(() => {
-    if (!userPermissions.isAdmin && timeframeType !== "day") {
-      setTimeframeType("day");
-      setQueryParams(prev => ({
-        ...prev,
-        date: getTodayDate(),
-        from: "",
-        to: "",
-        year: "",
-        month: ""
-      }));
-    }
-  }, [timeframeType, userPermissions.isAdmin]);
-
-  // Effect to mark initial load as complete
-  useEffect(() => {
-    if (expenses.length > 0) {
-      setInitialLoad(false);
-    }
-  }, [expenses]);
+    fetchExpenses();
+  }, [queryParams, period, debouncedSearch, userPermissions.isAdmin, pagination.page]);
 
   // Fetch current user from API or localStorage
   const fetchCurrentUser = async () => {
@@ -392,71 +333,49 @@ export default function SortieHistory() {
     }
   };
 
-  const getAvailableYears = (): number[] => {
-    return Array.from({ length: 10 }, (_, i) => getCurrentYear() - i);
-  };
-
   const getTimeframeLabel = () => {
     if (!userPermissions.isAdmin) {
       return "Aujourd'hui";
     }
-    
-    return timeframeDescription;
+    return periodLabel(period);
   };
 
-  const handleTimeframeTypeChange = (type: "custom" | "day" | "month" | "year" | "today") => {
-    if (!userPermissions.isAdmin && type !== "day") {
-      return;
-    }
-    
-    setTimeframeType(type);
-    
-    // Reset specific query params based on type
-    const newParams = { ...queryParams };
-    
-    switch(type) {
-      case "today":
-        newParams.date = getTodayDate();
-        newParams.from = "";
-        newParams.to = "";
-        newParams.year = getCurrentYear().toString();
-        newParams.month = getCurrentMonth().split('-')[1];
-        break;
-      case "day":
-        newParams.date = getTodayDate();
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "month":
-        newParams.year = getCurrentYear().toString();
-        newParams.month = getCurrentMonth().split('-')[1];
-        newParams.date = "";
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "year":
-        newParams.year = getCurrentYear().toString();
-        newParams.month = "";
-        newParams.date = "";
-        newParams.from = "";
-        newParams.to = "";
-        break;
-      case "custom":
-        if (!newParams.from) {
-          const today = new Date();
-          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-          newParams.from = firstDay.toISOString().split('T')[0];
-        }
-        if (!newParams.to) {
-          newParams.to = new Date().toISOString().split('T')[0];
-        }
-        newParams.date = "";
-        newParams.year = "";
-        newParams.month = "";
-        break;
-    }
-    
-    setQueryParams(newParams);
+  const exportPdf = async () => {
+    const data = await fetchExport<ExpenseItem, { totalAmount: number; byStatus: Record<string, number> }>("/expenses/export", filterParams());
+    const appliedPeriod = userPermissions.isAdmin ? period : defaultPeriod("day");
+    const { from, to } = rangeParams(appliedPeriod);
+    const statusText: Record<string, string> = { pending: "En attente", validated: "Validée", rejected: "Rejetée" };
+    downloadTableReportPdf<ExpenseItem>({
+      title: "Historique des sorties de caisse",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(appliedPeriod),
+      orientation: "landscape",
+      fileName: `historique-sorties-${pdfFileStamp(from, to)}`,
+      recordLabel: ["dépense", "dépenses"],
+      filters: [
+        ["Statut", queryParams.status ? statusText[queryParams.status] || queryParams.status : "Tous"],
+        ["Mode de paiement", queryParams.paymentMethod || "Tous"],
+        ...(queryParams.recordedBy ? [["Enregistré par", queryParams.recordedBy] as [string, string]] : []),
+        ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+      ],
+      columns: [
+        { header: "Date", width: 1.2, value: (expense) => formatDateTimeGmt2(expense.createdAt) },
+        { header: "Réf.", width: 1.3, value: (expense) => expense.expenseId },
+        { header: "Motif", width: 2.4, value: (expense) => expense.reason },
+        { header: "Bénéficiaire", width: 1.6, value: (expense) => [expense.recipientName, expense.recipientPhone].filter(Boolean).join(" - ") },
+        { header: "Paiement", width: 0.9, value: (expense) => expense.paymentMethod },
+        { header: "Enregistré par", width: 1.1, value: (expense) => expense.recordedBy },
+        { header: "Statut", width: 0.9, value: (expense) => statusText[expense.status] || expense.status },
+        { header: "Montant", width: 1.1, align: "right", value: (expense) => formatMoneyPdf(expense.amount) },
+      ],
+      rows: data.records,
+      totals: [
+        ["Dépenses exportées", String(data.count)],
+        ...Object.entries(data.totals.byStatus).map(([status, amount]) => [statusText[status] || status, formatMoneyPdf(amount)] as [string, string]),
+        ["Total", formatMoneyPdf(data.totals.totalAmount)],
+      ],
+    });
+    return data.count;
   };
 
   const handleQueryParamChange = (key: keyof typeof queryParams, value: string) => {
@@ -467,25 +386,10 @@ export default function SortieHistory() {
   };
 
   const clearAllFilters = () => {
-    setQueryParams({
-      from: "",
-      to: "",
-      date: getTodayDate(),
-      year: getCurrentYear().toString(),
-      month: getCurrentMonth().split('-')[1],
-      status: "",
-      paymentMethod: "",
-      recordedBy: "",
-      search: ""
-    });
-    setTimeframeType("today");
+    setQueryParams({ status: "", paymentMethod: "", recordedBy: "" });
+    setPeriod(defaultPeriod("day"));
     setSearchTerm("");
     setShowAdvancedFilters(false);
-  };
-
-  // Helper function to set selected date (for day view)
-  const setSelectedDate = (date: string) => {
-    handleQueryParamChange("date", date);
   };
 
   const formatDate = (dateString: string) => {
@@ -505,10 +409,8 @@ export default function SortieHistory() {
     }).format(amount);
   };
 
-  const filteredExpenses = expenses.filter((expense) =>
-    [expense.expenseId, expense.reason, expense.recipientName, expense.recipientPhone, expense.recordedBy]
-      .some((value) => String(value ?? "").toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Search runs on the server (all pages), so the loaded page already matches.
+  const filteredExpenses = expenses;
 
   const viewExpenseDetails = (expense: ExpenseItem) => {
     setSelectedExpense(expense);
@@ -1240,8 +1142,8 @@ export default function SortieHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+      <div className="app-page-inner app-page-stack">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -1260,7 +1162,8 @@ export default function SortieHistory() {
               </div>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <ExportPdfButton onExport={exportPdf} />
             <button
               onClick={fetchExpenses}
               disabled={loading}
@@ -1316,131 +1219,7 @@ export default function SortieHistory() {
           {/* Timeframe Selection */}
           {showFilters && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-500 mb-2">
-                  Type de période
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {(["today", "day", "month", "year", "custom"] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => handleTimeframeTypeChange(type)}
-                      disabled={!userPermissions.isAdmin && type !== "day"}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border ${
-                        timeframeType === type
-                          ? "bg-gradient-to-r from-blue-600 to-blue-800 text-white border-blue-400/30 shadow-lg"
-                          : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
-                      } ${!userPermissions.isAdmin && type !== "day" ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {type === "today" && "Aujourd'hui"}
-                      {type === "day" && "Jour spécifique"}
-                      {type === "month" && "Mois spécifique"}
-                      {type === "year" && "Année spécifique"}
-                      {type === "custom" && "Plage personnalisée"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Specific timeframe inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {timeframeType === "day" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={queryParams.date}
-                      onChange={(e) => handleQueryParamChange("date", e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                      disabled={!userPermissions.isAdmin}
-                    />
-                  </div>
-                )}
-
-                {timeframeType === "month" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">
-                        Année
-                      </label>
-                      <select
-                        value={queryParams.year}
-                        onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                      >
-                        {getAvailableYears().map(year => (
-                          <option key={year} value={year} className="bg-white">{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">
-                        Mois
-                      </label>
-                      <select
-                        value={queryParams.month}
-                        onChange={(e) => handleQueryParamChange("month", e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                      >
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const monthNum = (i + 1).toString().padStart(2, '0');
-                          return (
-                            <option key={monthNum} value={monthNum} className="bg-white">
-                              {new Date(2000, i).toLocaleString('fr-FR', { timeZone: 'Africa/Johannesburg', month: 'long' })} ({monthNum})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {timeframeType === "year" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">
-                      Année
-                    </label>
-                    <select
-                      value={queryParams.year}
-                      onChange={(e) => handleQueryParamChange("year", e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                    >
-                      {getAvailableYears().map(year => (
-                        <option key={year} value={year} className="bg-white">{year}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {timeframeType === "custom" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">
-                        Date de début
-                      </label>
-                      <input
-                        type="date"
-                        value={queryParams.from}
-                        onChange={(e) => handleQueryParamChange("from", e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">
-                        Date de fin
-                      </label>
-                      <input
-                        type="date"
-                        value={queryParams.to}
-                        onChange={(e) => handleQueryParamChange("to", e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
+              <PeriodSelector value={period} onChange={setPeriod} lockedToToday={!userPermissions.isAdmin} />
 
               {/* Advanced Filters */}
               <div>
@@ -1577,7 +1356,7 @@ export default function SortieHistory() {
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             {loading && expenses.length === 0 ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
@@ -1755,7 +1534,7 @@ export default function SortieHistory() {
 
         {/* Expense Details Modal */}
         {showModal && selectedExpense && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -1962,7 +1741,7 @@ export default function SortieHistory() {
 
         {/* Validation Modal */}
         {showValidationModal && validatingExpense && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-md w-full mx-4 max-h-[90dvh] overflow-y-auto border border-slate-200 shadow-2xl">
               {error && <p role="alert" className="px-6 py-2 text-rose-700">{error}</p>}
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
@@ -2051,7 +1830,7 @@ export default function SortieHistory() {
         <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
         {showEditModal && editingExpense && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -2233,7 +2012,7 @@ export default function SortieHistory() {
 
         {/* Delete Expense Modal */}
         {showDeleteModal && deletingExpense && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-md w-full mx-4 max-h-[90dvh] overflow-y-auto border border-slate-200 shadow-2xl">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">
@@ -2357,7 +2136,7 @@ export default function SortieHistory() {
 
         {/* Expense History Modal */}
         {showHistoryModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-950 flex items-center gap-2">

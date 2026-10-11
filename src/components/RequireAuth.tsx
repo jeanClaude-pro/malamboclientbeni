@@ -17,7 +17,14 @@ export const RequireAuth: React.FC<React.PropsWithChildren> = ({
     }
   }, [loading, token]);
 
-  if (loading) return null; // or a spinner
+  if (loading) {
+    return (
+      <div className="flex min-h-[45dvh] items-center justify-center px-4" role="status" aria-live="polite">
+        <span className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" aria-hidden="true" />
+        <span className="ml-3 text-sm font-semibold text-slate-600">Vérification de la session…</span>
+      </div>
+    );
+  }
   if (!token)
     return <Navigate to="/login" replace state={{ from: location }} />;
 

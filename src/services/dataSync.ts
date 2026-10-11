@@ -3,13 +3,13 @@ const AUTH_TOKEN_REFRESHED_EVENT = "authTokenRefreshed";
 const AUTH_LOGGED_OUT_EVENT = "authLoggedOut";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const DATA_ENDPOINT = /\/(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|exchange-rates)(?:\/|$)/;
+const DATA_ENDPOINT = /\/(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|exchange-rates|stock-movements)(?:\/|$)/;
 // Auth endpoints legitimately return 401 for wrong credentials — that must
 // surface as a login-form error, not trigger a global forced logout.
 const AUTH_ENDPOINT = /\/auth\//;
 // Every endpoint that is branch-dependent — used both to decide whether to attach
 // X-Branch-Id and to track in-flight requests for the branch-switch completion signal.
-const BRANCH_SCOPED_ENDPOINT = /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|company-report|loan|users|exchange-rates)(?:\/|\?|$)/;
+const BRANCH_SCOPED_ENDPOINT = /\/(api\/)?(products|sales|entries|expenses|transfers|transfer-receptions|cars|car-trips|customers|stock-movements|stock-reports|company-report|loan|users|exchange-rates)(?:\/|\?|$)/;
 
 type ChangeDetail = {
   method: string;

@@ -29,6 +29,13 @@ import jsPDF from "jspdf";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, pdfFileStamp } from "../utils/reportPdf";
+import { formatCartonsPieces } from "../utils/quantity";
+import { downloadCsv } from "../utils/csvExport";
 
 interface Transfer {
   _id: string;
@@ -116,12 +123,20 @@ export default function TransfertHistory() {
   const [statusFilter, setStatusFilter] = useState("");
   const [agencyFilter, setAgencyFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [timeframe, setTimeframe] = useState({ from: "", to: "" });
+  // GMT+2 calendar period (default: this month) and server-side search, shared
+  // by the paginated list and the complete exports.
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [editForm, setEditForm] = useState<EditFormData>({});
   const [editReason, setEditReason] = useState("");
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, agencyFilter, timeframe.from, timeframe.to]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [statusFilter, agencyFilter, period, debouncedSearch]);
 
   useEffect(() => {
     fetchCurrentUser();
@@ -134,7 +149,7 @@ export default function TransfertHistory() {
       window.removeEventListener("appDataChanged", handleUpdate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, agencyFilter, timeframe, pagination.page]);
+  }, [statusFilter, agencyFilter, period, debouncedSearch, pagination.page]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -155,10 +170,9 @@ export default function TransfertHistory() {
       setError(null);
 
       const params = new URLSearchParams();
-      if (statusFilter) params.append("status", statusFilter);
-      if (agencyFilter) params.append("destinationAgency", agencyFilter);
-      if (timeframe.from) params.append("from", timeframe.from);
-      if (timeframe.to) params.append("to", timeframe.to);
+      Object.entries(filterParams()).forEach(([key, value]) => {
+        if (value) params.append(key, String(value));
+      });
       params.set("page", String(pagination.page));
       params.set("limit", String(pagination.limit));
 
@@ -175,16 +189,59 @@ export default function TransfertHistory() {
     }
   };
 
-  const filteredTransfers = transfers.filter(
-    (t) =>
-      t.transferId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.destinationAgency.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.sourceLocation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.receiver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.transport.driverName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.transport.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Search runs on the server (all pages), so the loaded page already matches.
+  const filteredTransfers = transfers;
+
+  // Filters of the list, reused verbatim by the PDF/CSV exports.
+  function filterParams() {
+    return {
+      ...rangeParams(period),
+      status: statusFilter,
+      destinationAgency: agencyFilter,
+      search: debouncedSearch,
+    };
+  }
+
+  const exportFilters = (): Array<[string, string]> => [
+    ["Statut", statusFilter ? statusLabels[statusFilter] || statusFilter : "Tous"],
+    ...(agencyFilter ? [["Agence de destination", agencyFilter] as [string, string]] : []),
+    ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+  ];
+
+  const fetchAllTransfers = () =>
+    fetchExport<Transfer, { totalPieces: number; byStatus: Record<string, number> }>("/transfers/export", filterParams());
+
+  const exportPdf = async () => {
+    const data = await fetchAllTransfers();
+    const { from, to } = rangeParams(period);
+    downloadTableReportPdf<Transfer>({
+      title: "Historique des transferts",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(period),
+      orientation: "landscape",
+      fileName: `historique-transferts-${pdfFileStamp(from, to)}`,
+      recordLabel: ["transfert", "transferts"],
+      filters: exportFilters(),
+      columns: [
+        { header: "Date", width: 1.3, value: (t) => formatDateTimeGmt2(t.createdAt) },
+        { header: "Réf.", width: 1.4, value: (t) => t.transferId },
+        { header: "Article", width: 2, value: (t) => t.product.name },
+        { header: "Quantité", width: 1.6, align: "right", value: (t) => formatCartonsPieces(t.product.totalPieces, t.product.piecesPerCarton) },
+        { header: "Provenance", width: 1.3, value: (t) => t.sourceLocation },
+        { header: "Destination", width: 1.3, value: (t) => t.destinationAgency },
+        { header: "Transport", width: 1.5, value: (t) => [t.transport.driverName, t.transport.vehiclePlate, t.transport.transportCompany].filter(Boolean).join(" / ") || "-" },
+        { header: "Statut", width: 0.9, value: (t) => statusLabels[t.status] || t.status },
+        { header: "Créé par", width: 1, value: (t) => t.createdByName },
+      ],
+      rows: data.records,
+      totals: [
+        ["Transferts exportés", String(data.count)],
+        ...Object.entries(data.totals.byStatus).map(([status, count]) => [statusLabels[status] || status, String(count)] as [string, string]),
+        ["Total des pièces", data.totals.totalPieces.toLocaleString("fr-FR")],
+      ],
+    });
+    return data.count;
+  };
 
   const formatDate = (dateString: string) => formatDateTimeGmt2(dateString, "fr-FR");
 
@@ -381,14 +438,21 @@ export default function TransfertHistory() {
     doc.save(`transfert-${transfer.transferId}.pdf`);
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
+    let allTransfers: Transfer[];
+    try {
+      allTransfers = (await fetchAllTransfers()).records;
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "Échec de l'export CSV");
+      return;
+    }
     const headers = [
       "Transfert ID", "Statut", "Provenance", "Destination", "Article",
       "Cartons", "Pièces", "Total pièces", "Réceptionnaire", "Chauffeur",
       "Plaque", "Société transport", "Créé le", "Créé par",
     ];
 
-    const rows = filteredTransfers.map((t) => [
+    const rows = allTransfers.map((t) => [
       t.transferId,
       statusLabels[t.status] || t.status,
       t.sourceLocation,
@@ -405,16 +469,10 @@ export default function TransfertHistory() {
       t.createdByName,
     ]);
 
-    const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transferts_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const { from, to } = rangeParams(period);
+    downloadCsv(`transferts_${pdfFileStamp(from, to)}`, headers, rows);
 
-    setMessage("Export CSV réussi");
+    setMessage(`Export CSV réussi (${rows.length} transfert${rows.length > 1 ? "s" : ""})`);
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -434,8 +492,8 @@ export default function TransfertHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -448,7 +506,8 @@ export default function TransfertHistory() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-3 gap-2 w-full sm:w-auto">
+            <ExportPdfButton onExport={exportPdf} className="min-h-11" />
             <button
               onClick={exportToCSV}
               className="min-h-11 justify-center px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors flex items-center gap-2 shadow-sm font-semibold"
@@ -495,7 +554,7 @@ export default function TransfertHistory() {
 
           {showFilters && (
             <div className="p-4 space-y-4 bg-gray-50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
                   <select
@@ -522,25 +581,6 @@ export default function TransfertHistory() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Du</label>
-                  <input
-                    type="date"
-                    value={timeframe.from}
-                    onChange={(e) => setTimeframe({ ...timeframe, from: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Au</label>
-                  <input
-                    type="date"
-                    value={timeframe.to}
-                    onChange={(e) => setTimeframe({ ...timeframe, to: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
               </div>
 
               <div className="flex justify-end">
@@ -548,7 +588,7 @@ export default function TransfertHistory() {
                   onClick={() => {
                     setStatusFilter("");
                     setAgencyFilter("");
-                    setTimeframe({ from: "", to: "" });
+                    setPeriod(defaultPeriod("month"));
                   }}
                   className="px-3 py-1 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
                 >
@@ -558,6 +598,8 @@ export default function TransfertHistory() {
             </div>
           )}
         </div>
+
+        <PeriodSelector value={period} onChange={setPeriod} />
 
         {/* Search Bar */}
         <div className="relative">
@@ -580,7 +622,7 @@ export default function TransfertHistory() {
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -697,7 +739,7 @@ export default function TransfertHistory() {
       <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
       {showModal && selectedTransfer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
               <h3 className="text-xl font-semibold text-gray-900">Détails du Transfert</h3>
@@ -882,7 +924,7 @@ export default function TransfertHistory() {
 
       {/* Delivery confirmation: the only action that deducts transfer stock. */}
       {showDeliveryModal && editingTransfer && (
-        <div className="fixed inset-0 bg-slate-950/70 p-3 sm:p-6 flex items-center justify-center z-[60]">
+        <div className="fixed inset-0 bg-slate-950/70 p-3 sm:p-6 flex items-center justify-center z-[60]" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto">
             <div className="p-5 sm:p-6 border-b border-slate-200">
               <div className="flex items-start gap-3">
@@ -941,7 +983,7 @@ export default function TransfertHistory() {
 
       {/* Status Update Modal */}
       {showStatusModal && editingTransfer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6">
             <h3 className="text-lg font-semibold mb-4">Mettre à jour le statut</h3>
 
@@ -994,7 +1036,7 @@ export default function TransfertHistory() {
 
       {/* Edit Modal */}
       {showEditModal && editingTransfer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto p-6">
             <h3 className="text-lg font-semibold mb-4">Modifier le transfert</h3>
 

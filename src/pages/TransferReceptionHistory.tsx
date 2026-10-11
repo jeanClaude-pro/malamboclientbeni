@@ -23,6 +23,12 @@ import { Link } from "react-router-dom";
 import { formatDateTimeGmt2 } from "../utils/time";
 import { getActiveBranchId } from "../services/dataSync";
 import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../components/PaginationControls";
+import PeriodSelector from "../components/reports/PeriodSelector";
+import ExportPdfButton from "../components/reports/ExportPdfButton";
+import { fetchExport } from "../services/reportApi";
+import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { downloadTableReportPdf, pdfFileStamp } from "../utils/reportPdf";
+import { formatCartonsPieces } from "../utils/quantity";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -64,8 +70,6 @@ interface Reception {
   updatedAt: string;
 }
 
-type TimeframeType = "today" | "day" | "month" | "year" | "custom";
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatStock(totalPieces: number, piecesPerCarton: number): string {
@@ -76,16 +80,6 @@ function formatStock(totalPieces: number, piecesPerCarton: number): string {
   const pieces = total % ppc;
   if (pieces === 0) return `${cartons} carton${cartons !== 1 ? "s" : ""}`;
   return `${cartons} boîte${cartons !== 1 ? "s" : ""} et ${pieces} pièce${pieces !== 1 ? "s" : ""}`;
-}
-
-function getTodayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function getCurrentYear(): number { return new Date().getFullYear(); }
-function getCurrentMonth(): string {
-  const d = new Date();
-  return String(d.getMonth() + 1).padStart(2, "0");
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -104,14 +98,10 @@ export default function TransferReceptionHistory() {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "voided">("all");
-  const [timeframeType, setTimeframeType] = useState<TimeframeType>("today");
-  const [queryParams, setQueryParams] = useState({
-    date: getTodayStr(),
-    year: String(getCurrentYear()),
-    month: getCurrentMonth(),
-    from: "",
-    to: "",
-  });
+  // GMT+2 calendar period (default: today) and server-side search, shared by
+  // the paginated list and the complete PDF export.
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // View modal
   const [showViewModal, setShowViewModal] = useState(false);
@@ -137,7 +127,12 @@ export default function TransferReceptionHistory() {
   const [summary, setSummary] = useState({ total: 0, active: 0, voided: 0, totalPiecesReceived: 0 });
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
 
-  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [timeframeType, queryParams, statusFilter]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => setPagination((current) => ({ ...current, page: 1 })), [period, statusFilter, debouncedSearch]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
 
@@ -159,29 +154,61 @@ export default function TransferReceptionHistory() {
 
   useEffect(() => {
     fetchReceptions();
-  }, [timeframeType, queryParams, statusFilter, pagination.page]);
+  }, [period, statusFilter, debouncedSearch, pagination.page]);
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
 
+  // Filters of the list, reused verbatim by the PDF export.
+  const filterParams = () => ({
+    ...rangeParams(period),
+    status: statusFilter,
+    search: debouncedSearch,
+  });
+
   const buildQueryString = (): string => {
     const params = new URLSearchParams();
-    switch (timeframeType) {
-      case "today": params.append("date", getTodayStr()); break;
-      case "day": if (queryParams.date) params.append("date", queryParams.date); break;
-      case "month":
-        if (queryParams.year) params.append("year", queryParams.year);
-        if (queryParams.month) params.append("month", queryParams.month);
-        break;
-      case "year": if (queryParams.year) params.append("year", queryParams.year); break;
-      case "custom":
-        if (queryParams.from) params.append("from", queryParams.from);
-        if (queryParams.to) params.append("to", queryParams.to);
-        break;
-    }
-    if (statusFilter !== "all") params.append("status", statusFilter);
+    Object.entries(filterParams()).forEach(([key, value]) => {
+      if (value && value !== "all") params.append(key, String(value));
+    });
     params.set("page", String(pagination.page));
     params.set("limit", String(pagination.limit));
     return params.toString();
+  };
+
+  const exportPdf = async () => {
+    const data = await fetchExport<Reception, { activePieces: number; byStatus: Record<string, number> }>("/transfer-receptions/export", filterParams());
+    const { from, to } = rangeParams(period);
+    downloadTableReportPdf<Reception>({
+      title: "Historique des réceptions",
+      branchName: data.branch?.name || "",
+      periodLabel: periodLabel(period),
+      orientation: "landscape",
+      fileName: `historique-receptions-${pdfFileStamp(from, to)}`,
+      recordLabel: ["réception", "réceptions"],
+      filters: [
+        ["Statut", statusFilter === "all" ? "Tous" : statusFilter === "active" ? "Actives" : "Annulées"],
+        ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
+      ],
+      columns: [
+        { header: "Date", width: 1.3, value: (r) => formatDateTimeGmt2(r.createdAt) },
+        { header: "Réf.", width: 1.4, value: (r) => r.receptionId },
+        { header: "Produit", width: 2, value: (r) => r.product.name },
+        { header: "Quantité", width: 1.6, align: "right", value: (r) => formatCartonsPieces(r.product.totalPieces, r.product.piecesPerCarton) },
+        { header: "Provenance", width: 1.5, value: (r) => r.sourceLocation },
+        { header: "Réf. transfert", width: 1.3, value: (r) => r.transferReference },
+        { header: "Livré par", width: 1.2, value: (r) => r.deliveredBy || "-" },
+        { header: "Reçu par", width: 1.2, value: (r) => r.receivedBy },
+        { header: "Statut", width: 0.9, value: (r) => (r.status === "voided" ? "Annulée" : "Active") },
+      ],
+      rows: data.records,
+      totals: [
+        ["Réceptions exportées", String(data.count)],
+        ["Actives", String(data.totals.byStatus.active || 0)],
+        ["Annulées", String(data.totals.byStatus.voided || 0)],
+        ["Pièces reçues (réceptions actives)", data.totals.activePieces.toLocaleString("fr-FR")],
+      ],
+    });
+    return data.count;
   };
 
   const fetchReceptions = async () => {
@@ -213,18 +240,7 @@ export default function TransferReceptionHistory() {
 
   // ── Filtered list ───────────────────────────────────────────────────────────
 
-  const filteredReceptions = receptions.filter((r) => {
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    return (
-      r.receptionId.toLowerCase().includes(q) ||
-      r.product.name.toLowerCase().includes(q) ||
-      r.sourceLocation.toLowerCase().includes(q) ||
-      r.transferReference.toLowerCase().includes(q) ||
-      r.deliveredBy.toLowerCase().includes(q) ||
-      r.receivedBy.toLowerCase().includes(q)
-    );
-  });
+  const filteredReceptions = receptions;
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -373,13 +389,13 @@ export default function TransferReceptionHistory() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="app-page-inner app-page-stack">
 
         {/* Header */}
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+        <div className="app-page-header">
+          <div className="min-w-0">
+            <h1 className="app-page-title flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                 <History className="w-6 h-6 text-green-600" />
               </div>
@@ -389,7 +405,7 @@ export default function TransferReceptionHistory() {
               Consultez et gérez toutes les réceptions de transfert
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="app-toolbar">
             <button
               onClick={() => fetchReceptions()}
               className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
@@ -397,6 +413,7 @@ export default function TransferReceptionHistory() {
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               Actualiser
             </button>
+            <ExportPdfButton onExport={exportPdf} />
             <Link
               to="/transfer-reception"
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-sm"
@@ -449,95 +466,8 @@ export default function TransferReceptionHistory() {
           ))}
         </div>
 
-        {/* Timeframe tabs */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { key: "today", label: "Aujourd'hui" },
-                { key: "day", label: "Jour" },
-                { key: "month", label: "Mois" },
-                { key: "year", label: "Année" },
-                { key: "custom", label: "Personnalisé" },
-              ] as { key: TimeframeType; label: string }[]
-            ).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setTimeframeType(tab.key)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                  timeframeType === tab.key
-                    ? "bg-green-600 text-white border-green-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-600"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Timeframe controls */}
-          {timeframeType === "day" && (
-            <input
-              type="date"
-              value={queryParams.date}
-              onChange={(e) => setQueryParams((p) => ({ ...p, date: e.target.value }))}
-              className={inputClass + " max-w-xs"}
-            />
-          )}
-          {timeframeType === "month" && (
-            <div className="flex gap-2 flex-wrap">
-              <select
-                value={queryParams.year}
-                onChange={(e) => setQueryParams((p) => ({ ...p, year: e.target.value }))}
-                className={inputClass + " max-w-xs"}
-              >
-                {Array.from({ length: 5 }, (_, i) => getCurrentYear() - i).map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <select
-                value={queryParams.month}
-                onChange={(e) => setQueryParams((p) => ({ ...p, month: e.target.value }))}
-                className={inputClass + " max-w-xs"}
-              >
-                {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m, i) => (
-                  <option key={m} value={m}>
-                    {new Date(2000, i).toLocaleString("fr-FR", { month: "long" })}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {timeframeType === "year" && (
-            <select
-              value={queryParams.year}
-              onChange={(e) => setQueryParams((p) => ({ ...p, year: e.target.value }))}
-              className={inputClass + " max-w-xs"}
-            >
-              {Array.from({ length: 5 }, (_, i) => getCurrentYear() - i).map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          )}
-          {timeframeType === "custom" && (
-            <div className="flex gap-2 flex-wrap">
-              <input
-                type="date"
-                value={queryParams.from}
-                onChange={(e) => setQueryParams((p) => ({ ...p, from: e.target.value }))}
-                className={inputClass + " max-w-xs"}
-                placeholder="De"
-              />
-              <input
-                type="date"
-                value={queryParams.to}
-                onChange={(e) => setQueryParams((p) => ({ ...p, to: e.target.value }))}
-                className={inputClass + " max-w-xs"}
-                placeholder="À"
-              />
-            </div>
-          )}
-        </div>
+        {/* Period */}
+        <PeriodSelector value={period} onChange={setPeriod} />
 
         {/* Search + status filter */}
         <div className="flex flex-wrap gap-3">
@@ -585,7 +515,7 @@ export default function TransferReceptionHistory() {
               <p className="text-sm">Aucune réception trouvée</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="app-data-scroll max-h-[min(40rem,58dvh)]">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -682,7 +612,7 @@ export default function TransferReceptionHistory() {
 
       {/* ── View Modal ─────────────────────────────────────────────────────────── */}
       {showViewModal && viewingReception && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -834,7 +764,7 @@ export default function TransferReceptionHistory() {
       <PaginationControls value={pagination} onPageChange={(page) => setPagination((current) => ({ ...current, page }))} />
 
       {showEditModal && editingReception && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">

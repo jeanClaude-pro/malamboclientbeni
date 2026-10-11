@@ -291,7 +291,6 @@ export default function NewSale() {
     window.addEventListener("appDataChanged", handleDataChange);
     return () => window.removeEventListener("appDataChanged", handleDataChange);
     // The listener only needs the initial function; it reads the current token.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load exchange rate
@@ -1546,10 +1545,10 @@ export default function NewSale() {
     checkStockAfterAdd(product._id, quantity);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="app-page bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+      <div className="app-page-inner app-page-stack">
         {/* Header with Exchange Rate */}
-        <div className="mb-6">
+        <header className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold text-slate-950 flex items-center gap-2">
@@ -1562,7 +1561,7 @@ export default function NewSale() {
             </div>
             
             {/* Exchange Rate Display */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-w-[280px] shadow-lg">
+            <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:min-w-[280px]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-blue-600" />
@@ -1610,7 +1609,7 @@ export default function NewSale() {
               </p>
             </div>
           )}
-        </div>
+        </header>
 
         {message && (
           <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
@@ -1623,14 +1622,15 @@ export default function NewSale() {
           </div>
         )}
 
+        <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(22rem,.65fr)]">
         {/* Add Items Section */}
-        <div className="bg-white shadow-xl rounded-xl p-6 border border-slate-200">
+        <div className="app-surface app-surface-pad">
           <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
             <Package className="w-5 h-5" />
             Ajouter les articles
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
             <div className="relative" ref={searchRef}>
               <label className="block mb-2 font-medium text-slate-600">Articles</label>
               <div className="relative">
@@ -1853,7 +1853,7 @@ export default function NewSale() {
                 <ShoppingCart className="w-5 h-5" />
                 Articles du panier
               </h3>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="desktop-data-table overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full">
                   <thead className="bg-slate-50">
                     <tr>
@@ -1917,12 +1917,35 @@ export default function NewSale() {
                   </tfoot>
                 </table>
               </div>
+              <div className="mobile-record-list">
+                {cart.map((item, index) => (
+                  <article key={`${item.productId}-${index}`} className="mobile-record-card p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h4 className="truncate text-sm font-bold text-slate-950">{item.name}</h4>
+                        <p className="mt-1 text-xs text-slate-500">{formatSaleQuantity(item)}</p>
+                      </div>
+                      <p className="shrink-0 text-sm font-black text-slate-950">{formatCurrency(item.total)}</p>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+                      <span className="text-xs text-slate-500">{formatCurrency(item.unitPrice)} / boîte</span>
+                      <button type="button" onClick={() => removeFromCart(index)} className="compact-control inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-bold text-rose-700 hover:bg-rose-50">
+                        <Trash2 className="h-4 w-4" /> Enlever
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                <div className="flex items-center justify-between rounded-xl bg-slate-950 px-3 py-3 text-white">
+                  <span className="text-sm font-semibold">Total du panier</span>
+                  <strong className="text-base">{formatCurrency(cartTotal)}</strong>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
         {/* Customer Information Section */}
-        <div className="bg-white shadow-xl rounded-xl p-6 border border-slate-200">
+        <div className="app-surface app-surface-pad lg:sticky lg:top-[calc(var(--app-header-h,7rem)+.75rem)] lg:max-h-[calc(100dvh-var(--app-header-h,7rem)-1.5rem)] lg:overflow-y-auto">
           <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2 border-b border-slate-200 pb-3">
             <User className="w-5 h-5" />
             Informations du client
@@ -2000,7 +2023,7 @@ export default function NewSale() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             <div>
               <label className="block mb-2 font-medium text-slate-600">
                 <Phone className="w-4 h-4 inline mr-1" />
@@ -2092,7 +2115,7 @@ export default function NewSale() {
 
           {/* Credit-specific fields */}
           {isCreditSale && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="mb-4 grid grid-cols-1 gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 2xl:grid-cols-2">
               <div>
                 <label className="block mb-2 font-medium text-amber-700 flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
@@ -2152,7 +2175,7 @@ export default function NewSale() {
             type="submit"
             onClick={handleSale}
             disabled={!isFormValid || submitting}
-            className={`w-full px-8 py-4 rounded-xl font-medium text-lg transition-all duration-200 ${
+            className={`w-full px-6 py-3.5 rounded-xl font-medium text-base transition-all duration-200 lg:sticky lg:bottom-0 lg:z-10 ${
               isFormValid && !submitting
                 ? isCreditSale
                   ? "bg-gradient-to-r from-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white shadow-lg shadow-amber-900/50 border border-amber-400/30"
@@ -2182,6 +2205,7 @@ export default function NewSale() {
               </span>
             )}
           </button>
+        </div>
         </div>
 
         {/* Hidden receipt container (keep as fallback) */}
