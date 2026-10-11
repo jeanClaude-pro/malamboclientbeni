@@ -1,1 +1,0 @@
-import{m as c}from"./index-DCcOePDP.js";function i(r){const t=new URLSearchParams;Object.entries(r).forEach(([o,n])=>{n==null||n===""||n==="all"||t.set(o,String(n))});const e=t.toString();return e?`?${e}`:""}function f(r,t={}){return c(`${r}${i(t)}`,{method:"GET"})}function a(r,t){return f(r,t)}export{f as a,a as f};

@@ -1,24 +1,9 @@
 import { downloadTableReportPdf, pdfFileStamp } from "./reportPdf";
-import { formatCartonsPieces, formatPieces } from "./quantity";
-import { formatDayFr, formatMonthFr, parseYMD } from "./businessDate";
-import type { GlobalStockReport, ProductStockReport, StockReportItem, StockReportRow } from "../types/stockReport";
+import { formatCartonsPieces } from "./quantity";
+import type { GlobalStockReport, ProductStockReport, StockReportItem } from "../types/stockReport";
 
 // PDF renderings of the Fiche de stock. They print the backend numbers
 // verbatim (services/stockLedger.js) — nothing is recomputed here.
-
-function rowLabel(row: StockReportRow) {
-  if (row.key.length === 7) {
-    const label = formatMonthFr(row.key);
-    return label.charAt(0).toUpperCase() + label.slice(1);
-  }
-  const { year, month, day } = parseYMD(row.key);
-  const weekday = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("fr-FR", { weekday: "short", timeZone: "UTC" });
-  return `${weekday} ${formatDayFr(row.key)}`;
-}
-
-export function stockRowLabel(row: StockReportRow) {
-  return rowLabel(row);
-}
 
 function warningNotes(items: StockReportItem[]) {
   const notes: string[] = [];
@@ -60,39 +45,29 @@ export function downloadGlobalStockPdf(report: GlobalStockReport, periodText: st
 export function downloadProductStockPdf(report: ProductStockReport, periodText: string) {
   const item = report.item;
   const q = (value: number, signed = false) => formatCartonsPieces(value, item.piecesPerCarton, { signed });
-  const rows = item.rows || [];
-  return downloadTableReportPdf<StockReportRow>({
+  return downloadTableReportPdf<StockReportItem>({
     title: `Fiche de stock - ${item.name}`,
     branchName: report.branch.name,
     periodLabel: periodText,
     orientation: "landscape",
     fileName: `fiche-stock-${item.name.replace(/[^\w-]+/g, "_").slice(0, 40)}-${pdfFileStamp(report.period.from, report.period.to)}`,
-    recordLabel: report.period.granularity === "month" ? ["mois", "mois"] : ["jour", "jours"],
+    recordLabel: ["synthèse", "synthèses"],
     filters: [
       ["Article", `${item.name}${item.status === "inactive" ? " (inactif)" : ""}`],
       ["Catégorie / Marque", `${item.category || "-"} / ${item.brand || "-"}`],
       ["Pièces par carton", String(item.piecesPerCarton)],
+      ["Stock actuel", q(item.currentStock)],
     ],
     notes: item.warnings.map((warning) => `Attention : ${warning.message}`),
     columns: [
-      { header: report.period.granularity === "month" ? "Mois" : "Date", width: 1.4, value: (row) => rowLabel(row) },
       { header: "Stock initial", width: 1.5, align: "right", value: (row) => q(row.opening) },
-      { header: "Vendus", width: 1.5, align: "right", value: (row) => q(row.sold) },
-      { header: "Bonus", width: 1.3, align: "right", value: (row) => q(row.bonus) },
+      { header: "Cartons et pièces vendus", width: 1.8, align: "right", value: (row) => q(row.sold) },
+      { header: "Bonus", width: 1.2, align: "right", value: (row) => q(row.bonus) },
       { header: "Ajouts", width: 1.3, align: "right", value: (row) => q(row.additions) },
       { header: "Retraits", width: 1.3, align: "right", value: (row) => q(row.removals) },
-      { header: "Autres mouvements", width: 1.4, align: "right", value: (row) => q(row.otherNet, true) },
+      { header: "Autres mouvements", width: 1.5, align: "right", value: (row) => q(row.otherNet, true) },
       { header: "Stock final", width: 1.5, align: "right", value: (row) => q(row.closing) },
     ],
-    rows,
-    totals: [
-      ["Stock initial", `${q(item.opening)} (${formatPieces(item.opening)})`],
-      ["Cartons et pièces vendus", q(item.sold)],
-      ["Bonus", q(item.bonus)],
-      ["Ajouts", q(item.additions)],
-      ["Retraits", q(item.removals)],
-      ["Autres mouvements (net)", q(item.otherNet, true)],
-      ["Stock final", `${q(item.closing)} (${formatPieces(item.closing)})`],
-    ],
+    rows: [item],
   });
 }

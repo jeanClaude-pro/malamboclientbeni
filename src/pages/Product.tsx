@@ -1411,14 +1411,14 @@ export default function Products() {
           .reduce((s, sale) => s + Number(sale.creditDetails?.amountDue || 0), 0);
 
         return (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-            <div className="bg-white border border-slate-200 shadow-sm rounded-xl max-w-6xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true">
+            <div className="max-h-dvh w-full max-w-6xl overflow-y-auto border border-slate-200 bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-xl">
               {/* Sticky header */}
-              <div className="p-6 border-b border-slate-200 sticky top-0 bg-white/95 backdrop-blur z-10">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-950 flex items-center gap-2">
-                      <ClipboardList className="w-5 h-5 text-purple-600" />
+              <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-3 backdrop-blur sm:p-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0 pr-1">
+                    <h2 className="flex items-start gap-2 break-words text-base font-semibold leading-snug text-slate-950 sm:text-xl">
+                      <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-purple-600" />
                       Fiche de stock — {ficheProduct.name}
                     </h2>
                     <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1433,35 +1433,36 @@ export default function Products() {
                         <span className="ml-3 text-slate-500">{ficheProduct.brand}</span>
                       )}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                       Créé le {new Date(ficheProduct.createdAt).toLocaleString("fr-FR")} · Dernière modification le{" "}
                       {new Date(ficheProduct.updatedAt).toLocaleString("fr-FR")}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center justify-end gap-2">
                     <button
                       onClick={() => loadFicheData(ficheProduct)}
-                      className="text-purple-600 hover:text-purple-700 p-1 rounded transition-colors"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-purple-200 text-purple-600 transition-colors hover:bg-purple-50 hover:text-purple-700"
                       title="Actualiser"
+                      aria-label="Actualiser la fiche"
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>
                     <button
                       onClick={openStockUpdateModal}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white transition-colors hover:bg-emerald-500"
                       title="Mettre à jour le stock"
                     >
                       <Box className="w-4 h-4" />
-                      Mettre à jour le stock
+                      <span className="hidden sm:inline">Mettre à jour le stock</span>
                     </button>
-                    <button onClick={closeFicheModal} className="text-purple-600 hover:text-purple-700 transition-colors">
+                    <button onClick={closeFicheModal} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-purple-600 transition-colors hover:bg-purple-50 hover:text-purple-700" aria-label="Fermer la fiche">
                       <X className="w-6 h-6" />
                     </button>
                   </div>
                 </div>
 
                 {/* Summary cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                {ficheTab !== "summary" && <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:grid-cols-4 sm:gap-3">
                   {[
                     { label: "Cartons vendus (historique)", value: totalSoldCartons, icon: <TrendingDown className="w-4 h-4" />, color: "blue" },
                     { label: "Bonus donnés (historique)", value: formatCartonStock(totalBonus, ppc), icon: <TrendingDown className="w-4 h-4" />, color: "green" },
@@ -1495,10 +1496,10 @@ export default function Products() {
                       <div className="text-xl font-bold text-slate-950">{card.value}</div>
                     </div>
                   ))}
-                </div>
+                </div>}
 
                 {/* Tabs */}
-                <div className="flex gap-1 mt-4 bg-slate-50 rounded-lg p-1 flex-wrap">
+                <div className="mt-3 flex flex-wrap gap-1 rounded-lg bg-slate-50 p-1 sm:mt-4">
                   {(
                     [
                       { key: "summary" as const, label: "Fiche de stock", icon: <History className="w-3.5 h-3.5" /> },
@@ -1509,7 +1510,7 @@ export default function Products() {
                     <button
                       key={tab.key}
                       onClick={() => setFicheTab(tab.key)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      className={`flex min-h-10 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all sm:min-h-0 sm:px-3 ${
                         ficheTab === tab.key
                           ? "bg-blue-700 text-white"
                           : "text-slate-600 hover:bg-slate-100"
@@ -1522,7 +1523,7 @@ export default function Products() {
               </div>
 
               {/* Tab content */}
-              <div className="p-6">
+              <div className="p-3 sm:p-6">
                 {ficheLoading ? (
                   <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto" />
