@@ -9,21 +9,35 @@ import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { defaultPeriod, periodLabel, stockReportParams, type PeriodValue } from "../utils/businessDate";
 import { formatCartonsPieces } from "../utils/quantity";
 import { downloadGlobalStockPdf } from "../utils/stockReportPdf";
-import type { GlobalStockReport, StockReportItem } from "../types/stockReport";
+import type { GlobalStockReport, GlobalStockScope, StockReportItem } from "../types/stockReport";
+
+const SCOPE_OPTIONS: Array<{ value: GlobalStockScope; label: string; empty: string }> = [
+  { value: "moved", label: "Articles avec mouvement", empty: "Aucun mouvement de stock sur cette période." },
+  { value: "sold", label: "Articles vendus", empty: "Aucun article vendu sur cette période." },
+  { value: "catalog", label: "Tous les articles", empty: "Aucun article." },
+];
+
+const STOCK_SCOPE_DESCRIPTIONS: Record<GlobalStockScope, string> = {
+  moved: "articles ayant au moins un mouvement de stock sur la période (vente, camion, réception, transfert, ajustement, correction)",
+  sold: "articles ayant au moins une vente sur la période",
+  catalog: "tous les articles actifs (et les articles inactifs ayant bougé)",
+};
 
 /**
- * Fiche de stock globale — one summarized row per product that recorded at
- * least one sale in the period (GET /api/stock-reports/global). Individual
- * transactions are never listed; clicking a row opens that product's daily
- * Fiche de stock, computed by the same backend service.
+ * Fiche de stock globale — one summarized row per product
+ * (GET /api/stock-reports/global): by default every product with ANY stock
+ * movement in the period. Clicking a row opens that product's sheet with
+ * every operation and the day-by-day balances, computed by the same backend
+ * service.
  */
 export default function StockSheet() {
   const online = useOnlineStatus();
-  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
   const [report, setReport] = useState<GlobalStockReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<GlobalStockScope>("moved");
   const [selected, setSelected] = useState<StockReportItem | null>(null);
   const requestId = useRef(0);
 
@@ -34,7 +48,7 @@ export default function StockSheet() {
     setLoading(true);
     setError("");
     try {
-      const data = await fetchReport<GlobalStockReport>("/stock-reports/global", stockReportParams(period));
+      const data = await fetchReport<GlobalStockReport>("/stock-reports/global", { ...stockReportParams(period), scope });
       if (id !== requestId.current || branch !== getActiveBranchId()) return;
       setReport(data);
     } catch (loadError) {
@@ -44,7 +58,7 @@ export default function StockSheet() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [period]);
+  }, [period, scope]);
 
   useEffect(() => {
     void load();
@@ -64,6 +78,7 @@ export default function StockSheet() {
 
   const warningCount = (report?.items || []).filter((item) => item.warnings.length > 0).length;
   const label = periodLabel(period);
+  const emptyMessage = SCOPE_OPTIONS.find((option) => option.value === scope)?.empty || "Aucun article.";
   const q = (item: StockReportItem, value: number, signed = false) => formatCartonsPieces(value, item.piecesPerCarton, { signed });
 
   return (
@@ -78,7 +93,7 @@ export default function StockSheet() {
               Fiche de stock globale
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Stock initial, ventes, bonus, entrées et sorties par article vendu sur la période
+              Stock initial, ventes, bonus, entrées et sorties de chaque article sur la période
               {report && <> — agence de <strong className="text-slate-700">{report.branch.name}</strong></>}.
             </p>
           </div>
@@ -96,7 +111,7 @@ export default function StockSheet() {
               disabled={!report}
               onExport={async () => {
                 if (!report) return 0;
-                downloadGlobalStockPdf(report, label);
+                downloadGlobalStockPdf(report, label, STOCK_SCOPE_DESCRIPTIONS[report.scope || scope]);
                 return report.items.length;
               }}
             />
@@ -119,6 +134,20 @@ export default function StockSheet() {
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 text-sm" role="radiogroup" aria-label="Articles affichés">
+            {SCOPE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={scope === option.value}
+                onClick={() => setScope(option.value)}
+                className={`rounded-md px-3 py-1.5 font-semibold ${scope === option.value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <label className="relative block w-full max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -156,7 +185,7 @@ export default function StockSheet() {
                 <tr><td colSpan={8} className="py-12 text-center text-slate-500"><Loader2 className="mr-2 inline h-5 w-5 animate-spin" />Calcul de la fiche de stock…</td></tr>
               )}
               {report && items.length === 0 && (
-                <tr><td colSpan={8} className="py-12 text-center text-slate-500">Aucun article vendu sur cette période.</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-slate-500">{emptyMessage}</td></tr>
               )}
               {items.map((item) => (
                 <tr
@@ -192,7 +221,7 @@ export default function StockSheet() {
             </div>
           )}
           {report && items.length === 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500">Aucun article vendu sur cette période.</div>
+            <div className="rounded-xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500">{emptyMessage}</div>
           )}
           {items.map((item) => (
             <details key={item.productId} className="mobile-record-card group">
@@ -229,8 +258,9 @@ export default function StockSheet() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Ventes et bonus sont des sorties de stock. Ajouts : arrivées de camion, réceptions, ajustements manuels (+).
-          Retraits : transferts livrés, prêts, ajustements manuels (−). Autres : corrections et annulations (net).
+          Ventes et bonus sont des sorties de stock. Ajouts : stock initial, arrivées de camion, réceptions, ajustements manuels (+).
+          Retraits : transferts livrés, prêts, ajustements manuels (−). Une correction ou une annulation est déduite de la colonne
+          de l'opération corrigée, à la date de cette opération (comme dans l'historique des ventes et les rapports).
           Stock final = stock initial + entrées − sorties.
         </p>
       </div>

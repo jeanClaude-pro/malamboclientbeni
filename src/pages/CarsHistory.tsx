@@ -259,9 +259,9 @@ export default function CarsHistory() {
   const [statusFilter, setStatusFilter] = useState("");
   const [plateFilter, setPlateFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  // GMT+2 calendar period (default: this month) and server-side search, shared
+  // GMT+2 calendar period (default: today) and server-side search, shared
   // by the paginated list and the complete exports.
-  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("month"));
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod("day"));
   const [debouncedSearch, setDebouncedSearch] = useState("");
   
   const [editForm, setEditForm] = useState<EditFormData>({});
@@ -897,7 +897,7 @@ export default function CarsHistory() {
                   onClick={() => {
                     setStatusFilter("");
                     setPlateFilter("");
-                    setPeriod(defaultPeriod("month"));
+                    setPeriod(defaultPeriod("day"));
                   }}
                   className="px-3 py-1 text-sm bg-gray-200 rounded-lg hover:bg-gray-300"
                 >

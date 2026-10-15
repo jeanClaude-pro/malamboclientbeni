@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Loader2, WifiOff } from "lucide-react";
 import PeriodSelector from "../reports/PeriodSelector";
 import ExportPdfButton from "../reports/ExportPdfButton";
 import { fetchReport } from "../../services/reportApi";
 import { DATA_CHANGED_EVENT, getActiveBranchId } from "../../services/dataSync";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
-import { defaultPeriod, formatDayFr, periodLabel, stockReportParams, type PeriodValue } from "../../utils/businessDate";
+import { defaultPeriod, formatDayFr, formatMonthFr, periodLabel, stockReportParams, type PeriodValue } from "../../utils/businessDate";
+import { formatDateTimeGmt2 } from "../../utils/time";
 import { formatCartonsPieces, formatPieces } from "../../utils/quantity";
 import { downloadProductStockPdf } from "../../utils/stockReportPdf";
-import type { ProductStockReport, StockMovementTotals } from "../../types/stockReport";
+import type { ProductStockReport, StockMovementTotals, StockReportRow, StockTransaction } from "../../types/stockReport";
 
 interface ProductStockSheetProps {
   productId: string;
@@ -26,18 +27,35 @@ const SUMMARY: Array<{ key: keyof StockMovementTotals; label: string; tone: stri
   { key: "closing", label: "Stock final", tone: "border-l-slate-950" },
 ];
 
+const CATEGORY_TONE: Record<StockTransaction["category"], string> = {
+  sold: "bg-rose-50 text-rose-700",
+  bonus: "bg-amber-50 text-amber-700",
+  additions: "bg-emerald-50 text-emerald-700",
+  removals: "bg-orange-50 text-orange-700",
+  otherIn: "bg-violet-50 text-violet-700",
+  otherOut: "bg-violet-50 text-violet-700",
+};
+
+function rowHasActivity(row: StockReportRow) {
+  return row.sold !== 0 || row.bonus !== 0 || row.additions !== 0 || row.removals !== 0 || row.otherIn !== 0 || row.otherOut !== 0;
+}
+
 /**
- * Individual Fiche de stock: one product, one branch and one summarized
- * period. Values come verbatim from the same authoritative stock ledger as
- * the global report; this component never renders transaction or daily rows.
+ * Individual Fiche de stock: one product, one branch, one period. Shows the
+ * period totals, every operation (sale, truck, reception, transfer,
+ * adjustment, correction) with the stock after it, and the day-by-day (or
+ * month-by-month) balances. Every number comes verbatim from the same
+ * authoritative stock ledger as the global report.
  */
 export default function ProductStockSheet({ productId, productName, initialPeriod }: ProductStockSheetProps) {
   const online = useOnlineStatus();
-  const [period, setPeriod] = useState<PeriodValue>(() => initialPeriod || defaultPeriod("month"));
+  const [period, setPeriod] = useState<PeriodValue>(() => initialPeriod || defaultPeriod("day"));
   const [report, setReport] = useState<ProductStockReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef(0);
+  const [view, setView] = useState<"operations" | "days">("operations");
+  const [showQuietDays, setShowQuietDays] = useState(false);
 
   const load = useCallback(async () => {
     if (!navigator.onLine) return;
@@ -70,6 +88,13 @@ export default function ProductStockSheet({ productId, productName, initialPerio
 
   const item = report?.item;
   const ppc = item?.piecesPerCarton || 1;
+  const transactions = useMemo(() => report?.transactions || [], [report]);
+  const rows = useMemo(() => {
+    const all = report?.item.rows || [];
+    return showQuietDays ? all : all.filter(rowHasActivity);
+  }, [report, showQuietDays]);
+  const monthly = report?.period.granularity === "month";
+  const q = (value: number, signed = false) => formatCartonsPieces(value, ppc, { signed });
   const label = periodLabel(period);
   const rangeLabel = report
     ? `${formatDayFr(report.period.from)} – ${formatDayFr(report.period.to)}`
@@ -141,7 +166,7 @@ export default function ProductStockSheet({ productId, productName, initialPerio
                 <div key={card.key} className={`min-w-0 rounded-xl border border-slate-200 border-l-4 bg-white p-2.5 shadow-sm sm:p-3 ${card.tone}`}>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{card.label}</div>
                   <div className="mt-1 break-words text-sm font-bold leading-snug text-slate-950 sm:text-base">
-                    {formatCartonsPieces(item[card.key], ppc, { signed: card.signed })}
+                    {q(item[card.key], card.signed)}
                   </div>
                   <div className="mt-0.5 text-[11px] text-slate-500">{formatPieces(item[card.key])}</div>
                 </div>
@@ -149,10 +174,149 @@ export default function ProductStockSheet({ productId, productName, initialPerio
             </div>
           </section>
 
+          <section aria-labelledby="stock-detail-heading" className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="stock-detail-heading" className="text-sm font-bold text-slate-900">Détail de la période</h3>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === "operations"}
+                  onClick={() => setView("operations")}
+                  className={`rounded-md px-3 py-1.5 font-semibold ${view === "operations" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  Opérations ({transactions.length.toLocaleString("fr-FR")})
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === "days"}
+                  onClick={() => setView("days")}
+                  className={`rounded-md px-3 py-1.5 font-semibold ${view === "days" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  {monthly ? "Par mois" : "Par jour"}
+                </button>
+              </div>
+            </div>
+
+            {view === "operations" && (
+              <>
+                {report.transactionsTruncated && (
+                  <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                    Seules les {transactions.length.toLocaleString("fr-FR")} premières opérations sont listées ; réduisez la période pour tout voir. Les totaux restent exacts.
+                  </p>
+                )}
+                {transactions.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-white py-8 text-center text-sm text-slate-500">Aucune opération de stock sur cette période.</p>
+                ) : (
+                  <>
+                    <div className="app-data-scroll desktop-data-table max-h-[28rem] rounded-xl border border-slate-200">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr>
+                            <th className="px-3 py-2 text-left">Date</th>
+                            <th className="px-3 py-2 text-left">Opération</th>
+                            <th className="px-3 py-2 text-right">Entrée</th>
+                            <th className="px-3 py-2 text-right">Sortie</th>
+                            <th className="px-3 py-2 text-right">Stock après</th>
+                            <th className="px-3 py-2 text-left">Par</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-t border-slate-100 bg-slate-50">
+                            <td className="px-3 py-2 text-slate-500" colSpan={4}>Stock initial au {formatDayFr(report.period.from)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-semibold">{q(item.opening)}</td>
+                            <td />
+                          </tr>
+                          {transactions.map((tx) => (
+                            <tr key={tx.id} className={`border-t border-slate-100 ${tx.reversed ? "opacity-60" : ""}`}>
+                              <td className="whitespace-nowrap px-3 py-2 text-slate-700">{formatDateTimeGmt2(tx.date)}</td>
+                              <td className="px-3 py-2">
+                                <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${CATEGORY_TONE[tx.category]}`}>{tx.label}</span>
+                                {tx.reversed && <span className="ml-1 text-xs text-slate-500">(annulé)</span>}
+                                {tx.bonus > 0 && <span className="ml-1 text-xs text-amber-700">dont bonus {q(tx.bonus)}</span>}
+                                <div className="mt-0.5 text-xs text-slate-500">{[tx.reference, tx.notes].filter(Boolean).join(" · ")}</div>
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-emerald-700">{tx.signed > 0 ? q(tx.signed) : ""}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-rose-700">{tx.signed < 0 ? q(-tx.signed) : ""}</td>
+                              <td className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${tx.balanceAfter < 0 ? "text-red-700" : "text-slate-950"}`}>{q(tx.balanceAfter)}</td>
+                              <td className="px-3 py-2 text-xs text-slate-500">{tx.recordedBy}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-200 bg-slate-50">
+                            <td className="px-3 py-2 font-semibold text-slate-700" colSpan={4}>Stock final au {formatDayFr(report.period.to)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-bold">{q(item.closing)}</td>
+                            <td />
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mobile-record-list">
+                      {transactions.map((tx) => (
+                        <div key={tx.id} className={`rounded-xl border border-slate-200 bg-white p-3 text-sm ${tx.reversed ? "opacity-60" : ""}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${CATEGORY_TONE[tx.category]}`}>{tx.label}</span>
+                            <span className={`whitespace-nowrap font-bold ${tx.signed > 0 ? "text-emerald-700" : "text-rose-700"}`}>{q(tx.signed, true)}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">{formatDateTimeGmt2(tx.date)}{tx.recordedBy ? ` · ${tx.recordedBy}` : ""}</div>
+                          {(tx.reference || tx.notes) && <div className="mt-0.5 break-words text-xs text-slate-500">{[tx.reference, tx.notes].filter(Boolean).join(" · ")}</div>}
+                          <div className="mt-1 text-xs">Stock après : <strong>{q(tx.balanceAfter)}</strong></div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {view === "days" && (
+              <>
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input type="checkbox" checked={showQuietDays} onChange={(event) => setShowQuietDays(event.target.checked)} />
+                  Afficher aussi les {monthly ? "mois" : "jours"} sans mouvement
+                </label>
+                {rows.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-white py-8 text-center text-sm text-slate-500">Aucun mouvement sur cette période.</p>
+                ) : (
+                  <div className="app-data-scroll max-h-[28rem] rounded-xl border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="px-3 py-2 text-left">{monthly ? "Mois" : "Jour"}</th>
+                          <th className="px-3 py-2 text-right">Stock initial</th>
+                          <th className="px-3 py-2 text-right">Vendus</th>
+                          <th className="px-3 py-2 text-right">Bonus</th>
+                          <th className="px-3 py-2 text-right">Ajouts</th>
+                          <th className="px-3 py-2 text-right">Retraits</th>
+                          <th className="px-3 py-2 text-right">Autres</th>
+                          <th className="px-3 py-2 text-right">Stock final</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={row.key} className="border-t border-slate-100">
+                            <td className="whitespace-nowrap px-3 py-2 font-medium">{monthly ? formatMonthFr(row.key) : formatDayFr(row.key)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right">{q(row.opening)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right text-rose-700">{q(row.sold)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right text-amber-700">{q(row.bonus)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right text-emerald-700">{q(row.additions)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right text-orange-700">{q(row.removals)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right text-violet-700">{q(row.otherNet, true)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-semibold">{q(row.closing)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
           <section className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="stock-export-heading">
             <div>
               <h3 id="stock-export-heading" className="text-sm font-bold text-slate-900">Export de la fiche</h3>
-              <p className="text-xs text-slate-500">Le PDF contient uniquement la synthèse de la période sélectionnée.</p>
+              <p className="text-xs text-slate-500">Le PDF contient la synthèse et toutes les opérations de la période, avec le stock après chacune.</p>
             </div>
             <ExportPdfButton
               className="w-full shrink-0 sm:w-auto"

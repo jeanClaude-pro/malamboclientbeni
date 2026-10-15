@@ -49,13 +49,43 @@ export interface StockReportPeriod {
   timezone: string;
 }
 
+/** Which products the global sheet lists (server default: "moved"). */
+export type GlobalStockScope = "moved" | "sold" | "catalog";
+
 export interface GlobalStockReport {
   success: boolean;
   branch: { id: string; name: string };
   period: StockReportPeriod;
+  scope?: GlobalStockScope;
   generatedAt: string;
   count: number;
   items: StockReportItem[];
+}
+
+/** One stock operation of the period (individual sheet). */
+export interface StockTransaction {
+  id: string;
+  /** Business date of the operation (ISO instant). */
+  date: string;
+  recordedAt: string | null;
+  type: string;
+  origin: string | null;
+  /** Column the operation counts in. */
+  category: "sold" | "bonus" | "additions" | "removals" | "otherIn" | "otherOut";
+  label: string;
+  reference: string;
+  notes: string;
+  /** Pieces moved (always positive). */
+  quantity: number;
+  /** Signed stock change in pieces (+ in, − out). */
+  signed: number;
+  /** Bonus part of a sale, in pieces. */
+  bonus: number;
+  piecesPerCarton: number;
+  recordedBy: string;
+  reversed: boolean;
+  /** Stock right after this operation, starting from the period's opening. */
+  balanceAfter: number;
 }
 
 export interface ProductStockReport {
@@ -64,4 +94,6 @@ export interface ProductStockReport {
   period: StockReportPeriod;
   generatedAt: string;
   item: StockReportItem;
+  transactions?: StockTransaction[];
+  transactionsTruncated?: boolean;
 }
