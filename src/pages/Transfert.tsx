@@ -1,5 +1,6 @@
 // pages/Transfert.tsx
 import React, { useEffect, useState } from "react";
+import { todayYMD } from "../utils/businessDate";
 import { apiFetch } from "../services/authService";
 import { getActiveBranchId } from "../services/dataSync";
 import { useAuth } from "../hooks/useAuth";
@@ -17,9 +18,9 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYMD();
 }
 
 interface Product {
@@ -49,6 +50,9 @@ interface TransferForm {
     piecesPerCarton: number;
   };
   destinationAgency: string;
+  // "beni" / "butembo" for the other branch (received by its reception),
+  // "" for an external destination.
+  destinationBranchId: string;
   receiver: { name: string; phone: string };
   transport: {
     driverName: string;
@@ -63,6 +67,7 @@ const EMPTY_FORM: TransferForm = {
   sourceLocation: "",
   product: { productId: "", name: "", cartonQuantity: 0, looseQuantity: 0, piecesPerCarton: 1 },
   destinationAgency: "",
+  destinationBranchId: "",
   receiver: { name: "", phone: "" },
   transport: { driverName: "", vehiclePlate: "", transportCompany: "", deliveryNotes: "" },
   notes: "",
@@ -152,7 +157,7 @@ export default function Transfert() {
     if (exceedsStock) {
       return `Stock insuffisant. Disponible: ${formatStockCartons(availableStock, form.product.piecesPerCarton)}`;
     }
-    if (!form.destinationAgency.trim()) return "Veuillez saisir l'agence de destination";
+    if (!form.destinationBranchId && !form.destinationAgency.trim()) return "Veuillez saisir l'agence de destination";
     if (!hasTransportInfo) {
       return "Veuillez indiquer le chauffeur et la plaque du véhicule, ou une société de transport";
     }
@@ -184,6 +189,7 @@ export default function Transfert() {
             piecesPerCarton: form.product.piecesPerCarton,
           },
           destinationAgency: form.destinationAgency.trim(),
+          destinationBranchId: form.destinationBranchId || null,
           receiver: {
             name: form.receiver.name.trim(),
             phone: form.receiver.phone.trim(),
@@ -375,16 +381,43 @@ export default function Transfert() {
               <p className="font-medium text-slate-500 mb-3 flex items-center gap-2">
                 <Building2 className="w-4 h-4" /> Agence de destination
               </p>
-              <div className="max-w-md">
-                <label className={labelCls}>Agence destinataire *</label>
-                <input
-                  type="text"
-                  value={form.destinationAgency}
-                  onChange={(e) => setStr("destinationAgency", e.target.value)}
-                  placeholder="Ex: Agence Kinshasa"
-                  className={inputCls}
-                />
+              <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelCls}>Type de destination *</label>
+                  <select
+                    value={form.destinationBranchId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        destinationBranchId: id,
+                        destinationAgency: id ? (id === "beni" ? "Beni" : "Butembo") : "",
+                      }));
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">Destination externe</option>
+                    {["butembo", "beni"].filter((id) => id !== getActiveBranchId()).map((id) => (
+                      <option key={id} value={id}>Agence {id === "beni" ? "Beni" : "Butembo"} (réception dans l'application)</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Agence destinataire *</label>
+                  <input
+                    type="text"
+                    value={form.destinationAgency}
+                    onChange={(e) => setStr("destinationAgency", e.target.value)}
+                    placeholder="Ex: Agence Kinshasa"
+                    className={inputCls}
+                    disabled={Boolean(form.destinationBranchId)}
+                  />
+                </div>
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Le stock quitte cette agence lorsque le transfert est <strong>expédié</strong> (Historique des transferts).
+                {form.destinationBranchId && " L'agence de destination l'ajoute à son stock en le réceptionnant."}
+              </p>
             </div>
 
             {/* Receiver */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fromGmt2DateTimeInput } from "../utils/businessDate";
 import { 
   DollarSign, 
   RefreshCw, 
@@ -153,7 +154,8 @@ export default function TauxChange() {
         },
         body: JSON.stringify({
           rate: parseFloat(form.rate),
-          effectiveFrom: form.effectiveFrom || new Date().toISOString(),
+          // Typed in GMT+2 (Butembo/Beni) whatever the browser's timezone.
+          effectiveFrom: (form.effectiveFrom && fromGmt2DateTimeInput(form.effectiveFrom)) || new Date().toISOString(),
           notes: form.notes
         }),
       });

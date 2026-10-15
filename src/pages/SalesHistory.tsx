@@ -353,11 +353,14 @@ export default function SalesHistory() {
     }
   };
 
-  // Filter out expenses and voided sales - ONLY show completed sales
+  // Only real sales; voided invoices are listed only under the "Annulées"
+  // status filter (they never count in totals — server rule).
   const filterValidSales = (sales: Sale[]): Sale[] => {
+    const showVoided = queryParams.status === "voided";
     return sales.filter((sale: Sale) => {
-      // Filter out voided, cancelled, refunded sales and expenses
-      const invalidStatuses = ['voided', 'cancelled', 'refunded', 'expense', 'depense'];
+      const invalidStatuses = showVoided
+        ? ['cancelled', 'refunded', 'expense', 'depense']
+        : ['voided', 'cancelled', 'refunded', 'expense', 'depense'];
       const isValidStatus = !invalidStatuses.includes(sale.status?.toLowerCase());
       
       // Also check if it's a sale (has saleId and customer structure)
@@ -439,7 +442,7 @@ export default function SalesHistory() {
 
     const data = await fetchExport<Sale, { invoiced: number; expenses: number; saleCount: number; expenseCount: number; revenue: number; cashSalesRevenue: number; confirmedCreditPayments: number }>("/sales/export", filterParams());
     const { from, to } = rangeParams(period);
-    const typeLabels: Record<string, string> = { sale: "Vente", reservation: "Réservation", expense: "Dépense" };
+    const typeLabels: Record<string, string> = { sale: "Vente", reservation: "Vente", expense: "Dépense" };
     downloadTableReportPdf<Sale>({
       title: showEditedSales ? "Historique des ventes modifiées" : "Historique des ventes",
       branchName: data.branch?.name || "",
@@ -449,7 +452,7 @@ export default function SalesHistory() {
       recordLabel: ["vente", "ventes"],
       filters: [
         ["Type", queryParams.type ? typeLabels[queryParams.type] || queryParams.type : "Tous"],
-        ["Statut", queryParams.status || "Terminées, en attente et dépenses"],
+        ["Statut", queryParams.status || "Terminées"],
         ["Crédit", creditFilter === "all" ? "Tous" : creditFilter],
         ...(queryParams.customerPhone ? [["Téléphone client", queryParams.customerPhone] as [string, string]] : []),
         ...(debouncedSearch ? [["Recherche", debouncedSearch] as [string, string]] : []),
@@ -467,7 +470,7 @@ export default function SalesHistory() {
       rows: data.records,
       totals: [
         ["Enregistrements exportés", String(data.count)],
-        ["Ventes / réservations", `${data.totals.saleCount} - ${formatMoneyPdf(data.totals.invoiced)} facturés`],
+        ["Ventes", `${data.totals.saleCount} - ${formatMoneyPdf(data.totals.invoiced)} facturés`],
         ["Dépenses", `${data.totals.expenseCount} - ${formatMoneyPdf(data.totals.expenses)}`],
         ["Encaissé (ventes comptant + paiements de crédit confirmés)", formatMoneyPdf(data.totals.revenue)],
       ],
@@ -1577,11 +1580,14 @@ export default function SalesHistory() {
       return;
     }
 
-    if (
-      !window.confirm(
-        `Are you sure you want to void sale ${sale.saleId}? This action cannot be undone.`
-      )
-    ) {
+    const reason = window.prompt(
+      `Annuler la vente ${sale.saleId} ?\n\nLa facture reste dans l'historique (statut « Annulée »), le stock est rendu` +
+        (sale.paymentType === "credit" ? " et l'argent déjà reçu est enregistré comme remboursement à la date d'aujourd'hui." : ".") +
+        "\n\nRaison de l'annulation :"
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setError("Une raison d'annulation est requise");
       return;
     }
 
@@ -1596,13 +1602,18 @@ export default function SalesHistory() {
             Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
           },
           body: JSON.stringify({
-            reason: "Sale voided by admin",
+            reason: reason.trim(),
           }),
         }
       );
 
       if (response.ok) {
-        setMessage("✅ Sale voided successfully");
+        const body = await response.json().catch(() => ({}));
+        setMessage(
+          body?.refund?.amount
+            ? `✅ Vente annulée — remboursement de ${Number(body.refund.amount).toFixed(2)} USD enregistré aujourd'hui`
+            : "✅ Vente annulée"
+        );
         await fetchSales();
         setShowModal(false);
         window.dispatchEvent(new CustomEvent("productsUpdated"));
@@ -1619,45 +1630,7 @@ export default function SalesHistory() {
     }
   };
 
-  const handleDeleteSale = async (sale: Sale) => {
-    if (
-      !window.confirm(
-        `Permanently delete sale ${sale.saleId}? This cannot be undone and will restore inventory.`
-      )
-    ) {
-      return;
-    }
 
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/sales/${sale._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        setMessage("✅ Sale deleted successfully");
-        await fetchSales();
-        setShowModal(false);
-        window.dispatchEvent(new CustomEvent("productsUpdated"));
-        window.dispatchEvent(new CustomEvent("salesUpdated"));
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to delete sale");
-      }
-    } catch (error) {
-      setError("Failed to delete sale");
-      console.error("Error deleting sale:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const { subtotal, total } = calculateTotals();
 
@@ -2056,7 +2029,6 @@ export default function SalesHistory() {
                       >
                         <option value="">All Types</option>
                         <option value="sale">Sale</option>
-                        <option value="reservation">Reservation</option>
                         <option value="expense">Expense</option>
                       </select>
                     </div>
@@ -2072,7 +2044,7 @@ export default function SalesHistory() {
                       >
                         <option value="">All Status</option>
                         <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
+                        <option value="voided">Annulées</option>
                         <option value="expense">Expense</option>
                       </select>
                     </div>
@@ -2343,15 +2315,6 @@ export default function SalesHistory() {
                                 >
                                   <Shield className="w-4 h-4" />
                                 </button>
-                                {isAdmin && (
-                                  <button
-                                    onClick={() => handleDeleteSale(sale)}
-                                    className="p-1 rounded transition-colors text-red-600 hover:text-red-900"
-                                    title="Supprimer définitivement"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
                               </>
                             )}
                           </div>
@@ -2674,15 +2637,6 @@ export default function SalesHistory() {
                   >
                     <Shield className="w-4 h-4" />
                     Annuler la vente
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => handleDeleteSale(selectedSale)}
-                    className="px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Supprimer définitivement
                   </button>
                 )}
                 <button

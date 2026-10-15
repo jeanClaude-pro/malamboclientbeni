@@ -201,3 +201,24 @@ export function stockReportParams(value: PeriodValue) {
   }
   return { period: value.period, date: value.anchor };
 }
+
+/**
+ * Value for an `<input type="datetime-local">` showing an instant in GMT+2
+ * (Butembo/Beni), whatever the browser's own timezone is.
+ */
+export function toGmt2DateTimeInput(value: string | Date | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() + GMT2_OFFSET_MS).toISOString().slice(0, 16);
+}
+
+/**
+ * ISO instant for a `datetime-local` value typed in GMT+2 ("2026-10-15T08:30"),
+ * so a browser in another timezone (e.g. Nairobi, GMT+3) cannot shift it.
+ */
+export function fromGmt2DateTimeInput(local: string) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local)) return "";
+  const date = new Date(`${local.slice(0, 16)}:00+02:00`);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}

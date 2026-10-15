@@ -1,6 +1,9 @@
 "use client";
 
 import type React from "react";
+import { createRequestKeyHolder } from "../utils/requestKey";
+
+const stockUpdateRequestKey = createRequestKeyHolder("stock");
 import { useState, useEffect } from "react";
 import {
   Package,
@@ -417,6 +420,8 @@ export default function Products() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          // Same key on a retry: the stock is adjusted once.
+          "Idempotency-Key": stockUpdateRequestKey.get(),
         },
         body: JSON.stringify({
           productId: ficheProduct._id,
@@ -427,6 +432,7 @@ export default function Products() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        stockUpdateRequestKey.reset();
         toast.success("Stock mis à jour");
         setShowStockUpdateModal(false);
         // The Fiche de stock refreshes itself (appDataChanged after the POST).

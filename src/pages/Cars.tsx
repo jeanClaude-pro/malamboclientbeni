@@ -1,5 +1,6 @@
 // components/Cars.tsx
 import React, { useEffect, useState } from "react";
+import { todayYMD } from "../utils/businessDate";
 import { apiFetch } from "../services/authService";
 import { getActiveBranchId } from "../services/dataSync";
 import { useAuth } from "../hooks/useAuth";
@@ -34,12 +35,9 @@ function formatStockCartons(totalPieces: number, piecesPerCarton: number) {
     : `${cartons.toLocaleString()} carton${cartons !== 1 ? "s" : ""}`;
 }
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return todayYMD();
 }
 
 interface CargoProductForm {
@@ -76,7 +74,7 @@ const createEmptyForm = (): CarTripForm => ({
   driver: { name: "", phone: "", licenseNumber: "" },
   vehicle: { plateNumber: "", model: "", capacity: 0 },
   products: [createCargoProduct()],
-  departureDate: new Date().toISOString().slice(0, 10),
+  departureDate: todayYMD(),
   notes: "",
 });
 
@@ -207,7 +205,7 @@ export default function Cars() {
             piecesPerBox,
             weight,
           })),
-          departureTime: `${form.departureDate}T06:00:00`,
+          departureTime: `${form.departureDate}T06:00:00+02:00`,
           notes: form.notes.trim(),
           ...(isAdmin && operationDate && operationDate !== getTodayDate() && {
             operationDate,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { todayYMD } from "../utils/businessDate";
 import {
   ArrowDownToLine,
   Calendar,
@@ -24,9 +25,9 @@ interface Product {
   status?: string;
 }
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYMD();
 }
 
 interface ReceptionForm {
@@ -53,6 +54,120 @@ function formatStock(totalPieces: number, piecesPerCarton: number): string {
   const pieces = total % ppc;
   if (pieces === 0) return `${cartons} carton${cartons !== 1 ? "s" : ""}`;
   return `${cartons} carton${cartons !== 1 ? "s" : ""} et ${pieces} pièce${pieces !== 1 ? "s" : ""}`;
+}
+
+interface IncomingTransfer {
+  _id: string;
+  transferId: string;
+  sourceBranchId?: string;
+  destinationAgency: string;
+  createdAt: string;
+  dispatchedAt?: string;
+  dispatchedBy?: string;
+  product: { name: string; cartonQuantity: number; looseQuantity: number; piecesPerCarton: number; totalPieces: number };
+  transport?: { driverName?: string; vehiclePlate?: string; transportCompany?: string };
+}
+
+const branchName = (id?: string) => (id === "beni" ? "Beni" : id === "butembo" ? "Butembo" : id || "");
+
+// Transfers the other branch dispatched to this one. Their stock already left
+// the source branch; receiving one adds it to the article chosen here.
+function IncomingTransfers({ products, receivedBy, onReceived }: { products: Product[]; receivedBy: string; onReceived: (message: string) => void }) {
+  const [incoming, setIncoming] = useState<IncomingTransfer[]>([]);
+  const [choice, setChoice] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    const branch = getActiveBranchId();
+    try {
+      const data = await apiFetch<{ data: IncomingTransfer[] }>("/transfers/incoming");
+      if (getActiveBranchId() !== branch) return;
+      setIncoming(data.data || []);
+    } catch {
+      setIncoming([]);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    const refresh = () => void load();
+    window.addEventListener("appDataChanged", refresh);
+    return () => window.removeEventListener("appDataChanged", refresh);
+  }, []);
+
+  if (incoming.length === 0) return null;
+
+  const productFor = (t: IncomingTransfer) =>
+    choice[t._id] ?? products.find((p) => p.name.trim().toLowerCase() === t.product.name.trim().toLowerCase())?._id ?? "";
+
+  const receive = async (t: IncomingTransfer) => {
+    const productId = productFor(t);
+    if (!productId) { setError(`Choisissez l'article de votre agence correspondant à « ${t.product.name} »`); return; }
+    if (!receivedBy.trim()) { setError("Le nom du récepteur est requis"); return; }
+    try {
+      setBusy(t._id);
+      setError(null);
+      const data = await apiFetch<{ data: { receptionId: string } }>("/transfer-receptions", {
+        method: "POST",
+        body: JSON.stringify({ transferId: t._id, productId, receivedBy: receivedBy.trim() }),
+      });
+      onReceived(`✅ Transfert ${t.transferId} reçu — ${data.data.receptionId}`);
+      await load();
+      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Réception impossible");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-blue-900">
+        <Package className="h-5 w-5" /> Transferts en route vers votre agence ({incoming.length})
+      </h2>
+      {error && <p className="mb-2 text-sm font-medium text-red-700">{error}</p>}
+      <div className="space-y-3">
+        {incoming.map((t) => (
+          <div key={t._id} className="rounded-lg border border-blue-100 bg-white p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="font-semibold">{t.transferId} — {t.product.name}</div>
+                <div className="text-xs text-gray-500">
+                  De l'agence {branchName(t.sourceBranchId)} · {formatStock(t.product.totalPieces, t.product.piecesPerCarton)}
+                  {t.dispatchedAt && ` · expédié le ${new Date(t.dispatchedAt).toLocaleDateString("fr-FR")}`}
+                  {t.transport?.driverName && ` · chauffeur ${t.transport.driverName}`}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={productFor(t)}
+                  onChange={(e) => setChoice((c) => ({ ...c, [t._id]: e.target.value }))}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                  aria-label="Article de votre agence"
+                >
+                  <option value="">Article de votre agence…</option>
+                  {products.filter((p) => p.status !== "inactive").map((p) => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void receive(t)}
+                  disabled={busy === t._id}
+                  className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {busy === t._id ? "Réception…" : "Réceptionner"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-blue-800">La quantité envoyée est ajoutée au stock. Pour un écart, réceptionnez puis corrigez la réception depuis l'historique avec une raison.</p>
+    </div>
+  );
 }
 
 export default function TransferReception() {
@@ -197,6 +312,8 @@ export default function TransferReception() {
             <p className="text-sm font-medium">{error}</p>
           </div>
         )}
+
+        <IncomingTransfers products={products} receivedBy={form.receivedBy} onReceived={(m) => { setMessage(m); setError(null); }} />
 
         <form onSubmit={handleSubmit} className="space-y-5">
 

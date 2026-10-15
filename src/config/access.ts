@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import {
   ArrowLeftRight,
   BarChart3,
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   History,
@@ -27,19 +28,21 @@ export interface ModuleAccess {
   section: "Opérations" | "Stock & logistique" | "Suivi & rapports" | "Administration";
   icon: ComponentType<{ className?: string }>;
   roles: OperationalRole[];
+  // Superadmin only — narrower than roles: [] (which also lets "admin" in).
+  superadminOnly?: boolean;
   featured?: boolean;
 }
 
 export const MODULES: ModuleAccess[] = [
   { id: "rate", label: "Taux de change", description: "Configurer le taux monétaire utilisé par l'entreprise.", path: "/rate", section: "Administration", icon: TrendingUp, roles: [] },
-  { id: "pos", label: "Point de vente", shortLabel: "Vente", description: "Enregistrer les ventes, crédits et réservations.", path: "/new-sale", section: "Opérations", icon: ShoppingCart, roles: ["cashier_supervisor", "inventory_manager"], featured: true },
+  { id: "pos", label: "Point de vente", shortLabel: "Vente", description: "Enregistrer les ventes au comptant et à crédit.", path: "/new-sale", section: "Opérations", icon: ShoppingCart, roles: ["cashier_supervisor", "inventory_manager"], featured: true },
   { id: "entry", label: "Entrée de caisse", description: "Enregistrer les recettes et autres entrées de caisse.", path: "/entry", section: "Opérations", icon: WalletCards, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "sortie", label: "Sortie de caisse", description: "Soumettre les dépenses et décaissements.", path: "/sortie", section: "Opérations", icon: ReceiptText, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "cars", label: "Camions", description: "Planifier un trajet et son chargement multi-articles.", path: "/cars", section: "Stock & logistique", icon: CalendarDays, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "transfert", label: "Transfert", shortLabel: "Transfert", description: "Préparer les transferts de marchandises.", path: "/transfert", section: "Stock & logistique", icon: ArrowLeftRight, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "transfer-reception", label: "Réception", shortLabel: "Réception", description: "Réceptionner les marchandises et mettre le stock à jour.", path: "/transfer-reception", section: "Stock & logistique", icon: ClipboardList, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "products", label: "Articles & stock", shortLabel: "Stock", description: "Consulter les articles, niveaux de stock et fiches d'audit.", path: "/products", section: "Stock & logistique", icon: Package, roles: ["manager", "inventory_manager"], featured: true },
-  { id: "sales", label: "Historique des ventes", shortLabel: "Ventes", description: "Suivre les ventes, réservations et paiements.", path: "/sales", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
+  { id: "sales", label: "Historique des ventes", shortLabel: "Ventes", description: "Suivre les ventes, annulations et paiements.", path: "/sales", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "carshistory", label: "Historique des camions", description: "Contrôler les arrivées et corrections de trajets.", path: "/carshistory", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "entryhistory", label: "Historique des entrées", description: "Consulter les recettes enregistrées.", path: "/entryhistory", section: "Suivi & rapports", icon: History, roles: ["cashier_supervisor", "inventory_manager"] },
   { id: "historicsortie", label: "Historique des sorties", shortLabel: "Sorties", description: "Contrôler et, selon le rôle, valider les dépenses.", path: "/sortiehistory", section: "Suivi & rapports", icon: History, roles: ["manager", "cashier_supervisor", "inventory_manager"] },
@@ -48,6 +51,7 @@ export const MODULES: ModuleAccess[] = [
   { id: "stocksheet", label: "Fiche de stock globale", shortLabel: "Fiche stock", description: "Stock initial, ventes, bonus, mouvements et stock final par article sur une période.", path: "/fiche-de-stock", section: "Suivi & rapports", icon: ClipboardList, roles: ["manager"] },
   { id: "reports", label: "Rapports", shortLabel: "Rapports", description: "Analyser les résultats de l'agence et produire les PDF.", path: "/reports", section: "Suivi & rapports", icon: BarChart3, roles: ["manager"], featured: true },
   { id: "customers", label: "Clients", description: "Consulter les clients et leur historique dans l'agence.", path: "/customers", section: "Suivi & rapports", icon: Users, roles: ["cashier_supervisor"] },
+  { id: "closing", label: "Clôture journalière", shortLabel: "Clôture", description: "Clôturer une journée, figer ses totaux et suivre les corrections ultérieures.", path: "/cloture", section: "Administration", icon: CalendarCheck, roles: [], superadminOnly: true },
   { id: "users", label: "Personnel & agences", description: "Approuver les comptes, attribuer les rôles et affecter les agences.", path: "/users", section: "Administration", icon: UserRoundCog, roles: [], featured: true },
 ];
 
@@ -111,6 +115,7 @@ export function canSwitchBranch(user: Pick<User, "role"> | null | undefined): bo
 
 export function canAccessModule(user: Pick<User, "role" | "isSuperAdmin"> | null | undefined, module: ModuleAccess): boolean {
   if (!user) return false;
+  if (module.superadminOnly) return user.role === "superadmin";
   return isSuperAdmin(user) || module.roles.includes(user.role as OperationalRole);
 }
 

@@ -42,6 +42,7 @@ const TransferReception = lazy(() => import("./pages/TransferReception"));
 const TransferReceptionHistory = lazy(() => import("./pages/TransferReceptionHistory"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Users = lazy(() => import("./pages/Users"));
+const DailyClosing = lazy(() => import("./pages/DailyClosing"));
 const SuperadminLanding = lazy(() => import("./pages/SuperadminLanding"));
 
 function RouteLoading() {
@@ -238,6 +239,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Users />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/cloture"
+                  element={
+                    <RequireAuth>
+                      <DailyClosing />
                     </RequireAuth>
                   }
                 />

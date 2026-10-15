@@ -33,7 +33,7 @@ import PaginationControls, { EMPTY_PAGINATION, type PaginationState } from "../c
 import PeriodSelector from "../components/reports/PeriodSelector";
 import ExportPdfButton from "../components/reports/ExportPdfButton";
 import { fetchExport } from "../services/reportApi";
-import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
+import { defaultPeriod, fromGmt2DateTimeInput, periodLabel, rangeParams, toGmt2DateTimeInput, todayYMD, type PeriodValue } from "../utils/businessDate";
 import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
 import { formatCartonsPieces } from "../utils/quantity";
 import { downloadCsv } from "../utils/csvExport";
@@ -227,12 +227,10 @@ const getArrivalBreakdown = (trip: CarTrip) => {
   }];
 };
 
-const toLocalInput = (value: string | null | undefined) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-};
+// Date/time fields are shown and read in GMT+2 (Butembo/Beni), whatever the
+// browser's timezone is, so a time typed near midnight never moves to the
+// neighbouring day.
+const toLocalInput = (value: string | null | undefined) => toGmt2DateTimeInput(value);
 
 export default function CarsHistory() {
   const requestId = useRef(0);
@@ -270,7 +268,7 @@ export default function CarsHistory() {
   const [showArrivalModal, setShowArrivalModal] = useState(false);
   const [arrivalTrip, setArrivalTrip] = useState<CarTrip | null>(null);
   const [arrivalForm, setArrivalForm] = useState({
-    arrivalDate: new Date().toISOString().slice(0, 10),
+    arrivalDate: todayYMD(),
     products: [] as Array<{ productId: string; productName: string; receivedCartons: number; receivedLoosePieces: number; piecesPerCarton: number }>,
     notes: "",
   });
@@ -532,9 +530,9 @@ export default function CarsHistory() {
           updatePayload.products = editForm.products;
         }
       }
-      if (editForm.departureTime !== undefined) updatePayload.departureTime = new Date(editForm.departureTime).toISOString();
-      if (editForm.expectedArrivalTime !== undefined) updatePayload.expectedArrivalTime = editForm.expectedArrivalTime ? new Date(editForm.expectedArrivalTime).toISOString() : null;
-      if (isSuperadmin && editForm.actualArrivalTime) updatePayload.actualArrivalTime = new Date(editForm.actualArrivalTime).toISOString();
+      if (editForm.departureTime !== undefined) updatePayload.departureTime = fromGmt2DateTimeInput(editForm.departureTime);
+      if (editForm.expectedArrivalTime !== undefined) updatePayload.expectedArrivalTime = editForm.expectedArrivalTime ? fromGmt2DateTimeInput(editForm.expectedArrivalTime) : null;
+      if (isSuperadmin && editForm.actualArrivalTime) updatePayload.actualArrivalTime = fromGmt2DateTimeInput(editForm.actualArrivalTime);
       if (editForm.fuelCost !== undefined) updatePayload.fuelCost = editForm.fuelCost;
       if (editForm.tollCost !== undefined) updatePayload.tollCost = editForm.tollCost;
       if (editForm.otherCosts !== undefined) updatePayload.otherCosts = editForm.otherCosts;
@@ -744,7 +742,7 @@ export default function CarsHistory() {
   const openArrivalModal = (trip: CarTrip) => {
     setArrivalTrip(trip);
     setArrivalForm({
-      arrivalDate: new Date().toISOString().slice(0, 10),
+      arrivalDate: todayYMD(),
       products: getTripProducts(trip).map((product) => ({
         productId: product.productId,
         productName: product.productName,

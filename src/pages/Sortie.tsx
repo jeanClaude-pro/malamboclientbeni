@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
+import { createRequestKeyHolder } from "../utils/requestKey";
+
+const expenseRequestKey = createRequestKeyHolder("expense");
+import { todayYMD } from "../utils/businessDate";
 import { useAuth } from "../hooks/useAuth";
 import { getActiveBranchId } from "../services/dataSync";
 import {
@@ -16,9 +20,9 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYMD();
 }
 
 interface SortieForm {
@@ -198,6 +202,8 @@ export default function Sortie() {
         headers: {
           "Content-Type": "application/json",
           ...authHeader(),
+          // Same key on a retry: the expense is recorded once.
+          "Idempotency-Key": expenseRequestKey.get(),
         },
         body: JSON.stringify(body),
       });
@@ -211,6 +217,7 @@ export default function Sortie() {
         throw new Error(msg);
       }
 
+      expenseRequestKey.reset();
       // Reset form on success
       setForm({
         reason: "",

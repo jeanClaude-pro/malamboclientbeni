@@ -40,6 +40,11 @@ interface DayBalance {
   entriesCount: number;
   expensesAmount: number;
   expensesCount: number;
+  // Money given back when a credit sale was voided, on the void date.
+  refundsAmount?: number;
+  refundsCount?: number;
+  // Day result computed by the server (same rule as the closing).
+  netAmount?: number;
   closingBalance: number;
 }
 
@@ -51,6 +56,8 @@ interface DailyBalanceData {
     totalSales: number;
     totalEntries: number;
     totalExpenses: number;
+    totalRefunds?: number;
+    refundsCount?: number;
     salesCount: number;
     entriesCount: number;
     expensesCount: number;
@@ -216,6 +223,7 @@ export default function CompanyReport() {
         { header: "Ventes encaissées", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.salesRevenue)} (${day.salesCount})` },
         { header: "Entrées de caisse", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.entriesAmount)} (${day.entriesCount})` },
         { header: "Sorties validées", width: 1.3, align: "right", value: (day) => `${formatMoneyPdf(day.expensesAmount)} (${day.expensesCount})` },
+        { header: "Remboursements", width: 1.2, align: "right", value: (day) => `${formatMoneyPdf(day.refundsAmount || 0)} (${day.refundsCount || 0})` },
         { header: "Solde de clôture", width: 1.3, align: "right", value: (day) => formatMoneyPdf(day.closingBalance) },
       ],
       rows: dailyBalance.days,
@@ -224,6 +232,7 @@ export default function CompanyReport() {
         ["Ventes encaissées", formatMoneyPdf(dailyBalance.periodSummary.totalSales)],
         ["Entrées de caisse", formatMoneyPdf(dailyBalance.periodSummary.totalEntries)],
         ["Sorties validées", formatMoneyPdf(dailyBalance.periodSummary.totalExpenses)],
+        ["Remboursements (ventes annulées)", formatMoneyPdf(dailyBalance.periodSummary.totalRefunds || 0)],
         ["Solde de clôture de la période", formatMoneyPdf(dailyBalance.periodSummary.closingBalance)],
       ],
     });
@@ -346,12 +355,14 @@ export default function CompanyReport() {
     const salesRevenue = Number(data.salesSummary?.revenue || 0);
     const validatedExpenses = Number(data.expensesSummary?.validated?.amount || 0);
     const entriesAmount = Number(data.entriesSummary?.active?.amount || 0);
+    const refunds = Number(data.salesSummary?.refunds || 0);
 
     return {
       salesRevenue,
       validatedExpenses,
       entriesAmount,
-      netResult: salesRevenue + entriesAmount - validatedExpenses,
+      refunds,
+      netResult: salesRevenue + entriesAmount - validatedExpenses - refunds,
       salesCount: Number(data.salesSummary?.salesCount || 0),
       expensesCount: Number(data.expensesSummary?.validated?.count || 0),
       entriesCount: Number(data.entriesSummary?.active?.count || 0),
@@ -447,6 +458,7 @@ export default function CompanyReport() {
     line("Revenu des ventes", formatMoney(totals.salesRevenue));
     line("Entrées de caisse", formatMoney(totals.entriesAmount));
     line("Sorties validées", formatMoney(totals.validatedExpenses));
+    if (totals.refunds > 0) line("Remboursements (ventes annulées)", formatMoney(totals.refunds));
     line("Résultat net estimé", formatMoney(totals.netResult));
     line("Taux du jour", data.exchangeRate?.rate ? `1 USD = ${formatNumber(data.exchangeRate.rate)} FC` : "Non disponible");
 
@@ -726,9 +738,12 @@ export default function CompanyReport() {
                   <div className="bg-white rounded-xl p-3 border border-red-200 shadow-sm">
                     <p className="text-xs text-slate-500 font-medium">Sorties de la période</p>
                     <p className="text-lg font-black text-red-600 mt-1">
-                      -{formatMoney(dailyBalance.periodSummary.totalExpenses)}
+                      -{formatMoney(dailyBalance.periodSummary.totalExpenses + (dailyBalance.periodSummary.totalRefunds || 0))}
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5">{dailyBalance.periodSummary.expensesCount} sortie{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""} validée{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {dailyBalance.periodSummary.expensesCount} sortie{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""} validée{dailyBalance.periodSummary.expensesCount !== 1 ? "s" : ""}
+                      {(dailyBalance.periodSummary.totalRefunds || 0) > 0 && ` · Remboursements ${formatMoney(dailyBalance.periodSummary.totalRefunds || 0)}`}
+                    </p>
                   </div>
                   <div className={`bg-white rounded-xl p-3 border shadow-sm ${dailyBalance.periodSummary.closingBalance >= 0 ? "border-emerald-300" : "border-red-300"}`}>
                     <p className="text-xs text-slate-500 font-medium">Solde de clôture</p>
@@ -762,6 +777,12 @@ export default function CompanyReport() {
                       <span className="text-slate-600">− Sorties validées ({dailyBalance.days[0].expensesCount})</span>
                       <span className="text-red-600">-{formatMoney(dailyBalance.days[0].expensesAmount)}</span>
                     </div>
+                    {(dailyBalance.days[0].refundsAmount || 0) > 0 && (
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">− Remboursements de ventes annulées ({dailyBalance.days[0].refundsCount || 0})</span>
+                        <span className="text-red-600">-{formatMoney(dailyBalance.days[0].refundsAmount || 0)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between py-2 font-bold text-base">
                       <span className="text-slate-800">= Solde de clôture</span>
                       <span className={dailyBalance.days[0].closingBalance >= 0 ? "text-emerald-700" : "text-red-700"}>
@@ -794,13 +815,15 @@ export default function CompanyReport() {
                               <th className="text-right px-3 py-2.5 font-semibold text-green-700">+ Ventes</th>
                               <th className="text-right px-3 py-2.5 font-semibold text-teal-700">+ Entrées</th>
                               <th className="text-right px-3 py-2.5 font-semibold text-red-600">− Sorties</th>
+                              <th className="text-right px-3 py-2.5 font-semibold text-red-600">− Remb.</th>
                               <th className="text-right px-3 py-2.5 font-semibold text-slate-700">Résultat net</th>
                               <th className="text-right px-3 py-2.5 font-semibold text-blue-900">Solde clôture</th>
                             </tr>
                           </thead>
                           <tbody>
                             {dailyBalance.days.map((day, idx) => {
-                              const dayNet = day.salesRevenue + day.entriesAmount - day.expensesAmount;
+                              // Server figure: opening + dayNet = closing, and the closing is the next day's opening.
+                              const dayNet = day.netAmount ?? day.closingBalance - day.openingBalance;
                               return (
                                 <tr
                                   key={day.date}
@@ -811,6 +834,7 @@ export default function CompanyReport() {
                                   <td className="px-3 py-2 text-right text-green-700">+{formatMoney(day.salesRevenue)}</td>
                                   <td className="px-3 py-2 text-right text-teal-700">+{formatMoney(day.entriesAmount)}</td>
                                   <td className="px-3 py-2 text-right text-red-600">-{formatMoney(day.expensesAmount)}</td>
+                                  <td className="px-3 py-2 text-right text-red-600">-{formatMoney(day.refundsAmount || 0)}</td>
                                   <td className={`px-3 py-2 text-right font-bold ${dayNet >= 0 ? "text-emerald-700" : "text-red-700"}`}>
                                     {dayNet >= 0 ? "+" : ""}{formatMoney(dayNet)}
                                   </td>
@@ -828,6 +852,7 @@ export default function CompanyReport() {
                               <td className="px-3 py-2.5 text-right font-bold text-green-700">+{formatMoney(dailyBalance.periodSummary.totalSales)}</td>
                               <td className="px-3 py-2.5 text-right font-bold text-teal-700">+{formatMoney(dailyBalance.periodSummary.totalEntries)}</td>
                               <td className="px-3 py-2.5 text-right font-bold text-red-600">-{formatMoney(dailyBalance.periodSummary.totalExpenses)}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-red-600">-{formatMoney(dailyBalance.periodSummary.totalRefunds || 0)}</td>
                               <td className={`px-3 py-2.5 text-right font-bold ${dailyBalance.periodSummary.netChange >= 0 ? "text-emerald-700" : "text-red-700"}`}>
                                 {dailyBalance.periodSummary.netChange >= 0 ? "+" : ""}{formatMoney(dailyBalance.periodSummary.netChange)}
                               </td>

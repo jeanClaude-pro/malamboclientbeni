@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import { createRequestKeyHolder } from "../utils/requestKey";
+
+// One key per checkout: kept across retries, renewed after a recorded sale.
+const saleRequestKey = createRequestKeyHolder("sale");
+import { todayYMD } from "../utils/businessDate";
 import { useAuth } from "../hooks/useAuth";
 import {
   DollarSign,
@@ -51,12 +56,9 @@ interface ExchangeRate {
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return todayYMD();
 }
 
 function getPiecesPerCarton(product?: Pick<Product, "piecesPerCarton"> | null) {
@@ -143,7 +145,7 @@ async function readJsonSafe(res: Response) {
 class PrintService {
   static async printReceipt(
     receiptData: any,
-    type: "sale" | "reservation" = "sale"
+    type: "sale" = "sale"
   ): Promise<boolean> {
     try {
       const token = localStorage.getItem("token");
@@ -170,7 +172,7 @@ class PrintService {
 
   static async printStub(
     receiptData: any,
-    type: "sale" | "reservation" = "sale"
+    type: "sale" = "sale"
   ): Promise<boolean> {
     try {
       const token = localStorage.getItem("token");
@@ -1426,7 +1428,10 @@ export default function NewSale() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Authorization": `Bearer ${token}`,
+          // A double click or a retry after a network error replays the same
+          // key: the server returns the sale already recorded, never a second one.
+          "Idempotency-Key": saleRequestKey.get(),
         },
         body: JSON.stringify(body),
       });
@@ -1450,6 +1455,7 @@ export default function NewSale() {
         throw new Error(msg);
       }
 
+      saleRequestKey.reset();
       // Get the sale ID from the API response
       const saleId = data.saleId || data._id;
       
@@ -2163,7 +2169,7 @@ export default function NewSale() {
                   name="creditDueDate"
                   value={form.creditDueDate}
                   onChange={handleChange}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={getTodayDate()}
                   className="w-full p-3 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-slate-900"
                 />
                 <p className="text-xs text-amber-600 mt-1">Optionnel — date limite de règlement</p>

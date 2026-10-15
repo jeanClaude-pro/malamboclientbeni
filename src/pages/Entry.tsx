@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState, useRef } from "react";
+import { createRequestKeyHolder } from "../utils/requestKey";
+
+const entryRequestKey = createRequestKeyHolder("entry");
+import { todayYMD } from "../utils/businessDate";
 import { useAuth } from "../hooks/useAuth";
 import { getActiveBranchId } from "../services/dataSync";
 import {
@@ -13,9 +17,9 @@ import {
   FileCheck,
 } from "lucide-react";
 
+// Today's business date in GMT+2 (Butembo/Beni), not the browser's timezone.
 function getTodayDate(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYMD();
 }
 
 interface ExchangeRate {
@@ -918,6 +922,8 @@ export default function Entry() {
         headers: {
           "Content-Type": "application/json",
           ...authHeader(),
+          // Same key on a retry: the cash entry is recorded once.
+          "Idempotency-Key": entryRequestKey.get(),
         },
         body: JSON.stringify(body),
       });
@@ -930,6 +936,7 @@ export default function Entry() {
         throw new Error(msg);
       }
 
+      entryRequestKey.reset();
       console.log("Entry created successfully:", data);
 
       // Get the entry ID from the API response

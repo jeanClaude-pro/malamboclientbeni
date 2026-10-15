@@ -59,6 +59,14 @@ interface Transfer {
     deliveryNotes: string;
   };
   status: "pending" | "in_transit" | "delivered" | "cancelled";
+  // Branch-to-branch accounting (new transfers). Legacy ones have neither.
+  sourceBranchId?: string;
+  destinationBranchId?: string | null;
+  inventoryDeducted?: boolean;
+  dispatchedAt?: string;
+  dispatchedBy?: string;
+  stockReturned?: boolean;
+  cancellationReason?: string;
   deliveredAt: string | null;
   deliveryConfirmedBy: string;
   notes: string;
@@ -315,6 +323,32 @@ export default function TransfertHistory() {
     setShowDeliveryModal(true);
   };
 
+  // Expédier: the stock leaves this branch now (server: PATCH /dispatch).
+  const canDispatch = (t: Transfer) =>
+    Boolean(t.sourceBranchId) && !t.inventoryDeducted && (t.status === "pending" || t.status === "in_transit");
+  // "Livré" by hand only for an external destination — a branch destination
+  // is closed by that branch's reception.
+  const canConfirmDelivery = (t: Transfer) =>
+    t.status !== "delivered" && t.status !== "cancelled" && !t.destinationBranchId;
+
+  const handleDispatch = async (transfer: Transfer) => {
+    if (!window.confirm(`Expédier le transfert ${transfer.transferId} ? ${transfer.product.totalPieces.toLocaleString()} pièce(s) de « ${transfer.product.name} » quittent le stock de cette agence maintenant.`)) return;
+    try {
+      setError(null);
+      const result = await apiFetch<{ inventory: { deducted: number; remainingStock: number } }>(
+        `/transfers/${transfer._id}/dispatch`,
+        { method: "PATCH", body: JSON.stringify({}) }
+      );
+      setMessage(`Transfert expédié : ${result.inventory.deducted.toLocaleString()} pièce(s) déduite(s). Stock restant : ${Number(result.inventory.remainingStock ?? 0).toLocaleString()}.`);
+      setShowModal(false);
+      await fetchTransfers();
+      window.dispatchEvent(new CustomEvent("appDataChanged", { detail: { resource: "products" } }));
+      setTimeout(() => setMessage(null), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible d'expédier le transfert");
+    }
+  };
+
   const handleConfirmDelivery = async () => {
     if (!editingTransfer || confirmingDelivery) return;
     try {
@@ -325,7 +359,9 @@ export default function TransfertHistory() {
         { method: "PATCH", body: JSON.stringify({ reason: deliveryReason }) }
       );
       setMessage(
-        `Livraison confirmée : ${result.inventory.deducted.toLocaleString()} pièce(s) déduite(s). Stock restant : ${result.inventory.remainingStock.toLocaleString()}.`
+        editingTransfer.inventoryDeducted
+          ? "Livraison confirmée (le stock avait été déduit à l'expédition)."
+          : `Livraison confirmée : ${Number(result.inventory.deducted ?? 0).toLocaleString()} pièce(s) déduite(s). Stock restant : ${Number(result.inventory.remainingStock ?? 0).toLocaleString()}.`
       );
       setShowDeliveryModal(false);
       setShowModal(false);
@@ -706,7 +742,16 @@ export default function TransfertHistory() {
                           >
                             <Navigation className="w-4 h-4" />
                           </button>
-                          {transfer.status !== "delivered" && transfer.status !== "cancelled" && (
+                          {canDispatch(transfer) && (
+                            <button
+                              onClick={() => handleDispatch(transfer)}
+                              className="min-h-9 rounded-lg bg-blue-700 px-2.5 text-xs font-bold text-white hover:bg-blue-800 inline-flex items-center gap-1"
+                              title="Expédier : le stock quitte cette agence"
+                            >
+                              <Navigation className="w-4 h-4" /> Expédier
+                            </button>
+                          )}
+                          {canConfirmDelivery(transfer) && !canDispatch(transfer) && (
                             <button
                               onClick={() => openDeliveryModal(transfer)}
                               className="min-h-9 rounded-lg bg-emerald-700 px-2.5 text-xs font-bold text-white hover:bg-emerald-800 inline-flex items-center gap-1"
@@ -907,7 +952,16 @@ export default function TransfertHistory() {
                   <Navigation className="w-4 h-4" />
                   Changer statut
                 </button>
-                {selectedTransfer.status !== "delivered" && selectedTransfer.status !== "cancelled" && (
+                {canDispatch(selectedTransfer) && (
+                  <button
+                    onClick={() => handleDispatch(selectedTransfer)}
+                    className="min-h-11 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 flex items-center gap-2 font-semibold"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Expédier
+                  </button>
+                )}
+                {canConfirmDelivery(selectedTransfer) && !canDispatch(selectedTransfer) && (
                   <button
                     onClick={() => openDeliveryModal(selectedTransfer)}
                     className="min-h-11 px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 flex items-center gap-2 font-semibold"
@@ -996,9 +1050,15 @@ export default function TransfertHistory() {
                   className="w-full p-2 border border-gray-300 rounded-lg"
                 >
                   <option value="pending">En attente</option>
-                  <option value="in_transit">En transit</option>
+                  {!editingTransfer.sourceBranchId && <option value="in_transit">En transit</option>}
                   <option value="cancelled">Annulé</option>
                 </select>
+                {editingTransfer.sourceBranchId && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    La mise en transit se fait avec « Expédier » (le stock quitte l'agence).
+                    {editingTransfer.inventoryDeducted && " Annuler ce transfert expédié rend son stock à cette agence ; une raison est requise."}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-gray-500">
                   Le statut « Livré » est appliqué automatiquement lors de la confirmation d'une réception dans Réception de Transfert — il ne peut pas être choisi ici.
                 </p>
