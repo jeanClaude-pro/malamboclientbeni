@@ -9,6 +9,7 @@ import { defaultPeriod, formatDayFr, formatMonthFr, periodLabel, stockReportPara
 import { formatDateTimeGmt2 } from "../../utils/time";
 import { formatCartonsPieces, formatPieces } from "../../utils/quantity";
 import { downloadProductStockPdf } from "../../utils/stockReportPdf";
+import StockDocumentsPanel from "./StockDocumentsPanel";
 import type { ProductStockReport, StockMovementTotals, StockReportRow, StockTransaction } from "../../types/stockReport";
 
 interface ProductStockSheetProps {
@@ -54,7 +55,7 @@ export default function ProductStockSheet({ productId, productName, initialPerio
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef(0);
-  const [view, setView] = useState<"operations" | "days">("operations");
+  const [view, setView] = useState<"operations" | "days" | "documents">("operations");
   const [showQuietDays, setShowQuietDays] = useState(false);
 
   const load = useCallback(async () => {
@@ -89,6 +90,9 @@ export default function ProductStockSheet({ productId, productName, initialPerio
   const item = report?.item;
   const ppc = item?.piecesPerCarton || 1;
   const transactions = useMemo(() => report?.transactions || [], [report]);
+  const documents = useMemo(() => report?.documents || [], [report]);
+  const documentsSummary = report?.documentsSummary;
+  const documentsWithoutEffect = documents.filter((doc) => doc.status !== "counted").length;
   const rows = useMemo(() => {
     const all = report?.item.rows || [];
     return showQuietDays ? all : all.filter(rowHasActivity);
@@ -177,7 +181,7 @@ export default function ProductStockSheet({ productId, productName, initialPerio
           <section aria-labelledby="stock-detail-heading" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 id="stock-detail-heading" className="text-sm font-bold text-slate-900">Détail de la période</h3>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm" role="tablist">
+              <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-0.5 text-sm" role="tablist">
                 <button
                   type="button"
                   role="tab"
@@ -196,6 +200,20 @@ export default function ProductStockSheet({ productId, productName, initialPerio
                 >
                   {monthly ? "Par mois" : "Par jour"}
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === "documents"}
+                  onClick={() => setView("documents")}
+                  className={`rounded-md px-3 py-1.5 font-semibold ${view === "documents" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  Documents ({documents.length.toLocaleString("fr-FR")})
+                  {(documentsSummary?.mismatch ?? 0) > 0 && (
+                    <span className="ml-1 rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white" aria-label={`${documentsSummary?.mismatch} écart(s)`}>
+                      {documentsSummary?.mismatch}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -207,7 +225,18 @@ export default function ProductStockSheet({ productId, productName, initialPerio
                   </p>
                 )}
                 {transactions.length === 0 ? (
-                  <p className="rounded-xl border border-slate-200 bg-white py-8 text-center text-sm text-slate-500">Aucune opération de stock sur cette période.</p>
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                    <p>Aucune opération de stock sur cette période.</p>
+                    {documents.length > 0 && (
+                      <p className="mt-2">
+                        Les historiques listent {documents.length.toLocaleString("fr-FR")} document{documents.length > 1 ? "s" : ""} pour cet article sur cette période
+                        {documentsWithoutEffect > 0 ? " sans mouvement de stock" : ""}.{" "}
+                        <button type="button" onClick={() => setView("documents")} className="font-semibold text-indigo-700 underline">
+                          Voir pourquoi
+                        </button>
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <div className="app-data-scroll desktop-data-table max-h-[28rem] rounded-xl border border-slate-200">
@@ -267,6 +296,17 @@ export default function ProductStockSheet({ productId, productName, initialPerio
                   </>
                 )}
               </>
+            )}
+
+            {view === "documents" && (
+              <StockDocumentsPanel
+                key={`${report.period.from}-${report.period.to}`}
+                documents={documents}
+                summary={documentsSummary}
+                piecesPerCarton={ppc}
+                truncated={report.documentsTruncated}
+                error={report.documentsError}
+              />
             )}
 
             {view === "days" && (

@@ -36,6 +36,8 @@ import { fetchExport } from "../services/reportApi";
 import { defaultPeriod, fromGmt2DateTimeInput, periodLabel, rangeParams, toGmt2DateTimeInput, todayYMD, type PeriodValue } from "../utils/businessDate";
 import { downloadTableReportPdf, formatMoneyPdf, pdfFileStamp } from "../utils/reportPdf";
 import { formatCartonsPieces } from "../utils/quantity";
+import StockImpactBadge from "../components/stock/StockImpactBadge";
+import type { StockImpact } from "../types/stockReport";
 import { downloadCsv } from "../utils/csvExport";
 
 interface TripProduct {
@@ -56,6 +58,8 @@ interface ProductOption {
 }
 
 interface CarTrip {
+  /** Whether the trip moved stock (server rule shared with the Fiche de stock). */
+  stockImpact?: StockImpact;
   _id: string;
   branchId?: "butembo" | "beni";
   tripId: string;
@@ -907,6 +911,10 @@ export default function CarsHistory() {
         </div>
 
         <PeriodSelector value={period} onChange={setPeriod} />
+        <p className="text-xs text-slate-500">
+          Un camion arrivé est classé au jour de son arrivée (jour où sa marchandise entre en stock, comme dans la fiche de stock) ;
+          un camion pas encore arrivé, au jour de sa création.
+        </p>
         
         {/* Search Bar */}
         <div className="relative">
@@ -951,6 +959,9 @@ export default function CarsHistory() {
                       <div className="min-w-0"><p className="truncate text-sm font-black text-slate-950">{trip.tripId}</p><p className="mt-1 text-xs text-slate-500">{trip.origin} → {trip.destination}</p></div>
                       <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${statusColors[trip.status]}`}>{getStatusIcon(trip.status)}{statusLabels[trip.status]}</span>
                     </div>
+                    {trip.stockImpact && !trip.stockImpact.affectsStock && (
+                      <div className="mt-2"><StockImpactBadge impact={trip.stockImpact} compact /><p className="mt-1 text-[11px] text-slate-500">{trip.stockImpact.reason}</p></div>
+                    )}
                     <div className="mt-3 space-y-2">
                       {getTripProducts(trip).map((product) => (
                         <div key={`${trip._id}-${product.productId}`} className="rounded-xl bg-slate-50 p-3">
@@ -998,6 +1009,7 @@ export default function CarsHistory() {
                           {getStatusIcon(trip.status)}
                           {statusLabels[trip.status]}
                         </span>
+                        {trip.stockImpact && !trip.stockImpact.affectsStock && <div className="mt-1"><StockImpactBadge impact={trip.stockImpact} /></div>}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{trip.driver.name}</div>

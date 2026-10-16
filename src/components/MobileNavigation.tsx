@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion, useDragControls } from "framer-motion";
-import { ArrowLeftRight, Home, LayoutGrid, LogOut, X } from "lucide-react";
+import { ArrowLeftRight, Home, LayoutGrid, LogOut, Search, X } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MODULE_SECTIONS, canSwitchBranch, navigableModules, ROLE_DEFINITIONS } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
@@ -37,6 +37,7 @@ export default function MobileNavigation() {
   const navigate = useNavigate();
   // Keyed to the path so the sheet closes on any navigation, including the back button.
   const [openPath, setOpenPath] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const open = openPath === location.pathname;
   const typing = useTypingFocus();
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -48,11 +49,14 @@ export default function MobileNavigation() {
     const preferred = ["pos", "products", "transfert", "transfer-reception", "sales", "reports", "historicsortie"];
     return preferred.map((id) => accessible.find((item) => item.id === id)).filter(Boolean).slice(0, 3) as typeof accessible;
   }, [accessible]);
-  const primaryIds = new Set(primary.map((item) => item.id));
-  const additional = accessible.filter((item) => !primaryIds.has(item.id));
+  const normalizedQuery = query.trim().toLocaleLowerCase("fr");
+  const filteredModules = normalizedQuery
+    ? accessible.filter((module) => `${module.label} ${module.description}`.toLocaleLowerCase("fr").includes(normalizedQuery))
+    : accessible;
 
   const close = (restoreFocus = true) => {
     setOpenPath(null);
+    setQuery("");
     if (restoreFocus) moreButton.current?.focus({ preventScroll: true });
   };
 
@@ -156,8 +160,21 @@ export default function MobileNavigation() {
                   </div>
                 </div>
 
+                <label className="mobile-module-search">
+                  <Search aria-hidden="true" className="h-4 w-4" />
+                  <span className="sr-only">Rechercher un module</span>
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={"Rechercher un module\u2026"}
+                    autoComplete="off"
+                  />
+                  <span className="mobile-module-count" aria-label={`${filteredModules.length} modules`}>{filteredModules.length}</span>
+                </label>
+
                 {MODULE_SECTIONS.map((section) => {
-                  const items = additional.filter((module) => module.section === section);
+                  const items = filteredModules.filter((module) => module.section === section);
                   if (!items.length) return null;
                   return (
                     <div key={section}>
@@ -183,6 +200,12 @@ export default function MobileNavigation() {
                     </div>
                   );
                 })}
+
+                {!filteredModules.length && (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                    Aucun module ne correspond &agrave; "{query}".
+                  </div>
+                )}
 
                 <button type="button" onClick={logout} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-extrabold text-rose-700 shadow-sm active:scale-[.99] active:bg-rose-50">
                   <LogOut className="h-5 w-5" /> Déconnexion

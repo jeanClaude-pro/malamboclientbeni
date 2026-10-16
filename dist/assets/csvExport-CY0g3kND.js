@@ -1,0 +1,2 @@
+import{c as i}from"./index-DzX_dWYR.js";const l=[["polygon",{points:"3 11 22 2 13 21 11 13 3 11",key:"1ltx0t"}]],u=i("navigation",l);function d(t){const n=String(t??"");return/[",;\n\r]/.test(n)?`"${n.replace(/"/g,'""')}"`:n}function v(t,n,e){const s=[n,...e].map(a=>a.map(d).join(",")).join(`\r
+`),r=new Blob(["\uFEFF",s],{type:"text/csv;charset=utf-8"}),c=URL.createObjectURL(r),o=document.createElement("a");o.href=c,o.download=t.endsWith(".csv")?t:`${t}.csv`,o.click(),URL.revokeObjectURL(c)}export{u as N,v as d};

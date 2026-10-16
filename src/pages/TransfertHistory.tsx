@@ -35,9 +35,13 @@ import { fetchExport } from "../services/reportApi";
 import { defaultPeriod, periodLabel, rangeParams, type PeriodValue } from "../utils/businessDate";
 import { downloadTableReportPdf, pdfFileStamp } from "../utils/reportPdf";
 import { formatCartonsPieces } from "../utils/quantity";
+import StockImpactBadge from "../components/stock/StockImpactBadge";
+import type { StockImpact } from "../types/stockReport";
 import { downloadCsv } from "../utils/csvExport";
 
 interface Transfer {
+  /** Whether the transfer moved stock (server rule shared with the Fiche de stock). */
+  stockImpact?: StockImpact;
   _id: string;
   branchId?: "butembo" | "beni";
   transferId: string;
@@ -694,6 +698,7 @@ export default function TransfertHistory() {
                           {getStatusIcon(transfer.status)}
                           {statusLabels[transfer.status]}
                         </span>
+                        {transfer.stockImpact && !transfer.stockImpact.affectsStock && <div className="mt-1"><StockImpactBadge impact={transfer.stockImpact} /></div>}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{transfer.sourceLocation}</div>

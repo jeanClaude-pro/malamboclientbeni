@@ -485,7 +485,7 @@ export default function Cars() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl font-semibold text-lg transition-all duration-200 disabled:opacity-50 shadow-lg border border-blue-400/30 flex items-center justify-center gap-2"
+            className="app-floating-submit w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl font-semibold text-lg transition-all duration-200 disabled:opacity-50 shadow-lg border border-blue-400/30 flex items-center justify-center gap-2"
           >
             {submitting ? (
               <>

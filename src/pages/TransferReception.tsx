@@ -500,7 +500,7 @@ export default function TransferReception() {
           <button
             type="submit"
             disabled={submitting || totalPieces <= 0 || !productId}
-            className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3.5 rounded-xl hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+            className="app-floating-submit w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3.5 rounded-xl hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
           >
             {submitting ? (
               <>

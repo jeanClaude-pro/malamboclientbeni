@@ -1376,7 +1376,7 @@ export default function Products() {
               </div>
 
               {/* Form Actions */}
-              <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
+              <div className="app-dialog-actions flex justify-end gap-3 pt-6 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => {

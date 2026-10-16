@@ -6,7 +6,7 @@ import ProductStockSheet from "../components/stock/ProductStockSheet";
 import { fetchReport } from "../services/reportApi";
 import { DATA_CHANGED_EVENT, getActiveBranchId } from "../services/dataSync";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import { defaultPeriod, periodLabel, stockReportParams, type PeriodValue } from "../utils/businessDate";
+import { defaultPeriod, formatDayFr, periodLabel, stockReportParams, type PeriodValue } from "../utils/businessDate";
 import { formatCartonsPieces } from "../utils/quantity";
 import { downloadGlobalStockPdf } from "../utils/stockReportPdf";
 import type { GlobalStockReport, GlobalStockScope, StockReportItem } from "../types/stockReport";
@@ -131,6 +131,54 @@ export default function StockSheet() {
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             {warningCount} article{warningCount > 1 ? "s présentent" : " présente"} un point de rapprochement à vérifier (marqués ⚠). Ouvrez la fiche de l'article pour le détail.
           </div>
+        )}
+
+        {report?.documentsError && (
+          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{report.documentsError} Les chiffres de la fiche restent exacts.</p>
+        )}
+        {report?.documentsSummary && report.documentsSummary.total > 0 && (
+          <section
+            className={`rounded-xl border p-3 text-sm ${report.documentsSummary.mismatch > 0 ? "border-red-200 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}
+            aria-label="Rapprochement avec les historiques"
+          >
+            <p className="font-semibold">
+              Historiques de la période : {report.documentsSummary.total.toLocaleString("fr-FR")} ligne{report.documentsSummary.total > 1 ? "s" : ""} document × article —{" "}
+              {report.documentsSummary.counted.toLocaleString("fr-FR")} comptée{report.documentsSummary.counted > 1 ? "s" : ""} dans la fiche,{" "}
+              {report.documentsSummary.noEffect.toLocaleString("fr-FR")} sans impact sur le stock
+              {report.documentsSummary.deleted > 0 && <>, {report.documentsSummary.deleted.toLocaleString("fr-FR")} supprimée{report.documentsSummary.deleted > 1 ? "s" : ""}</>}
+              {report.documentsSummary.mismatch > 0
+                ? <>, <strong>{report.documentsSummary.mismatch.toLocaleString("fr-FR")} écart{report.documentsSummary.mismatch > 1 ? "s" : ""}</strong>.</>
+                : ". La fiche et les historiques concordent."}
+            </p>
+            {(report.mismatches?.length ?? 0) > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer font-semibold">Voir les écarts</summary>
+                <ul className="mt-1 space-y-1 text-xs">
+                  {report.mismatches!.slice(0, 100).map((doc) => (
+                    <li key={`${doc.reference}-${doc.productId}`}>
+                      <strong>{doc.day ? formatDayFr(doc.day) : "—"}</strong> · {doc.kindLabel} <span className="font-mono">{doc.reference}</span>
+                      {doc.productName ? ` · ${doc.productName}` : ""} — {doc.message}
+                    </li>
+                  ))}
+                  {report.mismatches!.length > 100 && <li>… {report.mismatches!.length - 100} autre(s) : ouvrez la fiche de l'article.</li>}
+                </ul>
+              </details>
+            )}
+            {(report.productsWithoutMovement?.length ?? 0) > 0 && (
+              <details className="mt-2 text-slate-800">
+                <summary className="cursor-pointer font-semibold">
+                  {report.productsWithoutMovement!.length.toLocaleString("fr-FR")} article{report.productsWithoutMovement!.length > 1 ? "s" : ""} dans les historiques sans mouvement de stock (non listé{report.productsWithoutMovement!.length > 1 ? "s" : ""} ci-dessous)
+                </summary>
+                <ul className="mt-1 space-y-1 text-xs">
+                  {report.productsWithoutMovement!.map((product) => (
+                    <li key={product.productId}>
+                      <strong>{product.name || product.productId}</strong> — {product.reasons.join(" · ")}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </section>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3">

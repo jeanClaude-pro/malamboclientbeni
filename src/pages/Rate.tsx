@@ -384,7 +384,7 @@ export default function TauxChange() {
                 <button
                   type="submit"
                   disabled={submitting || !form.rate}
-                  className={`w-full md:w-auto px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-200 ${
+                  className={`app-floating-submit w-full md:w-auto px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-200 ${
                     submitting || !form.rate
                       ? 'bg-slate-100 cursor-not-allowed text-slate-400 border border-slate-200'
                       : 'bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-lg shadow-blue-900/50 border border-blue-400/30'

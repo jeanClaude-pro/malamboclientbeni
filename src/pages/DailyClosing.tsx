@@ -121,7 +121,8 @@ function TotalsTable({ totals, title }: { totals: DayTotals; title: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="mb-3 text-sm font-bold text-slate-700">{title}</h3>
-      <table className="w-full text-sm">
+      <div className="app-data-scroll">
+      <table className="w-full min-w-[28rem] text-sm">
         <tbody>
           <tr className="text-slate-500">
             <td className="py-1">
@@ -154,6 +155,7 @@ function TotalsTable({ totals, title }: { totals: DayTotals; title: string }) {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -238,14 +240,14 @@ export default function DailyClosing() {
   const status = detail?.status || "open";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
+    <div className="app-page mx-auto max-w-6xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-800">
           <CalendarCheck className="h-6 w-6 text-blue-600" /> Clôture journalière
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           <button type="button" onClick={() => setDate(addDays(date, -1))} className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">←</button>
-          <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+          <input type="date" value={date} max={todayYMD()} onChange={(e) => e.target.value && setDate(e.target.value)} className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm sm:flex-none" />
           <button type="button" onClick={() => setDate(addDays(date, 1))} disabled={date >= todayYMD()} className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40">→</button>
           <button type="button" onClick={() => void load()} className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50" title="Actualiser">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -276,7 +278,7 @@ export default function DailyClosing() {
         <div className="flex flex-wrap items-center gap-2">
           {status !== "closed" && (
             <>
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note de clôture (facultatif)" className="w-64 rounded-lg border px-3 py-2 text-sm" />
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note de clôture (facultatif)" className="w-full rounded-lg border px-3 py-2 text-sm sm:w-64" />
               <button type="button" onClick={() => void close()} disabled={loading || isFuture} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
                 <Lock className="h-4 w-4" /> Clôturer la journée
               </button>
@@ -328,7 +330,8 @@ export default function DailyClosing() {
       {detail?.closing && detail.closing.history.length > 0 && (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-2 text-sm font-bold text-slate-700">Historique de la journée</h3>
-          <table className="w-full text-sm">
+          <div className="app-data-scroll">
+          <table className="w-full min-w-[42rem] text-sm">
             <thead className="text-left text-xs uppercase text-slate-500">
               <tr><th className="py-1">Quand</th><th>Action</th><th>Par</th><th>Référence</th><th>Raison</th></tr>
             </thead>
@@ -344,6 +347,7 @@ export default function DailyClosing() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -352,7 +356,8 @@ export default function DailyClosing() {
         {list.length === 0 ? (
           <div className="text-sm text-slate-500">Aucune journée clôturée sur cette période.</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="app-data-scroll">
+          <table className="w-full min-w-[38rem] text-sm">
             <thead className="text-left text-xs uppercase text-slate-500">
               <tr><th className="py-1">Jour</th><th>Statut</th><th>Par</th><th className="text-right">Solde de clôture</th><th className="text-right">Corrections</th></tr>
             </thead>
@@ -368,6 +373,7 @@ export default function DailyClosing() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

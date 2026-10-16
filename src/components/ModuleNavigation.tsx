@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Home, LayoutGrid } from "lucide-react";
+import { ChevronDown, Home, LayoutGrid, Search, X } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { MODULE_SECTIONS, navigableModules, type ModuleAccess } from "../config/access";
 import { useAuth } from "../hooks/useAuth";
@@ -39,7 +39,9 @@ export default function ModuleNavigation() {
   const ruler = useRef<HTMLDivElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const [visible, setVisible] = useState<number[]>(() => modules.map((_, index) => index));
+  const [query, setQuery] = useState("");
   // Keyed to the path so the menu closes on any navigation, including back/forward.
   const [openPath, setOpenPath] = useState<string | null>(null);
   const open = openPath === pathname;
@@ -65,11 +67,15 @@ export default function ModuleNavigation() {
     if (!open) return;
     const closeOnOutside = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!panel.current?.contains(target) && !moreButton.current?.contains(target)) setOpenPath(null);
+      if (!panel.current?.contains(target) && !moreButton.current?.contains(target)) {
+        setOpenPath(null);
+        setQuery("");
+      }
     };
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpenPath(null);
+      setQuery("");
       moreButton.current?.focus();
     };
     document.addEventListener("pointerdown", closeOnOutside);
@@ -80,9 +86,16 @@ export default function ModuleNavigation() {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => searchInput.current?.focus({ preventScroll: true }));
+  }, [open]);
+
   const shown = new Set(visible.filter((index) => index < modules.length));
-  const overflow = modules.filter((_, index) => !shown.has(index));
-  const overflowActive = overflow.some((module) => samePath(module.path, pathname));
+  const normalizedQuery = query.trim().toLocaleLowerCase("fr");
+  const matchingModules = normalizedQuery
+    ? modules.filter((module) => `${module.label} ${module.description}`.toLocaleLowerCase("fr").includes(normalizedQuery))
+    : modules;
 
   const focusPanelLink = (step: number) => {
     const links = Array.from(panel.current?.querySelectorAll<HTMLElement>("a") ?? []);
@@ -94,7 +107,7 @@ export default function ModuleNavigation() {
     if (event.key !== "ArrowDown") return;
     event.preventDefault();
     setOpenPath(pathname);
-    requestAnimationFrame(() => focusPanelLink(1));
+    requestAnimationFrame(() => searchInput.current?.focus({ preventScroll: true }));
   };
   const onPanelKeyDown = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -123,24 +136,26 @@ export default function ModuleNavigation() {
         <ul ref={list} className="module-nav-list">
           {railLink("home", "/", "Accueil", Home)}
           {[...shown].map((index) => railLink(modules[index].id, modules[index].path, modules[index].label, modules[index].icon))}
-          {overflow.length > 0 && (
-            <li>
-              <button
-                ref={moreButton}
-                type="button"
-                onClick={() => setOpenPath(open ? null : pathname)}
-                onKeyDown={onMoreKeyDown}
-                aria-expanded={open}
-                aria-controls="module-nav-panel"
-                className={`compact-control module-nav-link module-nav-more${open ? " module-nav-more-open" : ""}${overflowActive ? " module-nav-link-active" : ""}`}
-              >
-                <span className="module-nav-icon"><LayoutGrid aria-hidden="true" className="h-4 w-4" /></span>
-                <span className="module-nav-label">Plus</span>
-                <span className="module-nav-count" aria-label={`${overflow.length} modules`}>{overflow.length}</span>
-                <ChevronDown aria-hidden="true" className="module-nav-chevron h-4 w-4" />
-              </button>
-            </li>
-          )}
+          <li className="ml-auto">
+            <button
+              ref={moreButton}
+              type="button"
+              onClick={() => {
+                setOpenPath(open ? null : pathname);
+                if (open) setQuery("");
+              }}
+              onKeyDown={onMoreKeyDown}
+              aria-expanded={open}
+              aria-controls="module-nav-panel"
+              aria-label={`Ouvrir tous les modules (${modules.length})`}
+              className={`compact-control module-nav-link module-nav-more${open ? " module-nav-more-open" : ""}`}
+            >
+              <span className="module-nav-icon"><LayoutGrid aria-hidden="true" className="h-4 w-4" /></span>
+              <span className="module-nav-label">Modules</span>
+              <span className="module-nav-count" aria-hidden="true">{modules.length}</span>
+              <ChevronDown aria-hidden="true" className="module-nav-chevron h-4 w-4" />
+            </button>
+          </li>
         </ul>
 
         {/* Off-screen copy of every item at its natural width, used by fitModules. */}
@@ -148,7 +163,7 @@ export default function ModuleNavigation() {
           {[{ id: "home", label: "Accueil", icon: Home }, ...modules].map(({ id, label, icon: Icon }) => (
             <span key={id} className="module-nav-link"><span className="module-nav-icon"><Icon className="h-4 w-4" /></span><span className="module-nav-label">{label}</span></span>
           ))}
-          <span className="module-nav-link module-nav-more"><span className="module-nav-icon"><LayoutGrid className="h-4 w-4" /></span><span className="module-nav-label">Plus</span><span className="module-nav-count">00</span><ChevronDown className="h-4 w-4" /></span>
+          <span className="module-nav-link module-nav-more"><span className="module-nav-icon"><LayoutGrid className="h-4 w-4" /></span><span className="module-nav-label">Modules</span><span className="module-nav-count">00</span><ChevronDown className="h-4 w-4" /></span>
         </div>
 
         <AnimatePresence>
@@ -163,8 +178,32 @@ export default function ModuleNavigation() {
               exit={{ opacity: 0, y: -4, scale: 0.98, transition: { duration: 0.12 } }}
               transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
             >
+              <div className="module-launcher-header">
+                <div>
+                  <h2 className="module-launcher-title">Tous les modules</h2>
+                  <p className="module-launcher-subtitle">Retrouvez rapidement chaque outil autoris&eacute;.</p>
+                </div>
+                <span className="module-launcher-total">{modules.length}</span>
+              </div>
+              <label className="module-launcher-search">
+                <Search aria-hidden="true" className="h-4 w-4" />
+                <span className="sr-only">Rechercher un module</span>
+                <input
+                  ref={searchInput}
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={"Rechercher un module\u2026"}
+                  autoComplete="off"
+                />
+                {query && (
+                  <button type="button" onClick={() => setQuery("")} className="compact-control module-launcher-clear" aria-label="Effacer la recherche">
+                    <X aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                )}
+              </label>
               {MODULE_SECTIONS.map((section) => {
-                const items = overflow.filter((module) => module.section === section);
+                const items = matchingModules.filter((module) => module.section === section);
                 if (!items.length) return null;
                 return (
                   <section key={section} className="module-nav-section">
@@ -172,7 +211,7 @@ export default function ModuleNavigation() {
                     <ul className="module-nav-grid">
                       {items.map(({ id, label, description, path, icon: Icon }) => (
                         <li key={id}>
-                          <NavLink to={path} end onClick={() => setOpenPath(null)} className={({ isActive }) => `module-nav-card${isActive ? " module-nav-card-active" : ""}`}>
+                          <NavLink to={path} end onClick={() => { setOpenPath(null); setQuery(""); }} className={({ isActive }) => `module-nav-card${isActive ? " module-nav-card-active" : ""}`}>
                             <span className="module-nav-card-icon"><Icon aria-hidden="true" className="h-4 w-4" /></span>
                             <span className="min-w-0">
                               <span className="module-nav-card-label">{label}</span>
@@ -185,6 +224,12 @@ export default function ModuleNavigation() {
                   </section>
                 );
               })}
+              {!matchingModules.length && (
+                <div className="module-launcher-empty">
+                  <Search aria-hidden="true" className="h-5 w-5" />
+                  <p>Aucun module ne correspond &agrave; "{query}".</p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

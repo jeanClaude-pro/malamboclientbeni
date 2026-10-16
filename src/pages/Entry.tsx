@@ -1270,7 +1270,7 @@ export default function Entry() {
             <button
               type="submit"
               disabled={!isFormValid || submitting}
-              className={`w-full px-8 py-4 rounded-xl font-medium text-lg flex items-center justify-center gap-2 transition-all duration-200 ${
+              className={`app-floating-submit w-full px-8 py-4 rounded-xl font-medium text-lg flex items-center justify-center gap-2 transition-all duration-200 ${
                 isFormValid && !submitting
                   ? "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-lg shadow-blue-900/50 border border-blue-400/30"
                   : "bg-slate-200 cursor-not-allowed text-slate-400 border border-slate-300"

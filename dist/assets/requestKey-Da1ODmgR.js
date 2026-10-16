@@ -1,0 +1,1 @@
+function r(t="op"){return typeof globalThis.crypto?.randomUUID=="function"?globalThis.crypto.randomUUID():`${t}-${Date.now()}-${Math.random().toString(36).slice(2,12)}`}function n(t="op"){let e=null;return{get(){return e||(e=r(t)),e},reset(){e=null}}}export{n as c};

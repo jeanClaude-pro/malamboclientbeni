@@ -514,7 +514,7 @@ export default function Sortie() {
             <button
               type="submit"
               disabled={!isFormValid || submitting}
-              className={`w-full py-4 px-4 rounded-xl text-white font-semibold transition-all duration-200 ${
+              className={`app-floating-submit w-full py-4 px-4 rounded-xl text-white font-semibold transition-all duration-200 ${
                 isFormValid && !submitting
                   ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-900/50 border border-blue-400/30 transform hover:scale-[1.02]"
                   : "bg-slate-200 cursor-not-allowed text-slate-400 border border-slate-300"

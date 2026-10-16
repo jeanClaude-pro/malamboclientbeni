@@ -2181,7 +2181,7 @@ export default function NewSale() {
             type="submit"
             onClick={handleSale}
             disabled={!isFormValid || submitting}
-            className={`w-full px-6 py-3.5 rounded-xl font-medium text-base transition-all duration-200 lg:sticky lg:bottom-0 lg:z-10 ${
+            className={`app-floating-submit w-full px-6 py-3.5 rounded-xl font-medium text-base transition-all duration-200 lg:sticky lg:bottom-0 lg:z-10 ${
               isFormValid && !submitting
                 ? isCreditSale
                   ? "bg-gradient-to-r from-amber-600 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white shadow-lg shadow-amber-900/50 border border-amber-400/30"

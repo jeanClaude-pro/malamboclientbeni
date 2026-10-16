@@ -21,7 +21,7 @@ export interface StockReportRow extends StockMovementTotals {
 }
 
 export interface StockReportWarning {
-  code: "untracked_opening" | "negative_balance" | "carton_size_changed" | "reconciliation_mismatch" | string;
+  code: "untracked_opening" | "negative_balance" | "carton_size_changed" | "reconciliation_mismatch" | "document_mismatch" | string;
   message: string;
 }
 
@@ -36,6 +36,8 @@ export interface StockReportItem extends StockMovementTotals {
   breakdown: Record<string, number>;
   rows?: StockReportRow[];
   warnings: StockReportWarning[];
+  /** Check of the history documents of the period (global sheet). */
+  documents?: StockDocumentsSummary;
 }
 
 export interface StockReportPeriod {
@@ -60,6 +62,76 @@ export interface GlobalStockReport {
   generatedAt: string;
   count: number;
   items: StockReportItem[];
+  documentsSummary?: StockDocumentsSummary | null;
+  documentsTruncated?: StockDocumentKind[];
+  /** Set when the history check could not run (the sheet itself is still exact). */
+  documentsError?: string;
+  /** Products listed in a history this period without any stock movement. */
+  productsWithoutMovement?: ProductWithoutMovement[];
+  mismatches?: StockDocument[];
+}
+
+// ---------------------------------------------------------------------------
+// History documents of the period matched with the stock movements
+// (server/services/stockDocuments.js — rules in services/operationRules.js)
+// ---------------------------------------------------------------------------
+
+export type StockDocumentKind = "sale" | "trip" | "transfer" | "reception";
+
+/**
+ * counted   — the stock moved by what the document says, on its history day
+ * no_effect — the document does not move stock (reason given)
+ * mismatch  — should have moved stock and did not / other quantity / other day
+ * deleted   — movements of a deleted document (they cancel out)
+ */
+export type StockDocumentStatus = "counted" | "no_effect" | "mismatch" | "deleted";
+
+export interface StockDocument {
+  kind: StockDocumentKind;
+  kindLabel: string;
+  /** History screen that lists the document. */
+  history: string;
+  /** "default" / "voided" view of the history; null when not listed. */
+  view: "default" | "voided" | null;
+  id: string | null;
+  reference: string;
+  /** Business date (ISO) — the day the history lists it. */
+  date: string | null;
+  day: string | null;
+  productId: string;
+  productName: string;
+  docStatus: string;
+  docStatusLabel: string;
+  status: StockDocumentStatus;
+  /** Signed pieces the document must move (+ in, − out). */
+  expected: number | null;
+  /** Signed pieces actually moved by its stock movements (all time). */
+  ledger: number | null;
+  /** Signed pieces of its movements inside the period. */
+  inPeriod: number;
+  verifiable: boolean;
+  reason: string;
+  message: string;
+}
+
+export interface StockDocumentsSummary {
+  total: number;
+  counted: number;
+  noEffect: number;
+  mismatch: number;
+  deleted: number;
+}
+
+export interface ProductWithoutMovement extends StockDocumentsSummary {
+  productId: string;
+  name: string;
+  reasons: string[];
+}
+
+/** Added by the history lists (trucks, transfers, receptions) to each row. */
+export interface StockImpact {
+  affectsStock: boolean;
+  reason: string;
 }
 
 /** One stock operation of the period (individual sheet). */
@@ -96,4 +168,8 @@ export interface ProductStockReport {
   item: StockReportItem;
   transactions?: StockTransaction[];
   transactionsTruncated?: boolean;
+  documents?: StockDocument[];
+  documentsSummary?: StockDocumentsSummary | null;
+  documentsTruncated?: StockDocumentKind[];
+  documentsError?: string;
 }
